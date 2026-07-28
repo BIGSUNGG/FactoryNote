@@ -11,24 +11,24 @@
     />
     <style>
       :root {
-        /* typeui sleek — 60-30-10. surface white가 60% 도미넌트. */
-        --primary: #3b82f6;
-        --secondary: #8b5cf6;
-        --success: #16a34a;
-        --warning: #d97706;
-        --danger: #dc2626;
+        /* monotone — 무채형. 액센트는 near-black, 상태는 명도로 구분. */
+        --primary: #111827;
+        --secondary: #111827;
+        --success: #6b7280; /* 완료/해결 = 옅은 회색 */
+        --warning: #111827; /* 미해결/경고 = 강조 검정 */
+        --danger: #111827;
         --surface: #ffffff;
         --text: #111827;
-        --bg: var(--surface); /* 페이지 배경 = 흰(60%) */
-        --muted: rgba(17, 24, 39, 0.55);
-        --border: rgba(17, 24, 39, 0.1);
-        --border-strong: rgba(17, 24, 39, 0.16);
-        /* accent는 10% 이하 — tint는 극옅게 */
-        --primary-tint: rgba(59, 130, 246, 0.06);
-        --secondary-tint: rgba(139, 92, 246, 0.06);
-        --success-tint: rgba(22, 163, 74, 0.08);
-        --warning-tint: rgba(217, 119, 6, 0.08);
-        --danger-tint: rgba(220, 38, 38, 0.08);
+        --bg: var(--surface);
+        --muted: rgba(17, 24, 39, 0.5);
+        --border: rgba(17, 24, 39, 0.12);
+        --border-strong: rgba(17, 24, 39, 0.22);
+        /* tint는 전부 회색 알파 */
+        --primary-tint: rgba(17, 24, 39, 0.06);
+        --secondary-tint: rgba(17, 24, 39, 0.06);
+        --success-tint: rgba(17, 24, 39, 0.05);
+        --warning-tint: rgba(17, 24, 39, 0.06);
+        --danger-tint: rgba(17, 24, 39, 0.06);
         --on-color: var(--surface);
         --radius: 8px;
         --radius-sm: 4px;
