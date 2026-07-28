@@ -932,3 +932,159 @@ button.btn:disabled {
 .edge-arrow {
   color: var(--muted);
 }
+
+/* react-flow 인터랙티브 에디터 */
+.rf-wrap {
+  width: 100%;
+  height: 560px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.rf-module {
+  padding: var(--s2) var(--s3);
+  background: var(--surface);
+  border: 1.5px solid var(--text);
+  border-radius: var(--radius);
+  font-size: 12px;
+  min-width: 120px;
+  text-align: center;
+  cursor: grab;
+}
+.rf-module:active {
+  cursor: grabbing;
+}
+.rf-external {
+  border-radius: 24px;
+  border-style: dashed;
+}
+.rf-mod-name {
+  font-weight: 600;
+  font-family: var(--mono);
+  color: var(--text);
+}
+.rf-mod-layer {
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 2px;
+}
+.rf-wrap .react-flow__handle {
+  width: 8px;
+  height: 8px;
+  background: var(--text);
+  border: 2px solid var(--surface);
+}
+.rf-wrap .react-flow__edge-path {
+  stroke: var(--text);
+  stroke-width: 1.5;
+}
+.rf-wrap .react-flow__edge.selected .react-flow__edge-path,
+.rf-wrap .react-flow__edge:hover .react-flow__edge-path {
+  stroke-width: 2.5;
+}
+.rf-wrap .react-flow__controls button {
+  border-color: var(--border);
+  color: var(--text);
+}
+.field-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: var(--s3) 0 var(--s1);
+}
+.edge-desc-input {
+  width: 100%;
+  padding: var(--s2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 13px;
+}
+.edge-desc-input:focus {
+  outline: none;
+  border-color: var(--text);
+}
+.edge-actions {
+  display: flex;
+  gap: var(--s2);
+  margin-top: var(--s2);
+}
+.mini-btn {
+  flex: 1;
+  padding: var(--s2);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.mini-btn:hover {
+  border-color: var(--text);
+}
+.mini-btn.danger {
+  color: var(--text);
+  border-color: var(--text);
+}
+
+/* 그래프 카드 헤더 (제목 + 추가 버튼) */
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--s3);
+}
+.add-node-btn {
+  padding: var(--s1) var(--s3);
+  border: 1px solid var(--text);
+  background: var(--text);
+  color: var(--on-color);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.add-node-btn:hover {
+  opacity: 0.9;
+}
+
+/* 우클릭 컨텍스트 메뉴 */
+.ctx-menu {
+  z-index: 9999;
+  min-width: 160px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(17, 24, 39, 0.14), 0 2px 6px rgba(17, 24, 39, 0.08);
+  padding: var(--s1);
+  font-size: 13px;
+}
+.ctx-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: var(--s2) var(--s3);
+  border: none;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text);
+}
+.ctx-item:hover {
+  background: rgba(17, 24, 39, 0.06);
+}
+.ctx-item.danger {
+  color: var(--text);
+  font-weight: 600;
+}
+.ctx-item.danger:hover {
+  background: rgba(17, 24, 39, 0.1);
+}
