@@ -10,6 +10,10 @@ raw/
 vault/.obsidian/workspace.json
 vault/.obsidian/workspace-mobile.json
 
+# Tooling runtime state & local scratch (pi-crew state, ad-hoc analysis artifacts)
+.crew/
+.factorynote/
+
 # OS junk
 .DS_Store
 Thumbs.db
