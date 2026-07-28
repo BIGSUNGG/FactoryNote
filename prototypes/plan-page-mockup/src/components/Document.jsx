@@ -1,5 +1,14 @@
-// 메인 산출물 본문 — 요구사항 명세 + 범위 경계.
-export default function Document({ reqs, scope }) {
+import Block from "./Block";
+
+// 산출물 본문 = 블록 시퀀스. 모든 블록이 hover→좌클릭 코멘트 팝오버 대상.
+// h1/meta-quote는 페이지 헤더(고정), 그 아래 blocks가 편집 가능 영역.
+export default function Document({
+	blocks,
+	comments,
+	onAddComment,
+	activeTargetId,
+	onActivate,
+}) {
 	return (
 		<main className="doc">
 			<h1>📖 Stage 1 — 요청 이해</h1>
@@ -18,27 +27,22 @@ export default function Document({ reqs, scope }) {
 				</span>
 			</div>
 
-			<section className="sec">
-				<h2>📋 요구사항 명세</h2>
-				<p>
-					사용자가 이메일/비밀번호로 가입·로그인하고, 비밀번호는 안전하게
-					저장된다.
-				</p>
-				{reqs.map((r) => (
-					<div key={r.id} className="req">
-						<span className="id">{r.id}</span>
-						<span>{r.desc}</span>
-						<span className="tag">{r.tag}</span>
-					</div>
-				))}
-			</section>
+			<p style={{ color: "var(--muted)", marginBottom: "var(--s4)" }}>
+				모든 블록(제목·본문·요구사항·코드·체크리스트·표·다이어그램)에 마우스를
+				올려 영역이 나타나면 좌클릭해 코멘트 창을 여세요. 표 셀도 개별 코멘트
+				가능. 하단 <b>수정 지시</b>로 한 번에 반영됩니다.
+			</p>
 
-			<section className="sec">
-				<h2>🚧 범위 경계</h2>
-				<p>
-					<b>포함:</b> {scope.include}.&nbsp; <b>제외:</b> {scope.exclude}.
-				</p>
-			</section>
+			{blocks.map((b) => (
+				<Block
+					key={b.id}
+					block={b}
+					comments={comments}
+					onAddComment={onAddComment}
+					activeTargetId={activeTargetId}
+					onActivate={onActivate}
+				/>
+			))}
 		</main>
 	);
 }

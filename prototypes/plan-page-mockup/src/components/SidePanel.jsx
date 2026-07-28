@@ -1,7 +1,32 @@
-// 우측 패널 — Design↔Feedback 루프 상태 + 이슈 + 어노테이션.
-export default function SidePanel({ loop, issues }) {
+// 우측 패널 — 사용자 검토 코멘트 큐 + Design↔Feedback 루프 + 어노테이션.
+export default function SidePanel({ loop, issues, comments }) {
+	const pending = comments.filter((c) => !c.applied);
+
 	return (
 		<aside className="side">
+			<h4>
+				내 검토 코멘트
+				{pending.length > 0 && (
+					<span className="count"> ({pending.length})</span>
+				)}
+			</h4>
+
+			{pending.length === 0 ? (
+				<p style={{ color: "var(--muted)", marginBottom: "var(--s4)" }}>
+					항목의 💬 버튼으로 코멘트를 남기면 여기에 쌓입니다. 하단{" "}
+					<b>수정 지시</b>로 한 번에 반영됩니다.
+				</p>
+			) : (
+				<div className="review-comments">
+					{pending.map((c) => (
+						<div key={c.id} className="review-comment">
+							<span className="rc-target">{c.targetId}</span>
+							{c.text}
+						</div>
+					))}
+				</div>
+			)}
+
 			<h4>Design ↔ Feedback 루프</h4>
 			<div className="loop">
 				<div className="row">
