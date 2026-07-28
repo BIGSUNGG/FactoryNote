@@ -127,22 +127,80 @@ Plannotator(`http://localhost:56665/`)가 렌더링한 단일 Plan 페이지의 
 
 > 구체적 CSS/TS 코드 전문, 파일 표 전체, Phase별 체크리스트 전문은 이 샘플 plan의 산출물이지 Plannotator 구조가 아니다. 에이전트가 상황에 맞춰 매번 새로 작성하므로 본 노트엔 요약만 남긴다.
 
-## 5. 디자인 / UX 패턴 (고정)
+## 5. 디자인 시스템 (저장 HTML CSS에서 추출 — 고정)
 
-시각 픽셀은 캡처하지 못했으나, 트리 구조와 마크다운 렌더링 단서로 **템플릿 수준의 패턴**을 확인했다.
+페이지 저장본(단일 HTML, 인라인 `<style>` 6개 = 약 6.1MB CSS)에서 디자인 토큰을 직접 추출했다. **이 데이터는 Plannotator 도구의 고정 디자인 시스템**이다 (plan 내용과 무관).
+
+> **분석 한계**: 저장본은 SPA 셸이라 `<body>`는 비어있고 렌더링된 DOM은 없다. 따라서 토큰·스택·에셋은 정확하나, 실제 화면의 레이아웃 픽셀값(여백·간격 조합)은 런타임 DOM이 필요해 이 단계에서는 알 수 없다.
+
+### 5.1 기술 스택
+
+- **shadcn/ui 토큰 세트** — 표준 토큰(`--background`/`--foreground`/`--card`/`--primary`/`--secondary`/`--muted`/`--accent`/`--destructive`/`--border`/`--input`/`--ring` + `-foreground` 변형)에 `--success`/`--warning`/`--code-bg`/`--focus-highlight` 확장.
+- **Tailwind CSS v4** — `--tw-shadow`/`--tw-ring-shadow`/`--tw-space-y-reverse` 등 v4 내부 변수. `--spacing` 전역 참조 306회.
+- **색상 공간**: `oklch()` (지각 균등 색상 함수). 일부 레거시 코드 테마는 hex.
+- **단일 다크 테마** — `.theme-plannotator` 스코프 하나에 전 토큰 정의. `.dark`/`[data-mode]` 토글 셀렉터 없음. → **기본 다크 베이스, 라이트 전환 없음**.
+
+### 5.2 타이포그래피
+
+- UI: `"Inter", system-ui, sans-serif` (`--font-sans`). 가변 다이내믹스(Inter Variable) 사용.
+- 코드: `"JetBrains Mono", "Fira Code", monospace` (`--font-mono`).
+- 폰트 크기: `em`/`rem` 상대 단위(`1em`, `.9em`, `.8125rem`, `.75rem`). 고정 px는 드묾.
+- 코너 반경: `--radius: .625rem`(10px). 컴포넌트별 `6px`/`4px`/`999px`(필) 변형.
+
+### 5.3 메인 색상 토큰 (.theme-plannotator, oklch)
+
+모든 배경 계열이 hue 260(파란빛 회색) 기준의 저채도 어두운 톤. 강조색만 뚜렷한 hue.
+
+| 토큰 | 값 (oklch `L% C H`) | 의미 |
+| ------ | ------ | ------ |
+| `--background` | `15% .02 260` | 거의 검은 파란빛 |
+| `--foreground` | `90% .01 260` | 거의 흰 |
+| `--card` | `22% .02 260` | 카드/패널 |
+| `--popover` | `28% .025 260` | 팝오버/드롭다운 |
+| `--muted` | `26% .02 260` | 뮤트 배경 |
+| `--muted-foreground` | `72% .02 260` | 보조 텍스트 |
+| `--border` / `--input` | `35% .02 260` / `26% .02 260` | 경계 / 입력 |
+| `--code-bg` | `26% .02 260` | 코드 블록 배경 |
+| `--primary` | `75% .18 280` | **보라/퍼플**(브랜드) |
+| `--secondary` | `65% .15 180` | 청록 |
+| `--accent` | `70% .2 60` | 주황 |
+| `--destructive` | `65% .2 25` | 빨강 |
+| `--success` | `72% .17 150` | 초록 |
+| `--warning` | `75% .15 85` | 노랑 |
+| `--focus-highlight` | `70% .2 200` | 파랑 포커스 링 |
+
+### 5.4 코드 하이라이트 — 16개 테마
+
+코드 블록은 사용자가 **16개 syntax 테마** 중 선택 가능. 각 `.theme-*` 스코프에 `--primary` 정의:
+
+`.theme-plannotator`(oklch 보라) · `adwaita`(#3584e4) · `caffeine`(#ffe0c2) · `catppuccin`(#89b4fa) · `gruvbox`(#458588) · `cursor`(#81a1c1) · `everforest`(#a7c080) · `solarized`(#268bd2) · `github`(#58a6ff) · `material`(#80cbc4) · `vitesse`(#4d9375) · `vesper`(#ffc799) · `min` · `slack`(#0077b5) · `simple` · `neutral`
+
+= 유명 에디터/터미널 컬러 스킴들을 그대로 가져온 **선택형 코드 테마 시스템**.
+
+### 5.5 임베디드 렌더링 엔진
+
+CSS 변수/클래스에서 다음이 내장됨을 확인:
+
+- **Monaco / VSCode 에디터** — `--atomic-editor-*`(font/radius/fg), `--vscode-scrollbar-shadow`. 코드 블록이 읽기 전용 Monaco 뷰.
+- **Mermaid 다이어그램** — `--mermaid-font-family` 변수.
+- **KaTeX 수식** — `KaTeX_Main`/`KaTeX_SansSerif`/`KaTeX_Math` 폰트 페이스 (마크다운 수식 지원).
+
+→ 마크다운 plan 본문에 **코드 하이라이트 + 다이어그램 + 수식**이 모두 렌더링되는 풍부한 문서 뷰어.
+
+### 5.6 레이아웃 / 마크다운 패턴 (트리 기반)
 
 | 패턴 | 구현 |
 | ------ | ------ |
 | 섹션 헤더 | 이모지 + 제목. 목차(§2.2)와 1:1 매칭. 스캔성 극대화. |
 | 섹션 구분 | 수평선 `---`로 시각적 단절. |
 | 메타데이터 | 인용구 `>` 블록으로 제목 아래 상태/담당/우선순위 묶어 표시(§3). |
-| 코드 | 전용 블록 + 우상단 `Copy code` 버튼. 파일명·식별자는 인라인 코드. |
-| 표 | 매핑·비교 정보를 3열 표로 정리(문제 요약·Files to Modify·브라우저 지원). |
+| 코드 | Monaco 블록 + `Copy code` 버튼. 파일명·식별자는 인라인 코드. |
+| 표 | 매핑·비교 정보를 3열 표로 정리. |
 | 작업 항목 | 체크박스 `- [ ]` + Phase 그룹화. 진행률 가시화. |
 | 강조 | 우선순위 색상 이모지(예 🔴), 수치는 굵게. |
 | 탐색 | 좌측 목차 = 헤더와 1:1 매칭, 클릭 점프. |
 
-전반적으로 **GitHub PR 설명 / Markdown 문서**의 관용을 그대로 가져오되, 목차·어노테이션·승인 버튼·보기 모드를 덧붙인 *계획 리뷰용 리더* UI다.
+전반적으로 **GitHub PR 설명 / Markdown 문서** 관용을 가져오되, shadcn/Tailwind 다크 UI + 코드 테마 선택 + 어노테이션 + 승인 버튼을 덧붙인 *계획 리뷰용 리더*다.
 
 ## 6. Plannotator 고유 협업 기능 (고정)
 
