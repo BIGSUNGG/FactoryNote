@@ -1,0 +1,11 @@
+{
+  "name": "@factorynote/pi-extension",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pi harness adapter — M4 Tier 1 (pi-crew spawn) + M5 (/factorynote command). Layer 3.",
+  "type": "module",
+  "main": "src/index.ts",
+  "dependencies": {
+    "@factorynote/core": "workspace:*"
+  }
+}

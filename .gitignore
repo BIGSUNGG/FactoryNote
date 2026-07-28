@@ -14,6 +14,11 @@ vault/.obsidian/workspace-mobile.json
 .crew/
 .factorynote/
 
+# Build artifacts & deps (plannotator-style monorepo)
+node_modules/
+dist/
+*.tsbuildinfo
+
 # OS junk
 .DS_Store
 Thumbs.db
