@@ -1,4 +1,4 @@
-// 우측 패널 — 사용자 검토 코멘트 큐 + Design↔Feedback 루프 + 어노테이션.
+// 우측 패널 — 사용자 검토 코멘트 큐(블록·영역·셀) + Design↔Feedback 루프.
 export default function SidePanel({ loop, issues, comments }) {
 	const pending = comments.filter((c) => !c.applied);
 
@@ -13,14 +13,15 @@ export default function SidePanel({ loop, issues, comments }) {
 
 			{pending.length === 0 ? (
 				<p style={{ color: "var(--muted)", marginBottom: "var(--s4)" }}>
-					항목의 💬 버튼으로 코멘트를 남기면 여기에 쌓입니다. 하단{" "}
-					<b>수정 지시</b>로 한 번에 반영됩니다.
+					블록을 클릭하거나 텍스트를 드래그해 코멘트를 남기세요. 표 셀도 개별
+					코멘트 가능. 하단 <b>수정 지시</b>로 한 번에 반영됩니다.
 				</p>
 			) : (
 				<div className="review-comments">
 					{pending.map((c) => (
 						<div key={c.id} className="review-comment">
 							<span className="rc-target">{c.targetId}</span>
+							{c.quote && <div className="rc-quote">“{c.quote}”</div>}
 							{c.text}
 						</div>
 					))}
@@ -47,7 +48,9 @@ export default function SidePanel({ loop, issues, comments }) {
 			))}
 
 			<h4 style={{ marginTop: "var(--s4)" }}>어노테이션</h4>
-			<p style={{ color: "var(--muted)" }}>아직 없음. 텍스트를 선택해 추가.</p>
+			<p style={{ color: "var(--muted)" }}>
+				드래그한 영역이 하이라이트로 표시됩니다.
+			</p>
 		</aside>
 	);
 }

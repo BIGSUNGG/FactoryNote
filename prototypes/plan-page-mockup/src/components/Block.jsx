@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 
-// 마크다운 블록 타입별 내용 렌더링. inline 포맷(strong/em/code/link/strike)은
-// mdToBlocks가 html로 변환 → dangerouslySetInnerHTML (.md는 신뢰 산출물).
+// 마크다운 블록 타입별 내용 렌더링. inline 포맷은 html로 변환 → dangerouslySetInnerHTML.
 function BlockContent({
 	block,
 	comments,
@@ -203,13 +202,15 @@ function TableBlock({
 	);
 }
 
-// 모든 블록 공통 wrapper. hover 시 영역 강조 → 좌클릭 시 코멘트 팝오버(단일).
+// 모든 블록 공통 wrapper.
+// 클릭 처리는 Document가 통합(onMouseUp=드래그 영역, onClick=블록).
+// Block은 표시 + 내부 팝오버(블록/셀)만 담당.
 export default function Block({
 	block,
 	comments,
 	onAddComment,
-	activeTargetId,
 	onActivate,
+	activeTargetId,
 }) {
 	const [draft, setDraft] = useState("");
 
@@ -230,11 +231,8 @@ export default function Block({
 			className={`block ${pending.length ? "has-comment" : ""} ${
 				hasApplied ? "applied" : ""
 			}`}
-			onClick={() => {
-				onActivate(block.id);
-				setDraft("");
-			}}
-			title="클릭하여 코멘트"
+			data-block-id={block.id}
+			title="클릭하여 코멘트 · 드래그하여 영역 코멘트"
 		>
 			{cs.length > 0 && (
 				<span className="comment-count" title={`${pending.length}개 코멘트`}>
@@ -250,6 +248,19 @@ export default function Block({
 				onActivate={onActivate}
 			/>
 
+			{pending.length > 0 && (
+				<div className="comment-list">
+					{pending.map((c) => (
+						<div key={c.id}>
+							{c.quote && <div className="comment-quote">“{c.quote}”</div>}
+							<div className="comment-item">💬 {c.text}</div>
+						</div>
+					))}
+				</div>
+			)}
+
+			{hasApplied && <span className="apply-badge">✏ 수정 지시 반영됨</span>}
+
 			{open && (
 				<div className="comment-popover" onClick={(e) => e.stopPropagation()}>
 					<div className="popover-head">
@@ -261,8 +272,9 @@ export default function Block({
 					{pending.length > 0 && (
 						<div className="comment-list">
 							{pending.map((c) => (
-								<div key={c.id} className="comment-item">
-									💬 {c.text}
+								<div key={c.id}>
+									{c.quote && <div className="comment-quote">“{c.quote}”</div>}
+									<div className="comment-item">💬 {c.text}</div>
 								</div>
 							))}
 						</div>

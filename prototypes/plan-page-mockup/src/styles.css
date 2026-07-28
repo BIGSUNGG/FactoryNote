@@ -715,3 +715,23 @@ button.btn:disabled {
 .block-content del {
   color: var(--muted);
 }
+
+/* 드래그 영역 하이라이트 + 인용 */
+.comment-hl {
+  background: rgba(17, 24, 39, 0.14);
+  border-radius: 2px;
+  padding: 0 1px;
+  cursor: pointer;
+}
+.range-quote,
+.rc-quote,
+.comment-quote {
+  margin: 0 0 var(--s1);
+  padding: 2px 0 2px var(--s2);
+  border-left: 2px solid var(--border-strong);
+  font-size: 12px;
+  font-style: italic;
+  color: var(--muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+}

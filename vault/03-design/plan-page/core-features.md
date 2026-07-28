@@ -5,7 +5,7 @@ tags: [design, plan-page, ui, requirements]
 
 # Plan 페이지 핵심 기능 — 블록 코멘트와 MD 렌더링
 
-FactoryNote의 Plan 뷰어(각 Stage 산출물을 사용자에게 보여주는 화면)에 **반드시 포함되어야 하는 두 핵심 기능**을 정의한다. 두 기능은 React 목업(`prototypes/plan-page-mockup/`)에서 동작을 검증했으며, 향후 본 구현에서도 이 사양을 준수해야 한다.
+FactoryNote의 Plan 뷰어(각 Stage 산출물을 사용자에게 보여주는 화면)에 **반드시 포함되어야 하는 세 핵심 기능**을 정의한다. 세 기능은 React 목업(`prototypes/plan-page-mockup/`)에서 동작을 검증했으며, 향후 본 구현에서도 이 사양을 준수해야 한다.
 
 > **배경**: Plannotator 분석([[plannotator-plan-page]])에서 차용한 어노테이션·마크다운 렌더링 패턴을 FactoryNote의 6단계 게이트 모델([[multi-agent-pipeline]])에 맞춰 재설계. Plannotator는 단일 `Approve` one-shot이지만, FactoryNote는 *직접 편집을 막고 코멘트로 모아 '수정 지시'로 일괄 반영*하는 것이 핵심 차이.
 
@@ -92,6 +92,36 @@ Plan 섹션(본문)은 **마크다운 파일(`.md`)을 인자로 받아 렌더�
 
 ---
 
+## 기능 3 — 드래그 영역 코멘트
+
+### 요구
+
+텍스트를 **드래그로 범위 선택**해 해당 영역에 코멘트를 남긴다(Plannotator식 범위 주석). 블록 단위(기능 1)보다 세밀한, **텍스트 범위 단위** 코멘트.
+
+### 상호작용 사양
+
+1. **텍스트 드래그** → `mouseup` 시점에 `window.getSelection()`으로 선택 감지(비어있지 않은 선택만).
+2. 선택 텍스트는 코멘트의 **quote**(인용)로 저장.
+3. 선택 영역을 **하이라이트**(`<mark class="comment-hl">`)로 표시.
+4. 선택 영역 위치(`getBoundingClientRect`)에 **영역 팝오버** 표시 — `document.body` portal + `fixed`(표 셀 팝오버와 동일 원칙, 본문 레이아웃 영향 0).
+5. 팝오버 내용: 블록 id 헤더 + quote 인용 + 입력 필드.
+
+### 블록 클릭과의 분리 (필수)
+
+드래그 후 `mouseup` → `click` 이벤트가 연달아 발생한다. **직전 mouseup이 드래그였으면 뒤따르는 click은 억제**(skip 플래그)하여 블록 팝오버가 열리지 않도록 해야 한다. 드래그와 클릭이 섞이면 안 된다.
+
+### 코멘트 모델
+
+- 드래그 코멘트는 `{targetId: 블록id, quote: 선택텍스트, text, applied}` 형태. `quote` 필드로 블록·셀 코멘트와 구분.
+- 어느 블록에 속하는지는 선택 앵커 노드의 `closest('[data-block-id]')`로 파악. 블록 DOM에 `data-block-id` 속성 필수.
+- 블록 코멘트·셀 코멘트·영역 코멘트는 같은 pending 큐에 쌓이며, **'수정 지시'로 일괄 적용**.
+
+### 본 구현 과제 (하이라이트 영구화)
+
+목업의 하이라이트는 `Range.surroundContents`로 DOM에 직접 `<mark>`를 넣어 React 재렌더 시 날아갈 수 있다. 본 구현에서는 **텍스트 offset 기반**으로 블록 렌더 시 하이라이트 범위를 재구성하여 상태(코멘트)와 시각(하이라이트)을 일치시켜야 한다. 또한 `surroundContents`는 단일 텍스트 노드 범위만 처리 → **여러 노드에 걸치는 선택도 지원**해야 한다.
+
+---
+
 ## 향후 본 구현 필수 요구사항 (체크리스트)
 
 구현자는 아래를 모두 만족해야 한다.
@@ -105,6 +135,15 @@ Plan 섹션(본문)은 **마크다운 파일(`.md`)을 인자로 받아 렌더�
 - [ ] 셀 팝오버는 `document.body` portal + `fixed`로 **표 레이아웃 영향 0**
 - [ ] 직접 편집 ❌ → 코멘트 pending 큐 → '수정 지시' 일괄 applied
 - [ ] task 체크박스 등 읽기 전용 요소 보호
+
+### 드래그 영역 코멘트
+
+- [ ] 텍스트 드래그 선택 → 선택 영역 코멘트
+- [ ] 드래그(`mouseup`)와 블록 클릭 구분 (드래그 후 click 억제)
+- [ ] 선택 영역 하이라이트 + `quote`(선택 텍스트) 저장
+- [ ] 영역 팝오버는 선택 위치(`fixed`, `document.body` portal) — 표 셀과 동일 원칙
+- [ ] 블록·셀·영역 코멘트 모두 '수정 지시'로 일괄 applied
+- [ ] (본 구현) 하이라이트 영구화 — 텍스트 offset 기반 재구성, 다중 노드 범위 지원
 
 ### MD 렌더링
 

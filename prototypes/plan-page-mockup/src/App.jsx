@@ -1,6 +1,7 @@
 // FactoryNote plan page — 시안 A(모노톤) React 목업
-// 본문은 마크다운 파일(plan.md)에서 생성. mdToBlocks로 블록 단위 코멘트 모델로 변환.
+// 본문은 마크다운 파일(plan.md)에서 생성. 블록 단위 + 드래그 영역 코멘트 지원.
 import { useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import Topbar from "./components/Topbar";
 import Stepper from "./components/Stepper";
 import Toc from "./components/Toc";
@@ -28,9 +29,7 @@ const feedbackIssues = [
 const stripHtml = (html) => html.replace(/<[^>]+>/g, "").trim();
 
 export default function App() {
-	// plan.md → 블록 시퀀스 (모든 마크다운 문법)
 	const blocks = useMemo(() => mdToBlocks(planMd), []);
-	// 목차는 h2/h3 헤딩에서 자동 생성
 	const toc = useMemo(() => {
 		const hs = blocks.filter(
 			(b) => b.type === "heading" && b.level >= 2 && b.level <= 3,
@@ -38,16 +37,19 @@ export default function App() {
 		return hs.map((b, idx) => ({ label: stripHtml(b.html), cur: idx === 0 }));
 	}, [blocks]);
 
-	const [comments, setComments] = useState([]);
-	const [activeTargetId, setActiveTargetId] = useState(null);
+	const [comments, setComments] = useState([]); // {id,targetId,text,quote?,applied}
+	const [activeTargetId, setActiveTargetId] = useState(null); // 블록 팝오버 (단일)
+	const [activeRange, setActiveRange] = useState(null); // 드래그 영역 팝오버 {blockId,quote,rect}
+	const [rangeDraft, setRangeDraft] = useState("");
 
-	const addComment = (targetId, text) => {
+	const addComment = (targetId, text, quote = null) => {
 		setComments((c) => [
 			...c,
 			{
 				id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
 				targetId,
 				text,
+				quote,
 				applied: false,
 			},
 		]);
@@ -56,12 +58,71 @@ export default function App() {
 	const applyComments = () => {
 		setComments((c) => c.map((x) => ({ ...x, applied: true })));
 		setActiveTargetId(null);
+		setActiveRange(null);
 	};
 
 	const activate = (id) =>
 		setActiveTargetId((prev) => (prev === id ? null : id));
 
+	// 드래그 영역 코멘트: 선택 텍스트를 하이라이트(mark) + 영역 팝오버 오픈
+	const onRangeComment = (blockId, sel, quote) => {
+		const rect = sel.getRangeAt(0).getBoundingClientRect();
+		try {
+			const range = sel.getRangeAt(0);
+			const mark = document.createElement("mark");
+			mark.className = "comment-hl";
+			range.surroundContents(mark); // 단일 노드 범위만. 실패 시 하이라이트 생략.
+		} catch {
+			/* 여러 노드에 걸친 범위 — 하이라이트 없이 quote만 저장 */
+		}
+		sel.removeAllRanges();
+		setActiveRange({ blockId, quote, rect });
+		setActiveTargetId(null);
+	};
+
+	const submitRange = () => {
+		if (!rangeDraft.trim() || !activeRange) return;
+		addComment(activeRange.blockId, rangeDraft.trim(), activeRange.quote);
+		setRangeDraft("");
+		setActiveRange(null);
+	};
+
 	const pendingCount = comments.filter((c) => !c.applied).length;
+
+	const rangePopover = activeRange
+		? createPortal(
+				<div
+					className="comment-popover comment-popover-fixed"
+					style={{
+						position: "fixed",
+						top: activeRange.rect.bottom + 6,
+						left: activeRange.rect.left,
+					}}
+					onClick={(e) => e.stopPropagation()}
+				>
+					<div className="popover-head">
+						<span>영역 코멘트 · {activeRange.blockId}</span>
+						<button onClick={() => setActiveRange(null)} title="닫기">
+							✕
+						</button>
+					</div>
+					<blockquote className="range-quote">“{activeRange.quote}”</blockquote>
+					<div className="comment-input-row">
+						<input
+							value={rangeDraft}
+							autoFocus
+							placeholder="선택한 영역에 코멘트…"
+							onChange={(e) => setRangeDraft(e.target.value)}
+							onKeyDown={(e) => e.key === "Enter" && submitRange()}
+						/>
+						<button className="add-btn" onClick={submitRange}>
+							추가
+						</button>
+					</div>
+				</div>,
+				document.body,
+			)
+		: null;
 
 	return (
 		<>
@@ -73,8 +134,9 @@ export default function App() {
 					blocks={blocks}
 					comments={comments}
 					onAddComment={addComment}
-					activeTargetId={activeTargetId}
 					onActivate={activate}
+					onRangeComment={onRangeComment}
+					activeTargetId={activeTargetId}
 				/>
 				<SidePanel loop={loop} issues={feedbackIssues} comments={comments} />
 			</div>
@@ -84,6 +146,7 @@ export default function App() {
 				pendingCount={pendingCount}
 				onApply={applyComments}
 			/>
+			{rangePopover}
 		</>
 	);
 }
