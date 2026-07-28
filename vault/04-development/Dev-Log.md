@@ -1,11 +1,34 @@
 ---
-updated: 2026-07-26
+updated: 2026-07-28
 tags: [development, dev-log]
 ---
 
 # Dev-Log
 
 날짜별 작업 기록. 무엇을 했는지, 왜, 무엇이 남았는지. [[Changelog]]는 외부용 단위, 본 파일은 일일 흐름.
+
+## 2026-07-28
+
+### 한 일
+
+- FactoryNote 핵심 기획 문서 2종 작성:
+  - `00-vision/project-identity.md` — 정체성, Plannotator와의 차이(one-shot vs 6단계 반복 승인), harness-agnostic 범용성(Codex/Pi/Claude Code), 5대 원칙, 용어집.
+  - `01-architecture/multi-agent-pipeline.md` — Director→Design+Feedback 멀티에이전트 구조, Design↔Feedback 내부 루프, 6단계 파이프라인, 사용자 게이트, 확장성.
+- 사용자 검증으로 기획 핵심 확정: 파이프라인은 6단계(기존 "9단계"는 오해), 에이전트는 현재 3종(Director/Design/Feedback) 단계별 변형·확장 가능.
+- "9단계" 참조 전면 정정: `AGENTS.md`, `Home.md`, ADR-001, How-To-Update-Docs, doc-workflow 스킬.
+- `Home.md` MOC 갱신: 00-vision/·01-architecture/ 상태 "비어있음" → 문서 링크로 교체.
+
+### 왜
+
+- 00-vision/·01-architecture/가 비어있었고, 프로젝트 정체성과 아키텍처를 명문화해야 다음 설계(Workflow Core, 모노레포 스캐폴딩)의 기준이 선다.
+- 단계 수를 정확히 6단계로 고정해 향후 산출물 템플릿과 게이트 로직의 기준을 통일.
+
+### 남은 것 / 다음
+
+- Workflow Core 설계(6단계 파이프라인 실행 엔진) 착수.
+- 모노레포 스캐폴딩.
+- 6단계별 산출물 템플릿 추가(`90-meta/templates/`).
+- 코드 생긴 뒤 graphify 첫 빌드 후 `graphify-out/` 검증.
 
 ## 2026-07-26
 

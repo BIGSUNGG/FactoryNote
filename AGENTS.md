@@ -2,7 +2,7 @@
 
 FactoryNote는 PI에 설치하는 **Human-Gated Agentic Development Workflow Package**다.
 (독립 CLI ❌ / PI 포크 ❌ / ADE ❌.) AI가 의도를 충분히 파악하기 전에 코드를 서두르는 문제를
-9단계 인간 승인 게이트로 통제한다. 전체 설계·배경은 `vault/` 참고.
+6단계 인간 승인 게이트로 통제한다. 전체 설계·배경은 `vault/` 참고.
 
 ## 5대 원칙 (타협 불가)
 

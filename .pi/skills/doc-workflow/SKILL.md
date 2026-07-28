@@ -19,9 +19,9 @@ description: "FactoryNote 프로젝트 문서 워크플로. vault/에 기획·�
 vault/
 ├─ Home.md                  ← MOC. 새 문서는 여기서 링크.
 ├─ 00-vision/               ← 정체성·목표·5대원칙·용어집
-├─ 01-architecture/         ← 3계층 구조·패키지맵·9단계·에이전트 역할
+├─ 01-architecture/         ← 6단계 파이프라인·에이전트 역할
 ├─ 02-decisions/            ← ADR-NNN-kebab-title.md (정해진 사항)
-├─ 03-design/<feature>/     ← 기능별 설계 산출물(워크플로 9단계 출력)
+├─ 03-design/<feature>/     ← 기능별 설계 산출물(워크플로 6단계 출력)
 ├─ 04-development/          ← Changelog.md + Dev-Log.md (수정 사항)
 ├─ 05-problems/             ← 이슈·블로커·포스트모템
 ├─ 06-research/             ← 조사 노트

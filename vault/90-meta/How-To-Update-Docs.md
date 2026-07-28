@@ -16,7 +16,7 @@ tags: [meta, workflow]
 | 코드·기능을 구현/변경함 | `04-development/Changelog.md` + `Dev-Log.md` | Keep a Changelog + 일일 로그 |
 | 버그·블로커·예상치 못한 문제 발생 | `05-problems/<issue>.md` | 문제→원인→조치→교훈 |
 | 외부 도구·라이브러리·접근법 조사 | `06-research/<topic>.md` | 요약 + 증거 + 결론 |
-| 기능 설계 산출물 작성(워크플로 9단계) | `03-design/<feature>/<artifact>.md` | 단계별 산출물 |
+| 기능 설계 산출물 작성(워크플로 6단계) | `03-design/<feature>/<artifact>.md` | 단계별 산출물 |
 | 비전·원칙·용어 정립 | `00-vision/`, `01-architecture/` | — |
 
 ## 결정을 기록할 때 (ADR)
