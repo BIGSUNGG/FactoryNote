@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FactoryNote · 시안 B — Stage 포커스 (한 번에 한 Stage)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --primary: #3b82f6;
+        --secondary: #8b5cf6;
+        --success: #16a34a;
+        --warning: #d97706;
+        --danger: #dc2626;
+        --surface: #ffffff;
+        --text: #111827;
+        --bg: var(--surface);
+        --muted: rgba(17, 24, 39, 0.55);
+        --border: rgba(17, 24, 39, 0.1);
+        --border-strong: rgba(17, 24, 39, 0.16);
+        --primary-tint: rgba(59, 130, 246, 0.06);
+        --secondary-tint: rgba(139, 92, 246, 0.06);
+        --success-tint: rgba(22, 163, 74, 0.08);
+        --warning-tint: rgba(217, 119, 6, 0.08);
+        --danger-tint: rgba(220, 38, 38, 0.08);
+        --on-color: var(--surface);
+        --radius: 8px;
+        --radius-sm: 4px;
+        --s1: 4px;
+        --s2: 8px;
+        --s3: 16px;
+        --s4: 24px;
+        --s5: 32px;
+        --mono: "JetBrains Mono", ui-monospace, monospace;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: Inter, system-ui, sans-serif;
+        color: var(--text);
+        background: var(--bg);
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+      .topbar {
+        display: flex;
+        align-items: center;
+        gap: var(--s3);
+        height: 56px;
+        padding: 0 var(--s4);
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+      }
+      .logo {
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: var(--primary);
+      }
+      .spacer {
+        margin-left: auto;
+      }
+      .badge {
+        padding: 2px var(--s2);
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--warning);
+        border: 1px solid rgba(217, 119, 6, 0.25);
+      }
+      .gatebar {
+        display: flex;
+        align-items: center;
+        gap: var(--s3);
+        padding: var(--s3) var(--s5);
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+      }
+      .gatebar .title {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .gatebar .title b {
+        color: var(--text);
+        font-size: 15px;
+        display: block;
+      }
+      .btn {
+        padding: var(--s2) var(--s4);
+        border-radius: var(--radius);
+        border: 1px solid var(--border-strong);
+        background: var(--surface);
+        font: inherit;
+        font-weight: 500;
+        cursor: pointer;
+        font-size: 14px;
+        transition: 0.12s;
+      }
+      .btn:hover {
+        border-color: var(--text);
+      }
+      .btn.primary {
+        background: var(--primary);
+        color: var(--on-color);
+        border-color: var(--primary);
+      }
+      .btn.primary:hover {
+        opacity: 0.9;
+      }
+      .btn.secondary {
+        background: var(--secondary);
+        color: var(--on-color);
+        border-color: var(--secondary);
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 260px 1fr 320px;
+        min-height: calc(100vh - 56px - 73px);
+      }
+      .rail {
+        padding: var(--s4) var(--s2);
+        background: var(--surface);
+        border-right: 1px solid var(--border);
+      }
+      .rail h4 {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        padding: 0 var(--s2);
+        margin-bottom: var(--s2);
+      }
+      .stg {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--s2);
+        padding: var(--s2);
+        border-radius: var(--radius);
+        cursor: pointer;
+        font-size: 14px;
+      }
+      .stg:hover {
+        background: rgba(17, 24, 39, 0.03);
+      }
+      .stg.current {
+        background: var(--primary-tint);
+      }
+      .stg .ic {
+        width: 24px;
+        height: 24px;
+        border-radius: 999px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        flex: none;
+        font-weight: 700;
+        border: 1px solid var(--border);
+      }
+      .stg.done .ic {
+        color: var(--success);
+        border-color: rgba(22, 163, 74, 0.3);
+      }
+      .stg.current .ic {
+        background: var(--primary);
+        color: var(--on-color);
+        border-color: var(--primary);
+      }
+      .stg.locked {
+        color: var(--muted);
+      }
+      .stg.locked .ic {
+        color: var(--muted);
+      }
+      .stg .body {
+        display: flex;
+        flex-direction: column;
+      }
+      .stg .body small {
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .stg.current .body small {
+        color: var(--primary);
+      }
+      .doc {
+        padding: var(--s5);
+        max-width: 720px;
+        margin: 0 auto;
+      }
+      .doc .stage-tag {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--primary);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .doc h1 {
+        font-size: 2rem;
+        letter-spacing: -0.02em;
+        margin: var(--s1) 0 var(--s2);
+        font-weight: 700;
+      }
+      .doc .lede {
+        color: var(--muted);
+        margin-bottom: var(--s4);
+        max-width: 60ch;
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: var(--s4);
+        margin-bottom: var(--s3);
+      }
+      .card h3 {
+        font-size: 1rem;
+        margin-bottom: var(--s3);
+        display: flex;
+        align-items: center;
+        gap: var(--s2);
+        font-weight: 600;
+      }
+      .req-row {
+        display: flex;
+        justify-content: space-between;
+        gap: var(--s3);
+        padding: var(--s2) 0;
+        border-top: 1px dashed var(--border);
+        font-size: 14px;
+      }
+      .req-row:first-of-type {
+        border-top: none;
+      }
+      .req-row .id {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--primary);
+        font-weight: 600;
+        flex: none;
+        width: 56px;
+      }
+      .req-row .desc {
+        flex: 1;
+      }
+      .req-row .tag {
+        font-family: var(--mono);
+        font-size: 11px;
+        padding: 2px 6px;
+        border-radius: var(--radius-sm);
+        color: var(--muted);
+        flex: none;
+      }
+      .fb {
+        padding: var(--s4);
+        background: var(--surface);
+        border-left: 1px solid var(--border);
+      }
+      .fb h4 {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin-bottom: var(--s2);
+      }
+      .round-meter {
+        text-align: center;
+        padding: var(--s4);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        margin-bottom: var(--s4);
+      }
+      .round-meter .big {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--secondary);
+      }
+      .round-meter small {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .timeline {
+        position: relative;
+        padding-left: var(--s4);
+      }
+      .timeline::before {
+        content: "";
+        position: absolute;
+        left: 5px;
+        top: 6px;
+        bottom: 6px;
+        width: 2px;
+        background: var(--border);
+      }
+      .tl-item {
+        position: relative;
+        padding-bottom: var(--s3);
+        font-size: 12px;
+      }
+      .tl-item::before {
+        content: "";
+        position: absolute;
+        left: -14px;
+        top: 4px;
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: var(--surface);
+        border: 2px solid var(--border);
+      }
+      .tl-item.ok::before {
+        border-color: var(--success);
+        background: var(--success);
+      }
+      .tl-item.now::before {
+        border-color: var(--warning);
+        background: var(--warning);
+      }
+      .tl-item b {
+        display: block;
+        font-size: 13px;
+      }
+      .tl-item span {
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="topbar">
+      <div class="logo">FactoryNote</div>
+      <span style="color: var(--muted); font-size: 14px"
+        >/ auth-module · 계획</span
+      >
+      <div class="spacer"></div>
+      <span class="badge">Stage 1 게이트 대기</span>
+    </div>
+
+    <div class="gatebar">
+      <div class="title">현재 게이트<b>Stage 1 — 요청 이해 확정?</b></div>
+      <div class="spacer"></div>
+      <button class="btn">↩ 정정</button>
+      <button class="btn secondary">✎ 수정 지시</button>
+      <button class="btn primary">✓ 확정하고 Stage 2로 →</button>
+    </div>
+
+    <div class="layout">
+      <aside class="rail">
+        <h4>6단계 파이프라인</h4>
+        <div class="stg current">
+          <div class="ic">1</div>
+          <div class="body">
+            <b>요청 이해</b><small>요구사항 명세 · 게이트 대기</small>
+          </div>
+        </div>
+        <div class="stg locked">
+          <div class="ic">2</div>
+          <div class="body">
+            <b>정상 동작 시나리오</b><small>🔒 잠김</small>
+          </div>
+        </div>
+        <div class="stg locked">
+          <div class="ic">3</div>
+          <div class="body"><b>모듈 아키텍처</b><small>🔒 잠김</small></div>
+        </div>
+        <div class="stg locked">
+          <div class="ic">4</div>
+          <div class="body"><b>클래스 수준 설계</b><small>🔒 잠김</small></div>
+        </div>
+        <div class="stg locked">
+          <div class="ic">5</div>
+          <div class="body"><b>구현 계획</b><small>🔒 잠김</small></div>
+        </div>
+        <div class="stg locked">
+          <div class="ic">6</div>
+          <div class="body"><b>사용자 최종 검증</b><small>🔒 잠김</small></div>
+        </div>
+      </aside>
+
+      <main class="doc">
+        <div class="stage-tag">Stage 1 / 6 · 산출물</div>
+        <h1>요구사항 명세</h1>
+        <p class="lede">
+          사용자 요청을 기능·비기능 요구사항으로 분해하고, 범위·가정·제약을
+          명시한다. 이 산출물이 확정되어야 Stage 2(시나리오)로 진입한다.
+        </p>
+
+        <div class="card">
+          <h3>⚙️ 기능 요구사항</h3>
+          <div class="req-row">
+            <span class="id">FR-1</span
+            ><span class="desc">이메일·비밀번호 회원가입</span
+            ><span class="tag">기능</span>
+          </div>
+          <div class="req-row">
+            <span class="id">FR-2</span
+            ><span class="desc">비밀번호 bcrypt 해싱 (cost ≥ 12)</span
+            ><span class="tag">보안</span>
+          </div>
+          <div class="req-row">
+            <span class="id">FR-3</span
+            ><span class="desc">로그인 성공 시 JWT 세션 발급</span
+            ><span class="tag">기능</span>
+          </div>
+        </div>
+        <div class="card">
+          <h3>📊 비기능 요구사항</h3>
+          <div class="req-row">
+            <span class="id">NFR-1</span
+            ><span class="desc">로그인 응답 200ms 이내 (p95)</span
+            ><span class="tag">성능</span>
+          </div>
+          <div class="req-row">
+            <span class="id">NFR-2</span
+            ><span class="desc">비밀번호 평문 절대 로깅 금지</span
+            ><span class="tag">보안</span>
+          </div>
+        </div>
+        <div class="card">
+          <h3>🚧 범위 · 가정</h3>
+          <div class="req-row">
+            <span class="id">포함</span
+            ><span class="desc">이메일 인증, 세션 갱신</span
+            ><span class="tag">scope</span>
+          </div>
+          <div class="req-row">
+            <span class="id">제외</span
+            ><span class="desc">OAuth 소셜 로그인(MVP 이후), 비밀번호 찾기</span
+            ><span class="tag">scope</span>
+          </div>
+        </div>
+      </main>
+
+      <aside class="fb">
+        <h4>Design ↔ Feedback 루프</h4>
+        <div class="round-meter">
+          <div class="big">2</div>
+          <small>라운드 · 클린 판정까지 1 이슈</small>
+        </div>
+        <h4>검토 타임라인</h4>
+        <div class="timeline">
+          <div class="tl-item ok">
+            <b>라운드 1 — Feedback</b><span>FR-2 솔트 길이 누락 지적</span>
+          </div>
+          <div class="tl-item ok">
+            <b>라운드 1 — Design</b><span>cost=12 명시로 산출물 수정</span>
+          </div>
+          <div class="tl-item now">
+            <b>라운드 2 — Feedback</b
+            ><span>NFR 세션 만료 정책 누락, 재검토 요청</span>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </body>
+</html>

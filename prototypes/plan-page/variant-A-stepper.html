@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FactoryNote · 시안 A — Stage 스텝퍼 + 단일 스크롤</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        /* typeui sleek — 60-30-10. surface white가 60% 도미넌트. */
+        --primary: #3b82f6;
+        --secondary: #8b5cf6;
+        --success: #16a34a;
+        --warning: #d97706;
+        --danger: #dc2626;
+        --surface: #ffffff;
+        --text: #111827;
+        --bg: var(--surface); /* 페이지 배경 = 흰(60%) */
+        --muted: rgba(17, 24, 39, 0.55);
+        --border: rgba(17, 24, 39, 0.1);
+        --border-strong: rgba(17, 24, 39, 0.16);
+        /* accent는 10% 이하 — tint는 극옅게 */
+        --primary-tint: rgba(59, 130, 246, 0.06);
+        --secondary-tint: rgba(139, 92, 246, 0.06);
+        --success-tint: rgba(22, 163, 74, 0.08);
+        --warning-tint: rgba(217, 119, 6, 0.08);
+        --danger-tint: rgba(220, 38, 38, 0.08);
+        --on-color: var(--surface);
+        --radius: 8px;
+        --radius-sm: 4px;
+        --s1: 4px;
+        --s2: 8px;
+        --s3: 16px;
+        --s4: 24px;
+        --s5: 32px;
+        --shadow:
+          0 1px 2px rgba(17, 24, 39, 0.05), 0 1px 3px rgba(17, 24, 39, 0.03);
+        --mono: "JetBrains Mono", ui-monospace, monospace;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: Inter, system-ui, sans-serif;
+        color: var(--text);
+        background: var(--bg);
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+      .topbar {
+        display: flex;
+        align-items: center;
+        gap: var(--s3);
+        height: 56px;
+        padding: 0 var(--s4);
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+      }
+      .logo {
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: var(--primary);
+      }
+      .plan-meta {
+        display: flex;
+        gap: var(--s3);
+        align-items: center;
+        color: var(--muted);
+        font-size: 13px;
+        margin-left: auto;
+      }
+      .badge {
+        padding: 2px var(--s2);
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--warning);
+        border: 1px solid rgba(217, 119, 6, 0.25);
+      }
+      .badge.ok {
+        color: var(--success);
+        border-color: rgba(22, 163, 74, 0.25);
+      }
+      .stepper {
+        display: flex;
+        align-items: center;
+        gap: 0;
+        padding: var(--s3) var(--s4);
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        overflow-x: auto;
+      }
+      .step {
+        display: flex;
+        align-items: center;
+        gap: var(--s2);
+        padding: var(--s1) var(--s3);
+        font-size: 13px;
+        color: var(--muted);
+        white-space: nowrap;
+        border-radius: var(--radius);
+      }
+      .step.done {
+        color: var(--success);
+      }
+      .step.current {
+        color: var(--primary);
+        font-weight: 600;
+        background: var(--primary-tint);
+      }
+      .step.locked {
+        opacity: 0.45;
+      }
+      .step .num {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        height: 20px;
+        border-radius: 999px;
+        border: 1.5px solid currentColor;
+        font-size: 11px;
+        font-weight: 700;
+      }
+      .step.current .num {
+        background: var(--primary);
+        color: var(--on-color);
+        border-color: var(--primary);
+      }
+      .step-sep {
+        width: 24px;
+        height: 1px;
+        background: var(--border-strong);
+        margin: 0 var(--s1);
+        flex: none;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 220px 1fr 300px;
+        min-height: calc(100vh - 56px - 65px);
+      }
+      .toc {
+        padding: var(--s4) var(--s3);
+        border-right: 1px solid var(--border);
+        background: var(--surface);
+        font-size: 14px;
+      }
+      .toc h4 {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin-bottom: var(--s2);
+      }
+      .toc a {
+        display: block;
+        padding: var(--s1) var(--s2);
+        color: var(--muted);
+        text-decoration: none;
+        border-radius: var(--radius-sm);
+        font-size: 13px;
+      }
+      .toc a:hover {
+        color: var(--text);
+      }
+      .toc a.cur {
+        color: var(--primary);
+        font-weight: 500;
+        background: var(--primary-tint);
+      }
+      .doc {
+        padding: var(--s5) var(--s5) 120px;
+        max-width: 760px;
+        margin: 0 auto;
+        width: 100%;
+      }
+      .doc h1 {
+        font-size: 1.75rem;
+        letter-spacing: -0.02em;
+        margin-bottom: var(--s3);
+      }
+      .meta-quote {
+        border-left: 2px solid var(--primary);
+        padding: var(--s2) var(--s3);
+        font-size: 13px;
+        display: flex;
+        gap: var(--s4);
+        flex-wrap: wrap;
+        margin-bottom: var(--s4);
+      }
+      .meta-quote b {
+        color: var(--muted);
+        font-weight: 500;
+      }
+      .sec {
+        margin-top: var(--s5);
+      }
+      .sec h2 {
+        font-size: 1.1rem;
+        margin-bottom: var(--s2);
+        display: flex;
+        align-items: center;
+        gap: var(--s2);
+        font-weight: 600;
+      }
+      .sec p {
+        color: var(--text);
+        margin-bottom: var(--s2);
+      }
+      .req {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: var(--s2);
+        padding: var(--s2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--surface);
+        margin-bottom: var(--s2);
+        font-size: 14px;
+      }
+      .req .id {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--primary);
+        font-weight: 600;
+      }
+      .req .tag {
+        font-family: var(--mono);
+        font-size: 11px;
+        padding: 2px 6px;
+        border-radius: var(--radius-sm);
+        color: var(--muted);
+      }
+      .side {
+        padding: var(--s4);
+        border-left: 1px solid var(--border);
+        background: var(--surface);
+        font-size: 13px;
+      }
+      .side h4 {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin-bottom: var(--s2);
+      }
+      .loop {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: var(--s3);
+        margin-bottom: var(--s4);
+      }
+      .loop .row {
+        display: flex;
+        justify-content: space-between;
+        padding: var(--s1) 0;
+      }
+      .issue {
+        padding: var(--s2);
+        border-left: 2px solid var(--warning);
+        margin-bottom: var(--s2);
+        font-size: 12px;
+        color: var(--text);
+      }
+      .issue.resolved {
+        border-left-color: var(--success);
+        color: var(--muted);
+      }
+      .gate {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        align-items: center;
+        gap: var(--s3);
+        padding: var(--s3) var(--s5);
+        background: var(--surface);
+        border-top: 1px solid var(--border);
+        box-shadow: 0 -2px 8px rgba(17, 24, 39, 0.04);
+      }
+      .gate .label {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .gate .label b {
+        color: var(--text);
+      }
+      .btn {
+        padding: var(--s2) var(--s4);
+        border-radius: var(--radius);
+        border: 1px solid var(--border-strong);
+        background: var(--surface);
+        font: inherit;
+        font-weight: 500;
+        cursor: pointer;
+        font-size: 14px;
+        transition: 0.12s;
+      }
+      .btn:hover {
+        border-color: var(--text);
+      }
+      .btn.primary {
+        background: var(--primary);
+        color: var(--on-color);
+        border-color: var(--primary);
+      }
+      .btn.primary:hover {
+        opacity: 0.9;
+      }
+      .btn.secondary {
+        background: var(--secondary);
+        color: var(--on-color);
+        border-color: var(--secondary);
+      }
+      .gate .spacer {
+        margin-left: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="topbar">
+      <div class="logo">FactoryNote</div>
+      <div style="font-size: 14px; color: var(--muted)">/ auth-module</div>
+      <div class="plan-meta">
+        <span class="badge">검토 대기</span>
+        <span>Stage 1/6</span>
+        <span>담당: Backend</span>
+      </div>
+    </div>
+
+    <div class="stepper">
+      <div class="step current"><span class="num">1</span> 요청 이해</div>
+      <div class="step-sep"></div>
+      <div class="step locked"><span class="num">2</span> 시나리오</div>
+      <div class="step-sep"></div>
+      <div class="step locked"><span class="num">3</span> 모듈 설계</div>
+      <div class="step-sep"></div>
+      <div class="step locked"><span class="num">4</span> 클래스 설계</div>
+      <div class="step-sep"></div>
+      <div class="step locked"><span class="num">5</span> 구현 계획</div>
+      <div class="step-sep"></div>
+      <div class="step locked"><span class="num">6</span> 최종 검증</div>
+    </div>
+
+    <div class="layout">
+      <aside class="toc">
+        <h4>목차</h4>
+        <a class="cur">📋 요구사항 명세</a>
+        <a>🚧 범위 경계</a>
+      </aside>
+
+      <main class="doc">
+        <h1>📖 Stage 1 — 요청 이해</h1>
+        <div class="meta-quote">
+          <span><b>Stage:</b> 1/6</span>
+          <span><b>게이트:</b> 대기</span>
+          <span><b>Design↔Feedback:</b> 라운드 2</span>
+          <span><b>우선순위:</b> 🔴 High</span>
+        </div>
+
+        <section class="sec">
+          <h2>📋 요구사항 명세</h2>
+          <p>
+            사용자가 이메일/비밀번호로 가입·로그인하고, 비밀번호는 안전하게
+            저장된다.
+          </p>
+          <div class="req">
+            <span class="id">FR-1</span><span>이메일·비밀번호 회원가입</span
+            ><span class="tag">기능</span>
+          </div>
+          <div class="req">
+            <span class="id">FR-2</span
+            ><span>비밀번호는 bcrypt 해싱 후 저장</span
+            ><span class="tag">보안</span>
+          </div>
+          <div class="req">
+            <span class="id">FR-3</span><span>로그인 성공 시 JWT 세션 발급</span
+            ><span class="tag">기능</span>
+          </div>
+          <div class="req">
+            <span class="id">NFR-1</span
+            ><span>로그인 응답 200ms 이내 (p95)</span
+            ><span class="tag">성능</span>
+          </div>
+        </section>
+
+        <section class="sec">
+          <h2>🚧 범위 경계</h2>
+          <p>
+            <b>포함:</b> 이메일 인증, 세션 갱신. &nbsp; <b>제외:</b> OAuth 소셜
+            로그인(MVP 이후), 비밀번호 찾기(별도 Stage).
+          </p>
+        </section>
+      </main>
+
+      <aside class="side">
+        <h4>Design ↔ Feedback 루프</h4>
+        <div class="loop">
+          <div class="row"><span>현재 라운드</span><b>2</b></div>
+          <div class="row"><span>클린 판정까지</span><b>1 이슈</b></div>
+        </div>
+        <h4>Feedback 이슈</h4>
+        <div class="issue resolved">✓ FR-2 솔트 길이 명시 — 해결</div>
+        <div class="issue">
+          ⚠ NFR-1 세션 만료 정책 누락 — Design 재검토 요청
+        </div>
+        <h4 style="margin-top: var(--s4)">어노테이션</h4>
+        <p style="color: var(--muted)">아직 없음. 텍스트를 선택해 추가.</p>
+      </aside>
+    </div>
+
+    <div class="gate">
+      <span class="label">Stage 1 게이트 — <b>요청 이해</b> 산출물 검토</span>
+      <div class="spacer"></div>
+      <button class="btn">← 정정 (이전 Stage)</button>
+      <button class="btn secondary">✎ 수정 지시</button>
+      <button class="btn primary">✓ 확정 → Stage 2</button>
+    </div>
+  </body>
+</html>
