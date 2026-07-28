@@ -17,7 +17,7 @@ FactoryNote 개발 문서의 중앙 인덱스(MOC)다. 모든 영역과 주요 �
 | `03-design/` | 기능별 설계 산출물 (워크플로 6단계 출력) | 비어있음 |
 | `04-development/` | Changelog · Dev-Log (수정 사항) | [[Changelog]] · [[Dev-Log]] |
 | `05-problems/` | 이슈 · 블로커 · 포스트모템 | 비어있음 |
-| `06-research/` | 조사 노트 | [[graphify]] |
+| `06-research/` | 조사 노트 | [[graphify]] · [[plannotator-plan-page]] |
 | `90-meta/` | 컨벤션 · 템플릿 · 매뉴얼 | [[Doc-Conventions]] · [[How-To-Update-Docs]] |
 
 ## 주요 문서
