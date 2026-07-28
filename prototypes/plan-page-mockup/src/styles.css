@@ -735,3 +735,200 @@ button.btn:disabled {
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* Stage 3 모듈 설계 — 관계도 + 상세 */
+.meta {
+  padding: var(--s4) var(--s5);
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--muted);
+  display: flex;
+  gap: var(--s4);
+  flex-wrap: wrap;
+}
+.meta b {
+  color: var(--text);
+  font-weight: 500;
+}
+.meta .stage-tag {
+  font-family: var(--mono);
+  color: var(--text);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 12px;
+}
+.workspace {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: var(--s4);
+  padding: var(--s4) var(--s5) 120px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.graph-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--s4);
+  min-height: 520px;
+}
+.card-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin-bottom: var(--s3);
+  font-weight: 600;
+}
+.mermaid-wrap {
+  display: flex;
+  justify-content: center;
+}
+.legend {
+  display: flex;
+  gap: var(--s4);
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: var(--s3);
+  padding-top: var(--s3);
+  border-top: 1px solid var(--border);
+}
+.lg {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.lg .d {
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--border-strong);
+}
+.lg .d.box {
+  border-radius: 2px;
+}
+.lg .d.cyl {
+  border-radius: 8px;
+}
+.detail {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--s4);
+  position: sticky;
+  top: var(--s4);
+  align-self: start;
+}
+.mod-name {
+  font-family: var(--mono);
+  font-size: 1rem;
+  font-weight: 600;
+  margin: var(--s1) 0 var(--s2);
+}
+.layer-pill {
+  display: inline-block;
+  font-size: 11px;
+  font-family: var(--mono);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.06);
+  margin-bottom: var(--s3);
+}
+.mod-desc {
+  font-size: 14px;
+  margin-bottom: var(--s3);
+}
+.mod-deps {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: var(--s3);
+}
+.mod-deps b {
+  color: var(--text);
+}
+.dep-chip {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin: 2px 4px 2px 0;
+  cursor: pointer;
+}
+.dep-chip:hover {
+  border-color: var(--text);
+}
+.mod-comments {
+  margin-top: var(--s4);
+  padding-top: var(--s3);
+  border-top: 1px solid var(--border);
+}
+.mod-comments .comment-input-row button {
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--text);
+  background: var(--text);
+  color: var(--on-color);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* 의존(엣지) 상세 — 모듈 상세의 의존 목록 + 의존 패널 */
+.dep-group {
+  margin-bottom: var(--s3);
+}
+.dep-group-label {
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--muted);
+  margin-bottom: var(--s1);
+}
+.dep-row {
+  display: grid;
+  grid-template-columns: 16px auto 1fr auto;
+  gap: var(--s2);
+  align-items: baseline;
+  padding: var(--s1) var(--s2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+}
+.dep-row:hover {
+  background: rgba(17, 24, 39, 0.04);
+  border-color: var(--border);
+}
+.dep-arrow {
+  color: var(--muted);
+  font-weight: 700;
+}
+.dep-target {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+  border-bottom: 1px dotted var(--border-strong);
+}
+.dep-target:hover {
+  border-bottom-color: var(--text);
+}
+.dep-desc {
+  color: var(--muted);
+  font-size: 12px;
+}
+.dep-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+}
+.edge-name {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: var(--s1) 0 var(--s2);
+}
+.edge-arrow {
+  color: var(--muted);
+}

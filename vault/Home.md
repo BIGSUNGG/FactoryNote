@@ -14,7 +14,7 @@ FactoryNote 개발 문서의 중앙 인덱스(MOC)다. 모든 영역과 주요 �
 | `00-vision/` | 정체성 · 목표 · 5대 원칙 · 용어집 | [[project-identity]] |
 | `01-architecture/` | 6단계 파이프라인 · 에이전트 역할 · 3계층 구조 · 패키지 맵 | [[multi-agent-pipeline]] |
 | `02-decisions/` | ADR (정해진 사항) | [[ADR-001-documentation-system]] |
-| `03-design/` | 기능별 설계 산출물 | [[core-features]] |
+| `03-design/` | 기능별 설계 산출물 | [[03-design/plan-page/core-features | plan-page]] · [[03-design/module-design/features | 모듈 설계]] |
 | `04-development/` | Changelog · Dev-Log (수정 사항) | [[Changelog]] · [[Dev-Log]] |
 | `05-problems/` | 이슈 · 블로커 · 포스트모템 | 비어있음 |
 | `06-research/` | 조사 노트 | [[graphify]] · [[plannotator-plan-page]] |

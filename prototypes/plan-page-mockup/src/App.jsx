@@ -1,6 +1,6 @@
 // FactoryNote plan page — 시안 A(모노톤) React 목업
 // 본문은 마크다운 파일(plan.md)에서 생성. 블록 단위 + 드래그 영역 코멘트 지원.
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
 import Topbar from "./components/Topbar";
 import Stepper from "./components/Stepper";
@@ -8,6 +8,7 @@ import Toc from "./components/Toc";
 import Document from "./components/Document";
 import SidePanel from "./components/SidePanel";
 import GateBar from "./components/GateBar";
+import ModuleDesign from "./components/ModuleDesign";
 import planMd from "./data/plan.md?raw";
 import { mdToBlocks } from "./lib/mdToBlocks";
 
@@ -29,6 +30,16 @@ const feedbackIssues = [
 const stripHtml = (html) => html.replace(/<[^>]+>/g, "").trim();
 
 export default function App() {
+	const [view, setView] = useState(() =>
+		window.location.hash.includes("modules") ? "modules" : "plan",
+	);
+	useEffect(() => {
+		const onHash = () =>
+			setView(window.location.hash.includes("modules") ? "modules" : "plan");
+		window.addEventListener("hashchange", onHash);
+		return () => window.removeEventListener("hashchange", onHash);
+	}, []);
+
 	const blocks = useMemo(() => mdToBlocks(planMd), []);
 	const toc = useMemo(() => {
 		const hs = blocks.filter(
@@ -123,6 +134,8 @@ export default function App() {
 				document.body,
 			)
 		: null;
+
+	if (view === "modules") return <ModuleDesign />;
 
 	return (
 		<>

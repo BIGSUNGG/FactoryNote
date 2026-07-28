@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FactoryNote · Stage 3 — 모듈 아키텍처</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+      :root {
+        --primary: #111827;
+        --surface: #ffffff;
+        --text: #111827;
+        --bg: var(--surface);
+        --muted: rgba(17, 24, 39, 0.55);
+        --border: rgba(17, 24, 39, 0.12);
+        --border-strong: rgba(17, 24, 39, 0.22);
+        --on-color: var(--surface);
+        --radius: 8px;
+        --radius-sm: 4px;
+        --s1: 4px;
+        --s2: 8px;
+        --s3: 16px;
+        --s4: 24px;
+        --s5: 32px;
+        --mono: "JetBrains Mono", ui-monospace, monospace;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: Inter, system-ui, sans-serif;
+        color: var(--text);
+        background: var(--bg);
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+      .topbar {
+        display: flex;
+        align-items: center;
+        gap: var(--s3);
+        height: 56px;
+        padding: 0 var(--s4);
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+      }
+      .logo {
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      .crumb {
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .spacer {
+        margin-left: auto;
+      }
+      .badge {
+        padding: 2px var(--s2);
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--muted);
+        border: 1px solid var(--border-strong);
+      }
+      .stepper {
+        display: flex;
+        align-items: center;
+        padding: var(--s3) var(--s4);
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        overflow-x: auto;
+        gap: 0;
+      }
+      .step {
+        display: flex;
+        align-items: center;
+        gap: var(--s2);
+        padding: var(--s1) var(--s3);
+        font-size: 13px;
+        color: var(--muted);
+        white-space: nowrap;
+        border-radius: var(--radius);
+      }
+      .step.current {
+        color: var(--text);
+        font-weight: 600;
+        background: rgba(17, 24, 39, 0.06);
+      }
+      .step.done {
+        color: var(--muted);
+        opacity: 0.7;
+      }
+      .step .num {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        height: 20px;
+        border-radius: 999px;
+        border: 1.5px solid currentColor;
+        font-size: 11px;
+        font-weight: 700;
+      }
+      .step-sep {
+        width: 24px;
+        height: 1px;
+        background: var(--border-strong);
+        margin: 0 var(--s1);
+        flex: none;
+      }
+      .meta {
+        padding: var(--s4) var(--s5);
+        border-bottom: 1px solid var(--border);
+        font-size: 13px;
+        color: var(--muted);
+        display: flex;
+        gap: var(--s4);
+        flex-wrap: wrap;
+      }
+      .meta b {
+        color: var(--text);
+        font-weight: 500;
+      }
+      .meta .stage-tag {
+        font-family: var(--mono);
+        color: var(--text);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-size: 12px;
+      }
+      .workspace {
+        display: grid;
+        grid-template-columns: 1fr 320px;
+        gap: var(--s4);
+        padding: var(--s4) var(--s5) 120px;
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+      .graph-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: var(--s4);
+        min-height: 520px;
+      }
+      .graph-card h3 {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin-bottom: var(--s3);
+        font-weight: 600;
+      }
+      .legend {
+        display: flex;
+        gap: var(--s4);
+        flex-wrap: wrap;
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: var(--s3);
+        padding-top: var(--s3);
+        border-top: 1px solid var(--border);
+      }
+      .lg {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .lg .d {
+        width: 12px;
+        height: 12px;
+        border: 1px solid var(--border-strong);
+        border-radius: 2px;
+      }
+      .detail {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: var(--s4);
+        position: sticky;
+        top: var(--s4);
+        align-self: start;
+      }
+      .detail h4 {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .detail .mod-name {
+        font-family: var(--mono);
+        font-size: 1rem;
+        font-weight: 600;
+        margin: var(--s1) 0 var(--s2);
+      }
+      .detail .layer-pill {
+        display: inline-block;
+        font-size: 11px;
+        font-family: var(--mono);
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: rgba(17, 24, 39, 0.06);
+        margin-bottom: var(--s3);
+      }
+      .detail .desc {
+        font-size: 14px;
+        margin-bottom: var(--s3);
+      }
+      .detail .deps {
+        font-size: 13px;
+        color: var(--muted);
+        margin-bottom: var(--s3);
+      }
+      .detail .deps b {
+        color: var(--text);
+      }
+      .detail .dep-chip {
+        display: inline-block;
+        font-family: var(--mono);
+        font-size: 11px;
+        padding: 2px 6px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        margin: 2px 4px 2px 0;
+        cursor: pointer;
+      }
+      .detail .dep-chip:hover {
+        border-color: var(--text);
+      }
+      .empty {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .comments {
+        margin-top: var(--s4);
+        padding-top: var(--s3);
+        border-top: 1px solid var(--border);
+      }
+      .comments h4 {
+        margin-bottom: var(--s2);
+      }
+      .comment-input-row {
+        display: flex;
+        gap: var(--s2);
+        margin-top: var(--s2);
+      }
+      .comment-input-row input {
+        flex: 1;
+        padding: var(--s2);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius-sm);
+        font: inherit;
+        font-size: 13px;
+      }
+      .comment-input-row input:focus {
+        outline: none;
+        border-color: var(--text);
+      }
+      .comment-input-row button {
+        padding: var(--s2) var(--s3);
+        border: 1px solid var(--text);
+        background: var(--text);
+        color: var(--on-color);
+        border-radius: var(--radius-sm);
+        font: inherit;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .comment-item {
+        font-size: 13px;
+        padding: var(--s1) 0;
+        border-top: 1px dashed var(--border);
+      }
+      .comment-item:first-child {
+        border-top: none;
+      }
+      .gate {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        align-items: center;
+        gap: var(--s3);
+        padding: var(--s3) var(--s5);
+        background: var(--surface);
+        border-top: 1px solid var(--border);
+        box-shadow: 0 -2px 8px rgba(17, 24, 39, 0.04);
+      }
+      .gate .label {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .gate .label b {
+        color: var(--text);
+      }
+      .btn {
+        padding: var(--s2) var(--s4);
+        border-radius: var(--radius);
+        border: 1px solid var(--border-strong);
+        background: var(--surface);
+        font: inherit;
+        font-weight: 500;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      .btn:hover {
+        border-color: var(--text);
+      }
+      .btn.primary {
+        background: var(--text);
+        color: var(--on-color);
+        border-color: var(--text);
+      }
+      .btn.primary:hover {
+        opacity: 0.9;
+      }
+      .mermaid {
+        display: flex;
+        justify-content: center;
+      }
+      .mermaid .node rect {
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="topbar">
+      <div class="logo">FactoryNote</div>
+      <span class="crumb">/ auth-module · Stage 3</span>
+      <div class="spacer"></div>
+      <span class="badge">모듈 설계 · 게이트 대기</span>
+    </div>
+
+    <div class="stepper">
+      <div class="step done"><span class="num">1</span> 요청 이해</div>
+      <div class="step-sep"></div>
+      <div class="step done"><span class="num">2</span> 시나리오</div>
+      <div class="step-sep"></div>
+      <div class="step current"><span class="num">3</span> 모듈 아키텍처</div>
+      <div class="step-sep"></div>
+      <div class="step"><span class="num">4</span> 클래스 설계</div>
+      <div class="step-sep"></div>
+      <div class="step"><span class="num">5</span> 구현 계획</div>
+      <div class="step-sep"></div>
+      <div class="step"><span class="num">6</span> 최종 검증</div>
+    </div>
+
+    <div class="meta">
+      <span class="stage-tag">Stage 3 / 6 · 산출물</span>
+      <span><b>산출물:</b> 모듈 구조도</span>
+      <span><b>모듈 수:</b> 8</span>
+      <span><b>의존 관계:</b> 7</span>
+      <span><b>Design↔Feedback:</b> 라운드 1</span>
+    </div>
+
+    <div class="workspace">
+      <div class="graph-card">
+        <h3>📦 모듈 의존 관계도</h3>
+        <div class="mermaid">
+          graph TD AC[AuthController] --> AS[AuthService] AS --> US[UserService]
+          AS --> HU[HashUtil] AS --> TS[TokenService] US --> UR[UserRepository]
+          US --> ML[Mailer] UR --> DB[(Database)] click AC call selectModule
+          click AS call selectModule click US call selectModule click HU call
+          selectModule click TS call selectModule click UR call selectModule
+          click ML call selectModule click DB call selectModule
+        </div>
+        <div class="legend">
+          <div class="lg">
+            <div class="d"></div>
+            모듈 (클릭하여 상세·코멘트)
+          </div>
+          <div class="lg">
+            <div class="d" style="border-radius: 8px"></div>
+            외부 시스템
+          </div>
+          <div class="lg">→ 의존 방향</div>
+        </div>
+      </div>
+
+      <aside class="detail" id="detail">
+        <h4>모듈 상세</h4>
+        <p class="empty">
+          관계도에서 모듈을 클릭하면 상세와 코멘트가 표시됩니다.
+        </p>
+      </aside>
+    </div>
+
+    <div class="gate">
+      <span class="label">Stage 3 게이트 — <b>모듈 아키텍처</b> 검토</span>
+      <div class="spacer"></div>
+      <button class="btn">↩ 정정</button>
+      <button class="btn">✎ 수정 지시 (0)</button>
+      <button class="btn primary">✓ 확정 → Stage 4</button>
+    </div>
+
+    <script>
+      const MODULES = {
+        AuthController: {
+          layer: "API",
+          desc: "로그인·회원가입 HTTP 엔드포인트. 요청을 받아 AuthService로 위임.",
+          deps: ["AuthService"],
+        },
+        AuthService: {
+          layer: "Service",
+          desc: "인증 로직 오케스트레이션. 해싱·토큰 발급·사용자 생성을 조율.",
+          deps: ["UserService", "HashUtil", "TokenService"],
+        },
+        UserService: {
+          layer: "Service",
+          desc: "사용자 생성·조회. 저장소와 메일러를 호출.",
+          deps: ["UserRepository", "Mailer"],
+        },
+        HashUtil: {
+          layer: "Util",
+          desc: "bcrypt(cost 12) 해싱. 순수 함수, 의존 없음.",
+          deps: [],
+        },
+        TokenService: {
+          layer: "Util",
+          desc: "JWT 서명·검증. 만료·갱신 정책 포함.",
+          deps: [],
+        },
+        UserRepository: {
+          layer: "Repository",
+          desc: "DB 접근 추상화. SQL 쿼리 캡슐화.",
+          deps: ["Database"],
+        },
+        Mailer: {
+          layer: "External",
+          desc: "인증 메일 발송 (외부 SMTP).",
+          deps: [],
+        },
+        Database: {
+          layer: "External",
+          desc: "PostgreSQL. 외부 시스템.",
+          deps: [],
+        },
+      };
+      const COMMENTS = {}; // moduleName -> [text,...]
+
+      // DOM API 로 안전하게 렌더 (textContent — XSS 방지)
+      function el(tag, cls, text) {
+        const e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (text != null) e.textContent = text;
+        return e;
+      }
+
+      function renderDetail(name) {
+        const m = MODULES[name];
+        if (!m) return;
+        const detail = document.getElementById("detail");
+        detail.replaceChildren();
+
+        const list = COMMENTS[name] || [];
+
+        detail.appendChild(el("h4", null, "모듈 상세"));
+        detail.appendChild(el("div", "mod-name", name));
+        detail.appendChild(el("span", "layer-pill", m.layer));
+        detail.appendChild(el("div", "desc", m.desc));
+
+        const depsBox = el("div", "deps");
+        depsBox.appendChild(el("b", null, "의존 대상:"));
+        depsBox.appendChild(document.createElement("br"));
+        if (m.deps.length) {
+          m.deps.forEach((d) => {
+            const chip = el("span", "dep-chip", d);
+            chip.onclick = () => selectModule(d);
+            depsBox.appendChild(chip);
+          });
+        } else {
+          depsBox.appendChild(el("span", null, " 없음"));
+        }
+        detail.appendChild(depsBox);
+
+        const cbox = el("div", "comments");
+        cbox.appendChild(el("h4", null, `코멘트 (${list.length})`));
+        if (list.length) {
+          list.forEach((t) =>
+            cbox.appendChild(el("div", "comment-item", "💬 " + t)),
+          );
+        } else {
+          cbox.appendChild(el("div", "empty", "아직 없음"));
+        }
+        const row = el("div", "comment-input-row");
+        const inp = el("input");
+        inp.id = "cinput";
+        inp.placeholder = `${name}에 코멘트…`;
+        inp.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") addC(name);
+        });
+        const addBtn = el("button", null, "추가");
+        addBtn.onclick = () => addC(name);
+        row.appendChild(inp);
+        row.appendChild(addBtn);
+        cbox.appendChild(row);
+        detail.appendChild(cbox);
+
+        inp.focus();
+      }
+
+      function addC(name) {
+        const inp = document.getElementById("cinput");
+        if (!inp || !inp.value.trim()) return;
+        COMMENTS[name] = COMMENTS[name] || [];
+        COMMENTS[name].push(inp.value.trim());
+        const total = Object.values(COMMENTS).reduce((a, b) => a + b.length, 0);
+        document.querySelectorAll(".gate .btn")[1].textContent =
+          `✎ 수정 지시 (${total})`;
+        renderDetail(name);
+      }
+
+      // mermaid 클릭 콜백 (securityLevel loose)
+      function selectModule(name) {
+        renderDetail(name);
+      }
+      window.selectModule = selectModule;
+
+      mermaid.initialize({
+        startOnLoad: true,
+        securityLevel: "loose",
+        theme: "base",
+        themeVariables: {
+          primaryColor: "#ffffff",
+          primaryTextColor: "#111827",
+          primaryBorderColor: "#111827",
+          lineColor: "#111827",
+          fontFamily: "Inter, sans-serif",
+          fontSize: "13px",
+        },
+        flowchart: { nodeSpacing: 40, rankSpacing: 50, curve: "basis" },
+      });
+    </script>
+  </body>
+</html>
