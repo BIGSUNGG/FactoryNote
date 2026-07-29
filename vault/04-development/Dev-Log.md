@@ -9,11 +9,15 @@ tags: [development, dev-log]
 
 ## 2026-07-29
 
+### 재구축 — 최소 스캐폴드
+
+모노레포 스캐폴드를 한 차례 제거(`021410c`) 후 **폴더 골조 + 최소 파일**로 재구축. TS+bun(plannotator 동일). `src/` 는 패키지 유효성 유지용 배럴(`export {}`)만 두고, M3/M4/타입 스텁은 **Stage 5 구현 시 추가**(사용자 선택: 인터페이스 스텁 제외). `bun install` + `tsc -b` typecheck 통과. 아래 첫 스캐폴드 기록은 참고용(src 스텁은 현재 미포함).
+
 ### 한 일
 
 - vault 문서 정리: `workflow-core/05-implementation-plan.md` 제거(구현 순서/Phase 0–3 계획). 파이프라인 설계(Stage 5 "구현 계획" 단계)는 유지, dogfood 산출물 파일만 삭제. 구현 순서는 코드 진행과 함께 본 로그로 추적.
 - 모노레포 스캐폴딩: [plannotator](https://github.com/backnotprop/plannotator) 폴더 패턴(`apps/`+`packages/`+`docs/`+`bin/`+`scripts/`+`tests/`, bun workspaces) 채택.
-- **`packages/factorynote/`**(Layer 1-2 코어): `protocol/stages/`·`protocol/templates/`(M1 Stage Registry) + `orchestrator/`(M2 Director 규칙, 마크다운) + `src/`(`types.ts` M1/M3 스키마, `agent-adapter.ts` M4 `AgentSpawn` 인터페이스, `persistence.ts` M3).
+- **`packages/factorynote/`**(Layer 1-2 코어): `protocol/stages/`·`protocol/templates/`(M1 Stage Registry) + `orchestrator/`(M2 Director 규칙, 마크다운) + `src/`(배럴만 — `types.ts`·`agent-adapter.ts`·`persistence.ts` 스텁은 Stage 5).
 - **`apps/`**(Layer 3 어댑터): `pi-extension/`(메인 — `PiAgentSpawn` M4 Tier1 pi-crew + `factorynote()` M5 진입점, Stage 5 구현) + `claude-code/`·`codex/`(뼈대).
 - `docs/`·`bin/factorynote.mjs`(Tier 0 순수 Node)·`scripts/`·`tests/` 보조 디렉토리. 루트 `README.md`·`CONTRIBUTING.md`·`tsconfig.json`(solution)·`package.json`(workspaces).
 - `bun install` + `tsc -b` typecheck 통과.
