@@ -7,5 +7,9 @@
   "main": "src/index.ts",
   "dependencies": {
     "@factorynote/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.80.6",
+    "typebox": "1.1.38"
   }
 }

@@ -1,3 +1,30 @@
 // @factorynote/core entry point (barrel).
-// M3 persistence · M4 AgentSpawn interface · M1/M3 타입은 Stage 5 구현 시 추가.
-export {};
+// M3 Persistence · M1 Stage Registry · Engine(상태기계). harness-agnostic(Layer 1-2).
+export type {
+	ArtifactFormat,
+	Comment,
+	GateDecision,
+	GateVerdict,
+	HistoryEntry,
+	PipelineState,
+	StageId,
+} from "./types.ts";
+export { STAGES, currentStageDef, stageById } from "./stages.ts";
+export type { StageDefinition } from "./stages.ts";
+export {
+	applyVerdict,
+	initialState,
+	isComplete,
+	markArtifactReady,
+	nextStageId,
+	requiresArtifact,
+} from "./engine.ts";
+export {
+	artifactPath,
+	featureDir,
+	loadState,
+	readArtifact,
+	saveState,
+	statePath,
+	writeArtifact,
+} from "./persistence.ts";

@@ -28,7 +28,7 @@ const feedbackIssues = [
 
 const stripHtml = (html) => html.replace(/<[^>]+>/g, "").trim();
 
-export default function PlanPage({ mdSource, stage }) {
+export default function PlanPage({ mdSource, stage, onGate }) {
 	const label = STAGE_DEFS[stage - 1].label;
 	const blocks = useMemo(() => mdToBlocks(mdSource), [mdSource]);
 	const toc = useMemo(() => {
@@ -86,6 +86,19 @@ export default function PlanPage({ mdSource, stage }) {
 
 	const pendingCount = comments.filter((c) => !c.applied).length;
 
+	// 게이트 결정 전송 — pi 에이전트로 verdict+comments 를 POST.
+	const toGateComment = (c) => {
+		const o = { blockId: c.targetId, text: c.text };
+		if (c.quote) o.quote = c.quote;
+		return o;
+	};
+	const sendConfirm = () => onGate({ verdict: "confirm", comments: [] });
+	const sendRevert = () => onGate({ verdict: "revert", comments: [] });
+	const sendModify = () => {
+		const pending = comments.filter((c) => !c.applied).map(toGateComment);
+		onGate({ verdict: "modify", comments: pending });
+	};
+
 	const rangePopover = activeRange
 		? createPortal(
 				<div
@@ -141,7 +154,9 @@ export default function PlanPage({ mdSource, stage }) {
 				stage={stage}
 				label={label}
 				pendingCount={pendingCount}
-				onApply={applyComments}
+				onConfirm={sendConfirm}
+				onModify={sendModify}
+				onRevert={sendRevert}
 			/>
 			{rangePopover}
 		</>

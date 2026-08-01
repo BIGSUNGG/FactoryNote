@@ -1,11 +1,41 @@
 ---
-updated: 2026-07-29
+updated: 2026-08-01
 tags: [development, dev-log]
 ---
 
 # Dev-Log
 
 날짜별 작업 기록. 무엇을 했는지, 왜, 무엇이 남았는지. [[Changelog]]는 외부용 단위, 본 파일은 일일 흐름.
+
+## 2026-08-01
+
+### MVP 구현(Stage 5) — pi 하네스 실동작
+
+모든 진입점이 스텁이던 상태에서 MVP 를 끝까지 구현. [[ADR-005-mvp-implementation]] 참고.
+
+#### 한 일
+
+- **코어(packages/factorynote/src)**: types.ts·stages.ts(6단계 Registry)·persistence.ts(.factorynote/<feature>/state.json atomic write-then-rename + 손상 시 .corrupt-*백업 후 복구 + 산출물 NN-stage.md r/w)·engine.ts(순수 상태기계: confirm/modify/revert 전이). harness-agnostic, node:* 만 사용(런타임 의존 0). engine.test.ts 10건.
+- **Pi 확장(apps/pi-extension/src)**: index.ts(/factorynote 명령=모드 토글 + before_agent_start 계획 프롬프트 주입 + factorynote_plan 도구 등록) · gate-server.ts(로컬 node:http 서버 — /api/state·/api/decision + 뷰어 dist 정적 서빙 + 브라우저 오픈 + signal 중단 처리) · plan-tool.ts(drivePlan: 산출물 저장→게이트→결정→상태 전이). gate-server.test.ts·plan-tool.test.ts·load.test.ts 추가.
+- **뷰어 연동(prototypes/plan-page-mockup)**: App.jsx 가 /api/state fetch + /api/decision POST 하도록 개편, GateBar.jsx/PlanPage.jsx 게이트 콜백 연결. vite build 재빌드.
+- **CLI(bin/factorynote.mjs)**: 순수 Node(ESM) 상태 조회. **설치(scripts/install.sh)**: ~/.pi/agent/extensions/factorynote/ 에 확장 TS + @factorynote/core(로컬 node_modules 패키지) + 뷰어 dist 배치.
+- **빌드/의존성**: @types/node·bun-types 추가(tsconfig types 로 bun-types 지정 → node 내장 타입 동시 해석), 루트 build 스크립트를 tsc -b 로 수정. bun run build/typecheck 0 종료, 자체체크 19건 통과.
+
+#### 왜
+
+- 사용자 시드 5종(모드 토글·웹페이지 게이트·수정/확정 루프·pi 실동작·로컬 설치)을 최소 구현으로 충족(ponytail). ADR-003/FR-8 와 시드가 다른 부분은 사용자 의도 우선으로 [[ADR-005-mvp-implementation]] 에 기록.
+- 제어흐름+영속은 코드(테스트 가능), 산출물 판단은 LLM — hybrid 원칙 유지.
+
+#### 문서화
+
+- [[implementation-architecture]] — 3계층 코드 맵·모듈 책임·런타임 데이터 흐름(mermaid 시퀀스)·state.json·/api 계약·설치 레이아웃.
+- [[usage-guide]](설치/사용/게이트 UX/트러블슈팅) · [[development-guide]](빌드·테스트·의존성 메모·확장 시나리오: 단계 추가·뷰어 수정·harness 어댑터·Tier 1).
+- 루트 `README.md` 를 구현 상태로 갱신(스캐폴드 기술 제거, install + /factorynote 퀵스타트, 문서 인덱스). 누락돼 있던 `AGENTS.md`(5대 원칙·오리엔테이션) 신규 작성. [[Home]] 에 신규 문서 링크.
+
+#### 남은 것 / 다음
+
+- 최종 인간 수락: pi 대화형 세션에서 /factorynote 토글 → 기능 요청 → 브라우저 게이트 클릭으로 종단 간 확인(사용자 수행).
+- Tier 1(pi-crew)·Design↔Feedback 상한 루프·Stage 3/4 그래프 에디터·Codex/Claude Code 어댑터(ADR-005 후속).
 
 ## 2026-07-29
 
