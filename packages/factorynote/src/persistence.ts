@@ -78,10 +78,11 @@ function validateState(s: unknown): PipelineState {
 	) {
 		throw new Error("invalid state shape");
 	}
-	// FR-7 마이그레이션: 구 state.json(validThrough 누락) → 0 기본값(NaN 전파 방지).
+	// FR-7 마이그레이션: 구 state.json(validThrough 누락·null·NaN 등 비정상) → 0 기본값.
+	// typeof==='number' 는 NaN 을 못 걸름 → Number.isFinite 로 전부 가드.
 	const withMigration: Record<string, unknown> = {
 		...o,
-		validThrough: typeof o.validThrough === "number" ? o.validThrough : 0,
+		validThrough: Number.isFinite(o.validThrough) ? o.validThrough : 0,
 	};
 	return withMigration as unknown as PipelineState;
 }

@@ -243,9 +243,36 @@ test("loadState migrates legacy state.json missing validThrough → 0", async ()
 		createdAt: 1,
 		updatedAt: 2,
 	}; // validThrough 의도적 누락(구 포맷)
-	await writeFile(join(root, feat, "state.json"), JSON.stringify(legacy), "utf8");
+	await writeFile(
+		join(root, feat, "state.json"),
+		JSON.stringify(legacy),
+		"utf8",
+	);
 	const loaded = await loadState(root, feat);
 	expect(loaded).toBeDefined();
+	expect(loaded?.validThrough).toBe(0);
+});
+
+test("loadState guards non-finite validThrough (null) → 0", async () => {
+	const feat = "badvt";
+	await saveState(root, initialState(feat));
+	// validThrough=null(비정상) 도 0 으로 마이그레이션 가드.
+	await writeFile(
+		join(root, feat, "state.json"),
+		JSON.stringify({
+			feature: feat,
+			stage: 2,
+			gateOpen: false,
+			loopCount: 0,
+			done: false,
+			history: [],
+			validThrough: null,
+			createdAt: 1,
+			updatedAt: 1,
+		}),
+		"utf8",
+	);
+	const loaded = await loadState(root, feat);
 	expect(loaded?.validThrough).toBe(0);
 });
 
