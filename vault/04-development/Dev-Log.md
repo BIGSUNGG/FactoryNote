@@ -1,11 +1,36 @@
 ---
-updated: 2026-08-01
+updated: 2026-08-03
 tags: [development, dev-log]
 ---
 
 # Dev-Log
 
 날짜별 작업 기록. 무엇을 했는지, 왜, 무엇이 남았는지. [[Changelog]]는 외부용 단위, 본 파일은 일일 흐름.
+
+## 2026-08-03
+
+### 파이프라인 경화 — Orca orchestration + metricless /loop
+
+MVP 병렬 3-워크트리 통합(fn-integration) 후 드러난 통합 결함·요구사항 gap을 폐쇄. [[Changelog]] [Unreleased] 파이프라인 경화 항목 참고.
+
+#### 한 일
+
+- **병렬 라운드(Orca supervised orchestration)**: 3 워크트리×pi 에이전트(코어/어댑터/게이트)로 D1~D5 원판 작성·통합. pi 는 Orca `dispatch --inject` 비인식(v1.4.159) → 일반 디스패치 + `terminal send` 수동 주입으로 해결.
+- **seam 결함 발견→폐쇄**: 병렬 분할이 "연결 wiring"을 명시하지 않아 신규 심볼이 dead code가 됨(`invalidateArtifactsAfter`·`atLoopCeiling`·`timeoutMs` 미호출). 단일-owner 직접 수정(plan-tool/persistence)으로 연결.
+- **review 서브 재심사로 P0 포착**: gate-server 가 `/api/decision` 에서 `revertTo` 를 drop(D5 다단계 회귀가 end-to-end 무력화) — ast-grep audit 는 구조상 검출 불가, 정성 재심사가 포착. forward + 회귀테스트로 수정.
+- **FR-2 경성 에스컬레이션**: modify@ceiling 시 에스컬레이션 메시지(잔존 이슈 + 재작성/회귀/재협의 옵션). 기존 advisory-only 에서 경성으로.
+- 기타: P1 `Number.isFinite` 가드·doc 주석 정정·Changelog 갱신. 누적 7 코드 커밋 + 1 doc 커밋.
+
+#### 왜
+
+- **병렬 워크트리는 빠르나 seam 관리가 관건** — coordinator 가 호출처를 단일 워커에 명시 귀속해야 이음새가 안 끊김(이번 교훈).
+- **metric 측정이 이 머신(pi-loop `spawn bash` ENOENT)에서 깨져** metricless /loop 로 수렴 판단을 coordinator 가 대행 — 종료 판단은 review 서브 재심사(CLEAN, P0/P1=0)로 확정.
+
+#### 남은 것
+
+- [[implementation-architecture]] 런타임 데이터 흐름·결정 표가 **구 동작을 서술**(단일 회귀·advisory-only·타임아웃 無) → 코드와 불일치, 갱신 필요.
+- fn-integration(13 커밋) → main 머지: **사용자 승인 대기**(FF 추천).
+- (scope-creep, 별도 goal) FR-2 사용자 조정 상한(ADR-005 연기) · gate-server revertTo server-side clamp.
 
 ## 2026-08-01
 
