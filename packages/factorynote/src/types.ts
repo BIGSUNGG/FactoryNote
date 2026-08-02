@@ -3,6 +3,9 @@
 /** 6단계 파이프라인 단계 식별자. */
 export type StageId = 1 | 2 | 3 | 4 | 5 | 6;
 
+/** FR-7: 0..6. validThrough = 해당 단계까지 산출물이 승인됨(0=아직 승인된 산출물 없음). */
+export type ValidThrough = 0 | StageId;
+
 /** 산출물 포맷(ADR-003). MVP는 모든 단계를 마크다운으로 렌더한다. */
 export type ArtifactFormat = "markdown" | "nodes-edges" | "matrix";
 
@@ -43,6 +46,8 @@ export interface GateDecision {
 	comments: Comment[];
 	/** 그래프 단계(Stage 3/4)에서 사용자가 편집한 그래프. 직접 편집 → 에이전트가 채택해 산출물로 저장. */
 	graphSections?: GraphSection[];
+	/** FR-7: 회귀 대상 단계(1..6). 생략 시 종래대로 1단계 회귀. 현재 단계보다 앞으로만(엔진이 clamp). */
+	revertTo?: StageId;
 }
 
 /** 게이트 통과 이력(NFR-3 감사). */
@@ -60,6 +65,8 @@ export interface PipelineState {
 	gateOpen: boolean;
 	/** 현 단계 Design 시도 횟수(modify 시 증가). */
 	loopCount: number;
+	/** FR-7: 해당 단계까지 산출물 유효(0=미승인). confirm→증가, revert→감소, modify→불변. */
+	validThrough: ValidThrough;
 	/** 파이프라인 완료(Stage 6 confirm) 여부. */
 	done: boolean;
 	history: HistoryEntry[];

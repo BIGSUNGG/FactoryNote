@@ -12,13 +12,16 @@ export type {
 	HistoryEntry,
 	PipelineState,
 	StageId,
+	ValidThrough,
 } from "./types.ts";
 export { STAGES, currentStageDef, stageById } from "./stages.ts";
 export type { StageDefinition } from "./stages.ts";
 export {
+	atLoopCeiling,
 	applyVerdict,
 	initialState,
 	isComplete,
+	MAX_LOOPS,
 	markArtifactReady,
 	nextStageId,
 	requiresArtifact,
@@ -26,6 +29,7 @@ export {
 export {
 	artifactPath,
 	featureDir,
+	invalidateArtifactsAfter,
 	loadState,
 	readArtifact,
 	saveState,

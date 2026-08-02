@@ -6,8 +6,20 @@ import type {
 	GateVerdict,
 	PipelineState,
 	StageId,
+	ValidThrough,
 } from "./types.ts";
 import { STAGES } from "./stages.ts";
+
+/** FR-2: 단계별 Design↔Feedback 루프 반복 상한(기본값). 상한 도달 시 게이트 에스컬레이션. */
+export const MAX_LOOPS = 3;
+
+/**
+ * FR-2: loopCount 가 상한 도달 여부. 엔진은 순수함수(판정만);
+ * 에스컬레이션(게이트 오픈·사용자 메시지)은 어댑터가 이 값을 보고 결정.
+ */
+export function atLoopCeiling(state: PipelineState, max = MAX_LOOPS): boolean {
+	return state.loopCount >= max;
+}
 
 export function initialState(feature: string, now = Date.now()): PipelineState {
 	return {
@@ -15,6 +27,7 @@ export function initialState(feature: string, now = Date.now()): PipelineState {
 		stage: 1,
 		gateOpen: false,
 		loopCount: 0,
+		validThrough: 0,
 		done: false,
 		history: [],
 		createdAt: now,
@@ -47,11 +60,16 @@ function record(
 	};
 }
 
+function clamp(value: number, min: number, max: number): number {
+	return Math.max(min, Math.min(max, value));
+}
+
 /**
  * 사용자 게이트 판정 적용.
- * - confirm: 다음 단계(Stage 6 confirm → done).
- * - modify: 현 단계 재작성(gate 닫힘, loopCount 증가, 코멘트는 호출자가 에이전트에 전달).
- * - revert: 이전 단계 회귀(Stage 1에서는 no-op).
+ * - confirm: 다음 단계(Stage 6 confirm → done). validThrough = max(기존, 승인된 단계).
+ * - modify: 현 단계 재작성(gate 닫힘, loopCount 증가; validThrough 불변).
+ * - revert: 회귀 — revertTo(생략 시 1단계) 로 점프. clamp 상한 = stage-1(앞으로만).
+ *   validThrough = target-1(target 단계 산출물부터 무효). Stage 1에서는 no-op.
  */
 export function applyVerdict(
 	state: PipelineState,
@@ -71,23 +89,34 @@ export function applyVerdict(
 	}
 
 	if (verdict === "revert") {
-		const prev = Math.max(1, state.stage - 1) as StageId;
+		// FR-7: 여러 단계 점프 회귀. 현재 단계보다 앞으로만(clamp 상한 = stage-1).
+		const target = clamp(
+			decision.revertTo ?? state.stage - 1,
+			1,
+			state.stage - 1,
+		) as StageId;
 		return {
 			...withHistory,
-			stage: prev,
+			stage: target,
 			gateOpen: false,
 			loopCount: 0,
+			validThrough: (target - 1) as ValidThrough,
 			updatedAt: now,
 		};
 	}
 
-	// confirm
+	// confirm: 한 단계 승인 = 그 단계까지 유효.
+	const confirmedValid = Math.max(
+		state.validThrough,
+		state.stage,
+	) as ValidThrough;
 	if (state.stage >= 6) {
 		return {
 			...withHistory,
 			stage: 6,
 			gateOpen: false,
 			done: true,
+			validThrough: confirmedValid,
 			updatedAt: now,
 		};
 	}
@@ -97,6 +126,7 @@ export function applyVerdict(
 		stage: next,
 		gateOpen: false,
 		loopCount: 0,
+		validThrough: confirmedValid,
 		updatedAt: now,
 	};
 }
