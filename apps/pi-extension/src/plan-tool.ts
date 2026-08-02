@@ -161,8 +161,12 @@ async function runOpenGate(
 	const needNext = requiresArtifact(state.stage);
 	const nextGraph = nextDef.format === "nodes-edges";
 	const commentsBlock = `\n코멘트:\n${formatComments(decision.comments)}`;
-	const base =
-		decision.verdict === "modify"
+	// FR-2: modify 가 반복 상한에 도달한 경우 단순 재작성 안내 대신 명시적 에스컬레이션
+	// (잔존 이슈 노출 + 근본 갈등 신호 + 회귀/재협의 옵션) 로 전환.
+	const escalated = decision.verdict === "modify" && atLoopCeiling(state);
+	const base = escalated
+		? `⚠ FR-2 에스컬레이션: Stage ${state.stage}(${nextDef.name}) 가 ${state.loopCount}회 수정되었으나 아래 이슈가 잔존한다. 이는 근본적 설계 갈등의 신호일 수 있으니 같은 방식의 단순 재작성 반복은 피하라. 선택: (a) 코멘트를 근본적으로 반영해 재작성 (b) 이전 단계로 회귀해 설계 전제 재검토 (c) 범위·제약 조건을 사용자와 재협의. 잔존 이슈:${commentsBlock}`
+		: decision.verdict === "modify"
 			? nextGraph
 				? `사용자가 Stage ${state.stage}(${nextDef.name}) 그래프를 직접 편집했다(채택 저장됨). 코멘트를 반영해 그래프 JSON을 수정하거나, 코멘트가 없으면 현재 그래프를 그대로 artifactMd 에 담아 재제출해 게이트를 다시 열어라.${commentsBlock}`
 				: `사용자가 Stage ${state.stage}(${nextDef.name}) 산출물의 수정을 요청했다. 코멘트를 반영해 산출물을 재작성 후 artifactMd 와 함께 다시 제출하라.${commentsBlock}`
@@ -172,12 +176,7 @@ async function runOpenGate(
 						? "그래프 JSON 산출물을 작성해 artifactMd 와 함께 제출하라."
 						: "산출물을 작성해 artifactMd 와 함께 제출하라."
 					: "이 단계는 산출물 없음 — factorynote_plan 을 다시 호출해 최종 검증 게이트를 열어라.");
-	const message =
-		(resume ? "[게이트 재오픈(인터럽트 복구)] " : "") +
-		base +
-		(atLoopCeiling(state)
-			? `\n※ 이 단계가 ${state.loopCount}회 수정됨 — 근본적 설계 갈등이 있는지 확인을 권장.`
-			: "");
+	const message = (resume ? "[게이트 재오픈(인터럽트 복구)] " : "") + base;
 
 	return {
 		done: false,

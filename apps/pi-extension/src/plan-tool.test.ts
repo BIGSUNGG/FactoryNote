@@ -179,6 +179,30 @@ test("#3 gateOpen resume: artifact on disk + gateOpen reopens gate instead of re
 	expect(await readArtifact(root, feat, "01-requirements.md")).toBe(md);
 });
 
+test("FR-2 escalation: modify at loop ceiling surfaces conflict + options", async () => {
+	const feat = "ceildemo";
+	const md = "# Req\n\n데모.";
+	await writeArtifact(root, feat, "01-requirements.md", md);
+	await saveState(root, {
+		...initialState(feat),
+		stage: 1,
+		gateOpen: true,
+		loopCount: 3, // 반복 상한 도달 상태에서 재개
+	});
+	const out = await drivePlan({
+		root,
+		viewerDistDir: VIEWER_DIST,
+		feature: feat,
+		open: false,
+		// artifactMd 생략 → gateOpen + 산출물 존재 → 게이트 재오픈(resume)
+		onReady: postDecision("modify", [{ text: "요구사항이 모호함" }]),
+	});
+	expect(out.gateResult?.verdict).toBe("modify");
+	// 천장 도달 → 에스컬레이션 메시지(근본 갈등 신호 + 옵션) 로 전환.
+	expect(out.message).toMatch(/FR-2 에스컬레이션|⚠/);
+	expect(out.message).toContain("요구사항이 모호함"); // 잔존 이슈 노출
+});
+
 test("teardown", async () => {
 	await rm(root, { recursive: true, force: true });
 });
