@@ -1,9 +1,17 @@
 // M3 Persistence — 얇은 코드. .factorynote/<feature>/ 의 신뢰성 담당(NFR-2).
 // atomic(write-then-rename) 상태 쓰기, 손상 복구, 산출물 마크다운 저장.
 // harness-agnostic: 경로를 인자로 받는다(pi 의존 0). node:* builtins만 사용(런타임 npm 의존 0).
-import { readFile, writeFile, mkdir, rename, copyFile } from "node:fs/promises";
+import {
+	readFile,
+	writeFile,
+	mkdir,
+	rename,
+	copyFile,
+	unlink,
+} from "node:fs/promises";
 import { join } from "node:path";
-import type { PipelineState } from "./types.ts";
+import { STAGES } from "./stages.ts";
+import type { PipelineState, ValidThrough } from "./types.ts";
 
 /** 한 feature의 런타임 디렉토리: <root>/<feature>/ (state.json + NN-*.md). */
 export function featureDir(root: string, feature: string): string {
@@ -114,4 +122,27 @@ export async function readArtifact(
 		if ((err as NodeJS.ErrnoException).code === "ENOENT") return undefined;
 		throw err;
 	}
+}
+
+/**
+ * FR-7: afterStage 이후(id > afterStage) 산출물 best-effort 삭제(ENOENT 무시).
+ * 회귀 시 대상 단계 이후 산출물 자동 무효화. afterStage 에는 validThrough 를 전달.
+ */
+export async function invalidateArtifactsAfter(
+	root: string,
+	feature: string,
+	afterStage: ValidThrough,
+): Promise<void> {
+	const stale = STAGES.filter(
+		(s) => s.artifactFile !== null && s.id > afterStage,
+	);
+	await Promise.all(
+		stale.map((s) =>
+			unlink(artifactPath(root, feature, s.artifactFile as string)).catch(
+				(err) => {
+					if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+				},
+			),
+		),
+	);
 }
