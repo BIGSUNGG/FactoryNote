@@ -114,6 +114,7 @@ export default function GraphStage({
 	sections: initialSections,
 	feature,
 	onGate,
+	stageLabels = {},
 }) {
 	const isClass = stage === 4;
 	const [sections, setSections] = useState(() =>
@@ -343,7 +344,7 @@ export default function GraphStage({
 			nodes: s.nodes,
 			edges: s.edges,
 		}));
-	const submit = (verdict, withComments) =>
+	const submit = (verdict, withComments, revertTo) =>
 		onGate({
 			verdict,
 			comments: withComments
@@ -352,6 +353,7 @@ export default function GraphStage({
 					)
 				: [],
 			graphSections: serialized(),
+			...(revertTo ? { revertTo } : {}),
 		});
 
 	const nodeTypes = isClass ? NODE_TYPES_4 : NODE_TYPES_3;
@@ -593,9 +595,10 @@ export default function GraphStage({
 				stage={stage}
 				label={stageName}
 				pendingCount={pendingTotal}
+				stageLabels={stageLabels}
 				onConfirm={() => submit("confirm", false)}
 				onModify={() => submit("modify", true)}
-				onRevert={() => submit("revert", false)}
+				onRevert={(t) => submit("revert", false, t)}
 			/>
 			{menuEl}
 		</>

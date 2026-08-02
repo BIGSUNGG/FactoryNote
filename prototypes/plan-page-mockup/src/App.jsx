@@ -39,6 +39,11 @@ export default function App() {
 		setSubmitted(true);
 	};
 
+	// 회귀 대상 셀렉터용 단계 라벨(산출물 이름 + 현재 단계명).
+	const stageLabels = {};
+	for (const a of state.artifacts || []) stageLabels[a.stage] = a.name;
+	stageLabels[state.stage] = state.stageName;
+
 	const isGraph = state.stage === 3 || state.stage === 4;
 	const cur = (state.artifacts || []).find((a) => a.stage === state.stage);
 
@@ -49,6 +54,7 @@ export default function App() {
 				stageName={state.stageName}
 				feature={state.feature}
 				sections={cur?.graphSections || []}
+				stageLabels={stageLabels}
 				onGate={onGate}
 			/>
 		);
@@ -60,6 +66,7 @@ export default function App() {
 			stage={state.stage}
 			stageName={state.stageName}
 			feature={state.feature}
+			stageLabels={stageLabels}
 			onGate={onGate}
 		/>
 	);

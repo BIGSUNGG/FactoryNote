@@ -28,7 +28,7 @@ const feedbackIssues = [
 
 const stripHtml = (html) => html.replace(/<[^>]+>/g, "").trim();
 
-export default function PlanPage({ mdSource, stage, onGate }) {
+export default function PlanPage({ mdSource, stage, onGate, stageLabels = {} }) {
 	const label = STAGE_DEFS[stage - 1].label;
 	const blocks = useMemo(() => mdToBlocks(mdSource), [mdSource]);
 	const toc = useMemo(() => {
@@ -93,7 +93,8 @@ export default function PlanPage({ mdSource, stage, onGate }) {
 		return o;
 	};
 	const sendConfirm = () => onGate({ verdict: "confirm", comments: [] });
-	const sendRevert = () => onGate({ verdict: "revert", comments: [] });
+	const sendRevert = (target) =>
+		onGate({ verdict: "revert", comments: [], revertTo: target });
 	const sendModify = () => {
 		const pending = comments.filter((c) => !c.applied).map(toGateComment);
 		onGate({ verdict: "modify", comments: pending });
@@ -154,6 +155,7 @@ export default function PlanPage({ mdSource, stage, onGate }) {
 				stage={stage}
 				label={label}
 				pendingCount={pendingCount}
+				stageLabels={stageLabels}
 				onConfirm={sendConfirm}
 				onModify={sendModify}
 				onRevert={sendRevert}
