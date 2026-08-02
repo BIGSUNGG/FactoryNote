@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-01
+updated: 2026-08-03
 tags: [architecture, implementation, code-map, data-flow]
 ---
 
@@ -28,7 +28,7 @@ FactoryNote MVP의 **실제 코드 구조·모듈 책임·런타임 데이터 �
 판정·실행의 **제어흐름과 신뢰성**만 담당한다. 산출물 *내용* 판단은 에이전트(LLM)가 한다(하이브리드 원칙, [[01-requirements|NFR-4]]).
 
 - **`stages.ts`** — M1 Stage Registry. `STAGES` 배열(6개 `StageDefinition`: id·이름·산출물·포맷·`designPrompt`·`feedbackChecklist`·`artifactFile`). Stage 6는 `producesArtifact: false`(최종 검증, 산출물 없음).
-- **`engine.ts`** — 순수 상태기계. `initialState` · `markArtifactReady` · `applyVerdict(state, decision)`(confirm→다음 단계/완료, modify→현 단계 재작성+loopCount++, revert→이전 단계) · `isComplete`. 부작용 없는 함수 — `engine.test.ts` 로 LLM/pi 없이 검증.
+- **`engine.ts`** — 순수 상태기계. `initialState` · `markArtifactReady` · `applyVerdict(state, decision)`(confirm→다음 단계/완료, modify→loopCount++·`atLoopCeiling` 경성 에스컬레이션, revert→`revertTo`(생략 시 1단계, clamp `1..현단계-1`) 점프 + `validThrough` 갱신) · `MAX_LOOPS`/`atLoopCeiling`(FR-2). 부작용 없는 함수 — `engine.test.ts` 로 LLM/pi 없이 검증.
 - **`persistence.ts`** — M3. `.factorynote/<feature>/state.json` atomic 쓰기(write-then-rename), 손상 시 `.corrupt-<ts>` 백업 후 `undefined` 복구(NFR-2). 산출물 `NN-stage.md` r/w. 경로를 인자로 받아 pi 의존 0.
 - **`types.ts`** — `StageId`·`GateVerdict`(`confirm`/`modify`/`revert`)·`Comment`·`GateDecision`·`PipelineState`.
 
@@ -87,7 +87,7 @@ sequenceDiagram
     S-->>W: { stage, artifacts:[{md}], … }
     W->>W: 마크다운 렌더 + 코멘트 UI
     U->>W: ✓확정 / ✎수정지시 / ←정정
-    W->>S: POST /api/decision { verdict, comments }
+    W->>S: POST /api/decision { verdict, comments, revertTo? }
     S-->>T: 결정 반환 (서버 종료)
     T->>T: applyVerdict + state.json 저장
     T-->>Pi: 결과(modify→재작성 / confirm→다음 단계 / done→종료)
@@ -105,6 +105,7 @@ sequenceDiagram
   "stage": 3,
   "gateOpen": false,
   "loopCount": 0,
+  "validThrough": 2,
   "done": false,
   "history": [
     { "stage": 1, "verdict": "confirm", "at": 1722500000000 },
@@ -141,9 +142,10 @@ sequenceDiagram
   "graphSections": [ { "id": "frontend", "title": "프론트엔드", "nodes": […], "edges": […] } ] }
 ```
 
-- `verdict`: `confirm`(다음 단계) · `modify`(현 단계 재작성, 코멘트 전달) · `revert`(이전 단계 회귀).
+- `verdict`: `confirm`(다음 단계) · `modify`(현 단계 재작성, 코멘트 전달) · `revert`(회귀 — `revertTo` 생략 시 1단계, 지정 시 해당 단계 점프, 엔진이 `1..현단계-1` 로 clamp).
 - `comments`: 블록(`blockId`) / 드래그 영역(`quote`) / 셀 공통. modify 일 때만 의미.
 - `graphSections`: 그래프 단계(Stage 3/4)에서 사용자가 편집한 그래프 전체. `drivePlan` 이 이를 `.json` 산출물로 저장(직접 편집 → 에이전트 채택).
+- `revertTo?`: FR-7. 뷰어 회귀대상 Stage 셀렉터가 전송(1..6). gate-server 가 forward(과거 drop P0 수정됨) → 엔진 clamp + `invalidateArtifactsAfter(state.stage)` 로 대상 이후 산출물 무효화.
 
 ### `factorynote_plan` 도구 — `drivePlan` 입출력
 
@@ -198,6 +200,11 @@ factorynote/
 | 제어 vs 판단 | 제어·영속=코드, 산출물=LLM | 하이브리드 원칙(NFR-4) |
 | 단계별 렌더 | 1/2/5/6=마크다운(PlanPage), 3/4=다중 섹션 그래프(GraphStage) | [[ADR-006-graph-editor]] |
 | 그래프 편집 | 직접 편집 → 에이전트 채택(graphSections) | 목업 UX + 5대 원칙(게이트 거쳐 채택) |
+| 회귀(revert) | **다단계 점프**(`revertTo` + clamp `1..현단계-1`) + 대상 이후 산출물 무효화 | FR-7; 뷰어→gate-server→엔진 seam |
+| 반복 상한 | modify@ceiling 시 **경성 에스컬레이션**(잔존 이슈 + 재작성/회귀/재협의 옵션) | FR-2(`MAX_LOOPS`/`atLoopCeiling`) |
+| 게이트 만료 | `timeoutMs`(기본 30min) + `settled` 가드 → 좀비 게이트 자동 modify 복귀 | #4 신뢰성 |
+| gateOpen resume | 인터럽트 시 게이트 재오픈(산출물 재작성 요구 안 함) | #3 |
+| plan 모드 종료 | 파이프라인 done 시 `planMode=false` 자동 해제 | UX(수동 토글 부담 제거) |
 
 전체 결정 배경은 [[ADR-005-mvp-implementation]].
 
