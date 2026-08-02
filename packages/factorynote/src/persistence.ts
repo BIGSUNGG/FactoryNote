@@ -132,7 +132,8 @@ export async function readArtifact(
 
 /**
  * FR-7: afterStage 이후(id > afterStage) 산출물 best-effort 삭제(ENOENT 무시).
- * 회귀 시 대상 단계 이후 산출물 자동 무효화. afterStage 에는 validThrough 를 전달.
+ * 회귀 시 대상 단계(revert target) 이후 산출물 자동 무효화 — 호출측(plan-tool)은
+ * applyVerdict 후의 state.stage(=회귀 대상) 를 전달. (validThrough 아님 — 코드-주석 일치.)
  */
 export async function invalidateArtifactsAfter(
 	root: string,
