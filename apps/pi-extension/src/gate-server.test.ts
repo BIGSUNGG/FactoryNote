@@ -178,6 +178,28 @@ test("gate auto-returns modify on timeoutMs without a decision POST", async () =
 	expect(decision.comments[0]?.text).toContain("시간 초과");
 });
 
+test("gate /api/decision forwards revertTo to the engine (FR-7)", async () => {
+	// 회귀 대상 선택이 뷰어→서버→엔진으로 누락 없이 전달되는지(P0 회귀 가드).
+	await writeArtifact(root, "revtgt", "01-requirements.md", "# Req");
+	await writeArtifact(root, "revtgt", "02-scenarios.md", "# Scen");
+	await saveState(root, { ...initialState("revtgt"), stage: 3 });
+	const decision = await runGate({
+		root,
+		feature: "revtgt",
+		viewerDistDir: VIEWER_DIST,
+		open: false,
+		onReady: async (url) => {
+			await fetch(`${url}/api/decision`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ verdict: "revert", comments: [], revertTo: 1 }),
+			});
+		},
+	});
+	expect(decision.verdict).toBe("revert");
+	expect(decision.revertTo).toBe(1);
+});
+
 test("teardown", async () => {
 	await rm(root, { recursive: true, force: true });
 });

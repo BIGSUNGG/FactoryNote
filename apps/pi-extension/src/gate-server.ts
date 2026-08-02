@@ -172,6 +172,10 @@ export async function runGate(opts: RunGateOptions): Promise<GateDecision> {
 					...(Array.isArray(parsed.graphSections)
 						? { graphSections: parsed.graphSections }
 						: {}),
+					// FR-7: 회귀 대상 단계(revertTo) 뷰어→엔진으로 전달(drop 되면 다단계 회귀 무력화).
+					...(typeof parsed.revertTo === "number"
+						? { revertTo: parsed.revertTo }
+						: {}),
 				};
 				res.writeHead(200, { "Content-Type": "application/json" });
 				res.end(JSON.stringify({ ok: true }), () => settle(decision));
