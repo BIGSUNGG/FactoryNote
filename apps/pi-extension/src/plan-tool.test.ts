@@ -6,8 +6,10 @@ import { join } from "node:path";
 import { test, expect } from "bun:test";
 import { drivePlan } from "./plan-tool.ts";
 import {
+	initialState,
 	loadState,
 	readArtifact,
+	saveState,
 	type Comment,
 	type GateVerdict,
 } from "@factorynote/core";
@@ -78,6 +80,65 @@ test("modify keeps stage 2 and bumps loopCount", async () => {
 	expect(out.stage).toBe(2);
 	const st = await loadState(root, "smoke");
 	expect(st?.loopCount).toBe(1);
+});
+
+test("graph stage: agent submits JSON, user edits+confirm → adopted graph saved + advance", async () => {
+	// Stage 3(모듈 그래프) 시드.
+	await saveState(root, { ...initialState("graphfeat"), stage: 3 });
+	const initialGraph = {
+		sections: [
+			{
+				id: "fe",
+				title: "프론트",
+				nodes: [{ id: "UI", data: { label: "UI" } }],
+				edges: [],
+			},
+		],
+	};
+	// 사용자가 그래프를 편집(노드 추가 + 엣지 추가)한 결과.
+	const edited = {
+		sections: [
+			{
+				id: "fe",
+				title: "프론트",
+				nodes: [{ id: "UI" }, { id: "API" }],
+				edges: [{ id: "UI->API", source: "UI", target: "API" }],
+			},
+		],
+	};
+	const out = await drivePlan({
+		root,
+		viewerDistDir: VIEWER_DIST,
+		feature: "graphfeat",
+		artifactMd: JSON.stringify(initialGraph),
+		open: false,
+		onReady: async (url) => {
+			await fetch(`${url}/api/decision`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					verdict: "confirm",
+					comments: [],
+					graphSections: edited.sections,
+				}),
+			});
+		},
+	});
+	expect(out.gateResult?.verdict).toBe("confirm");
+	expect(out.stage).toBe(4); // 모듈(3) → 클래스(4)
+	// 편집된(채택된) 그래프가 저장되었는지 — 초기가 아닌 편집 결과.
+	const saved = await readArtifact(root, "graphfeat", "03-modules.json");
+	expect(saved).toBeTruthy();
+	let parsed: {
+		sections: Array<{ nodes: unknown[]; edges: Array<{ id: string }> }>;
+	} = { sections: [] };
+	try {
+		parsed = JSON.parse(saved ?? "{}") as typeof parsed;
+	} catch {
+		/* 저장 포맷 이상 — 기본값 그대로(아래 expect 가 실패로 원인 노출) */
+	}
+	expect(parsed.sections[0]?.nodes).toHaveLength(2);
+	expect(parsed.sections[0]?.edges[0]?.id).toBe("UI->API");
 });
 
 test("teardown", async () => {

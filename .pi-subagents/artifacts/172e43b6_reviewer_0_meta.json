@@ -1,0 +1,37 @@
+{
+  "runId": "172e43b6",
+  "agent": "reviewer",
+  "task": "Focused re-audit of the FactoryNote graph-editor goal at C:/Projects/FactoryNote, after a fix round. A prior auditor DISAPPROVED with a specific defect. Verify the fix is real and the contract still holds. Tool budget ~25 calls, report within ~100 lines, end with `BLOCKERS:` (or none). Treat my claims as untrusted — verify from the repo.\n\nPRIOR AUDITOR'S REQUIRED FIXES (verify BOTH):\n1. \"Stage-4 class node type mismatch\": stages.ts Stage-4 designPrompt tells the agent to emit class nodes with `type:\"class\"`, but the viewer's node-type registry key is `cls`. Confirm this is NOW reconciled: an agent-produced node shaped exactly as designPrompt describes (`{id, type:\"class\", name, module, attrs, methods, parentNode}`) must render via the ClassNode component and be selectable. Trace it: read `prototypes/plan-page-mockup/src/lib/graphNormalize.js` `normalizeNode` — does it map `type:\"class\"` (and `data.type===\"class\"`) → `\"cls\"`? And does `GraphStage.jsx` register `cls` in NODE_TYPES_4 and check `n.type===\"cls\"` in onNodeClick? Quote the lines.\n2. \"Add a Stage-4 class-rendering self-check\": confirm `prototypes/plan-page-mockup/src/lib/graphNormalize.test.js` exists and RUNS (`bun test prototypes/plan-page-mockup/src/lib/graphNormalize.test.js`) — it must assert a designPrompt-shaped class node normalizes to a registered type. Quote the passing assertion + test output.\n\nALSO re-confirm the 7 contract items still hold (quick):\n- `bun run build` exit 0; `cd prototypes/plan-page-mockup && npm run build` exit 0.\n- `bun test` (full) — count passing tests (expect 33, 0 fail).\n- GraphStage.jsx still has multi-section mgmt + react-flow CRUD + gate POST graphSections; App.jsx routes 3/4→GraphStage.\n- stages.ts Stage 3/4 artifactFile .json + designPrompt graph JSON.\n- Docs: ADR-006, implementation-architecture graphSections, Changelog/Dev-Log graph entry (note updated test count).\n\nALSO sanity-check you can't find any OTHER agent-type-vs-registry mismatch (e.g., does Stage-3 agent produce any type the registry lacks? does `group` map correctly?). Report any new issue.\n\nVerdict format: REQUIRED FIX 1: PASS/FAIL (evidence). REQUIRED FIX 2: PASS/FAIL. CONTRACT: n/7. NEW ISSUES: none/<list>. Overall: approve-ready or not.",
+  "exitCode": 0,
+  "usage": {
+    "input": 20207,
+    "output": 7119,
+    "cacheRead": 117504,
+    "cacheWrite": 0,
+    "cost": 0,
+    "turns": 9
+  },
+  "model": "zai/glm-5.2:high",
+  "attemptedModels": [
+    "zai/glm-5.2:high"
+  ],
+  "modelAttempts": [
+    {
+      "model": "zai/glm-5.2:high",
+      "success": true,
+      "exitCode": 0,
+      "usage": {
+        "input": 20207,
+        "output": 7119,
+        "cacheRead": 117504,
+        "cacheWrite": 0,
+        "cost": 0,
+        "turns": 9
+      }
+    }
+  ],
+  "durationMs": 134681,
+  "toolCount": 18,
+  "transcriptPath": "C:\\Projects\\FactoryNote\\.pi-subagents\\artifacts\\172e43b6_reviewer_0_transcript.jsonl",
+  "timestamp": 1785611363650
+}

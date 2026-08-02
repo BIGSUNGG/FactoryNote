@@ -1,0 +1,63 @@
+# Task for reviewer
+
+FINAL approval rehearsal for the FactoryNote graph-editor goal at C:/Projects/FactoryNote. Two prior review rounds caught bugs (class-type mismatch, then a `gridPos` import regression from extraction). Both are now fixed. Do a decisive sweep so we can safely call complete_goal. Tool budget ~20 calls, report within ~80 lines, end with `BLOCKERS:` (or none).
+
+CRITICAL CHECK — undefined-identifier sweep in `prototypes/plan-page-mockup/src/components/GraphStage.jsx` (vite/esbuild does NOT catch undefined globals; they crash at browser-runtime):
+- The component imports from `../lib/graphNormalize`. Confirm EVERY identifier from that lib used in GraphStage is imported. Currently it uses `normalizeSections(...)` and `gridPos(...)`. Read the import line and grep all usages of `gridPos`/`normalizeNode`/`normalizeEdge`/`normalizeSections` in GraphStage — confirm each used one is in the import. If ANY is used-but-not-imported, that's a BLOCKER (ReferenceError at runtime).
+- Also skim GraphStage for any OTHER obviously-undefined identifier (a function/const referenced but never imported or declared locally) — e.g., in handlers addNode/deleteNode/updateNode/moveClass, the node components, panels. Flag anything suspicious.
+
+CONTRACT re-confirm (quick, quote evidence):
+- `bun run build` exit 0; `cd prototypes/plan-page-mockup && npm run build` exit 0.
+- `bun test` → 33 pass / 0 fail (includes graphNormalize.test.js Stage-4 class→cls).
+- stages.ts Stage 3/4 artifactFile `.json` + designPrompt emits `type:"class"`/`type:"group"`.
+- Docs: ADR-006, implementation-architecture graphSections, Changelog/Dev-Log (test count 33).
+
+Verdict: UNDEFINED-IDENTIFIER SWEEP: clean/<list>. CONTRACT: n/7. Overall: APPROVE-READY yes/no. BLOCKERS section.
+
+## Acceptance Contract
+Acceptance level: attested
+Completion is not accepted from prose alone. End with a structured acceptance report.
+
+Criteria:
+- criterion-1: Return concrete findings with file paths and severity when applicable
+
+Required evidence: review-findings, residual-risks
+
+Finish with a fenced JSON block tagged `acceptance-report` in this shape:
+Use empty arrays when no items apply; array fields contain strings unless object entries are shown.
+```acceptance-report
+{
+  "criteriaSatisfied": [
+    {
+      "id": "criterion-1",
+      "status": "satisfied",
+      "evidence": "specific proof"
+    }
+  ],
+  "changedFiles": [
+    "src/file.ts"
+  ],
+  "testsAddedOrUpdated": [
+    "test/file.test.ts"
+  ],
+  "commandsRun": [
+    {
+      "command": "command",
+      "result": "passed",
+      "summary": "short result"
+    }
+  ],
+  "validationOutput": [
+    "validation output or concise summary"
+  ],
+  "residualRisks": [
+    "none"
+  ],
+  "noStagedFiles": true,
+  "diffSummary": "short description of the diff",
+  "reviewFindings": [
+    "blocker: file.ts:12 - issue found, or no blockers"
+  ],
+  "manualNotes": "anything else the parent should know"
+}
+```

@@ -32,10 +32,20 @@ tags: [development, dev-log]
 - [[usage-guide]](설치/사용/게이트 UX/트러블슈팅) · [[development-guide]](빌드·테스트·의존성 메모·확장 시나리오: 단계 추가·뷰어 수정·harness 어댑터·Tier 1).
 - 루트 `README.md` 를 구현 상태로 갱신(스캐폴드 기술 제거, install + /factorynote 퀵스타트, 문서 인덱스). 누락돼 있던 `AGENTS.md`(5대 원칙·오리엔테이션) 신규 작성. [[Home]] 에 신규 문서 링크.
 
+#### 그래프 에디터(Stage 3/4) — 다중 섹션 인터랙티브 에디터
+
+ADR-005 에서 연기했던 Stage 3/4 그래프 에디터를 본구현([[ADR-006-graph-editor]]).
+
+- **데이터 모델**: Stage 3/4 산출물을 마크다운 → 다중 섹션 그래프 JSON(`03-modules.json`·`04-classes.json`, `{sections:[{id,title,nodes,edges}]}`). 코어 `types.ts`(GraphSection/GraphArtifact) + `graph.ts`(parseGraphArtifact) + `graph.test.ts`.
+- **확장**: `gate-server` /api/state 가 `graphSections` 반환·/api/decision 이 수신; `drivePlan` 이 그래프 단계 결정의 `graphSections` 를 `.json` 산출물로 저장(직접 편집 → 에이전트 채택). `plan-tool.test`·`gate-server.test` 그래프 플로우 추가.
+- **뷰어**: 신규 `GraphStage.jsx`(Stage 3/4 통일) — `/api/state` graphSections 로 데이터 주동 렌더, 다중 섹션(탭 + 추가·이름·삭제), 노드/엣지 CRUD(우클릭 메뉴), 상세 패널 편집, 클래스 parent-child + NodeResizer, 코멘트. `App.jsx` 가 Stage 3/4 → GraphStage 분기. 게이트 POST 에 graphSections 포함.
+- **검증**: build/typecheck 0, 자체체크 33건(그래프 r/w·게이트 graphSections·drivePlan 채택·Stage 4 class 타입 정규화). 뷰어 빌드 통과. 재설치 + pi 로드 스모크 통과.
+- **수리(감사 지적)**: Stage 4 designPrompt 의 `type:"class"` 가 뷰어 레지스트리 키 `cls` 와 불일치→ 에이전트 생성 클래스가 빈 박스로 렌더되던 결함. 정규화 로직을 `lib/graphNormalize.js` 로 분리(`group`→modGroup, `class`→cls) + `graphNormalize.test.js` 로 Stage 4 회귀 가드. 클래스 모듈 이동(`move`) 재부모(parentNode) 도 수리.
+
 #### 남은 것 / 다음
 
 - 최종 인간 수락: pi 대화형 세션에서 /factorynote 토글 → 기능 요청 → 브라우저 게이트 클릭으로 종단 간 확인(사용자 수행).
-- Tier 1(pi-crew)·Design↔Feedback 상한 루프·Stage 3/4 그래프 에디터·Codex/Claude Code 어댑터(ADR-005 후속).
+- Tier 1(pi-crew)·Design↔Feedback 상한 루프·정교 자동 레이아웃·Codex/Claude Code 어댑터(그래프 에디터는 본 세션 구현 — 위 참고).
 
 ## 2026-07-29
 

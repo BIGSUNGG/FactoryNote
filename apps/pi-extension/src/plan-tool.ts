@@ -21,7 +21,7 @@ export interface DrivePlanInput {
 	/** 뷰어 빌드 산출물(dist) 디렉토리. */
 	viewerDistDir: string;
 	feature: string;
-	/** 현 단계 산출물 마크다운. 없으면 산출물 작성 지시를 반환한다. */
+	/** 현 단계 산출물(마크다운 또는 그래프 JSON). 없으면 산출물 작성 지시를 반환한다. */
 	artifactMd?: string;
 	signal?: AbortSignal;
 	/** false 면 브라우저 자동 오픈 생략(테스트용). */
@@ -60,6 +60,10 @@ export async function drivePlan(
 	}
 
 	const def = stageById(state.stage);
+	const graphStage = def.format === "nodes-edges";
+	const artifactKind = graphStage
+		? "그래프 JSON({sections:[{id,title,nodes,edges}]})"
+		: "마크다운";
 
 	// 산출물이 필요한 단계인데 artifactMd 가 없으면 작성 지시.
 	if (requiresArtifact(state.stage) && input.artifactMd === undefined) {
@@ -71,7 +75,7 @@ export async function drivePlan(
 			designPrompt: def.designPrompt,
 			feedbackChecklist: [...def.feedbackChecklist],
 			gateResult: null,
-			message: `Stage ${state.stage}(${def.name}) 산출물을 마크다운으로 작성하라. 작성이 끝나면 factorynote_plan 의 artifactMd 에 담아 다시 호출해 게이트(사용자 검토)를 열어라. 코드는 쓰지 않는다.`,
+			message: `Stage ${state.stage}(${def.name}) 산출물을 ${artifactKind}(으)로 작성하라. 작성이 끝나면 factorynote_plan 의 artifactMd 에 담아 다시 호출해 게이트(사용자 검토)를 열어라. 코드는 쓰지 않는다.`,
 		};
 	}
 
@@ -96,6 +100,17 @@ export async function drivePlan(
 		...(input.onReady ? { onReady: input.onReady } : {}),
 	});
 
+	// 그래프 단계(Stage 3/4)에서 사용자가 직접 편집한 그래프를 산출물로 채택(저장).
+	// 직접 편집 → 에이전트 채택: 사용자의 편집 결과가 곧 산출물(5대 원칙 — 게이트 거쳐 채택).
+	if (decision.graphSections && def.artifactFile?.endsWith(".json")) {
+		await writeArtifact(
+			root,
+			feature,
+			def.artifactFile,
+			JSON.stringify({ sections: decision.graphSections }),
+		);
+	}
+
 	// 결정 적용·저장.
 	state = applyVerdict(state, decision);
 	await saveState(root, state);
@@ -107,12 +122,18 @@ export async function drivePlan(
 	// 다음에 에이전트가 해야 할 일 안내.
 	const nextDef = stageById(state.stage);
 	const needNext = requiresArtifact(state.stage);
+	const nextGraph = nextDef.format === "nodes-edges";
+	const commentsBlock = `\n코멘트:\n${formatComments(decision.comments)}`;
 	const message =
 		decision.verdict === "modify"
-			? `사용자가 Stage ${state.stage}(${nextDef.name}) 산출물의 수정을 요청했다. 코멘트를 반영해 산출물을 재작성 후 artifactMd 와 함께 다시 제출하라.\n코멘트:\n${formatComments(decision.comments)}`
+			? nextGraph
+				? `사용자가 Stage ${state.stage}(${nextDef.name}) 그래프를 직접 편집했다(채택 저장됨). 코멘트를 반영해 그래프 JSON을 수정하거나, 코멘트가 없으면 현재 그래프를 그대로 artifactMd 에 담아 재제출해 게이트를 다시 열어라.${commentsBlock}`
+				: `사용자가 Stage ${state.stage}(${nextDef.name}) 산출물의 수정을 요청했다. 코멘트를 반영해 산출물을 재작성 후 artifactMd 와 함께 다시 제출하라.${commentsBlock}`
 			: `Stage ${state.stage}(${nextDef.name}) 승인. 다음 단계 ${state.stage}(${nextDef.name})로 진행. ` +
 				(needNext
-					? "산출물을 작성해 artifactMd 와 함께 제출하라."
+					? nextGraph
+						? "그래프 JSON 산출물을 작성해 artifactMd 와 함께 제출하라."
+						: "산출물을 작성해 artifactMd 와 함께 제출하라."
 					: "이 단계는 산출물 없음 — factorynote_plan 을 다시 호출해 최종 검증 게이트를 열어라.");
 
 	return {

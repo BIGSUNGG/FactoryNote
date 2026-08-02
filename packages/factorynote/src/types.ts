@@ -17,10 +17,32 @@ export interface Comment {
 	text: string;
 }
 
+// --- 그래프 에디터(Stage 3 모듈 / Stage 4 클래스) 데이터 모델 ---
+// 코어는 envelope(sections) 만 다루고 노드/엣지 내부는 불투명(react-flow 호환 필드를 그대로 담는다).
+/** 그래프 노드(react-flow Node 호환 필드를 자유롭게 포함). */
+export type GraphNode = Record<string, unknown>;
+/** 그래프 엣지(react-flow Edge 호환 필드를 자유롭게 포함). */
+export type GraphEdge = Record<string, unknown>;
+
+/** 관계도 섹션 — 한 단계 내의 독립 그래프(예: 프론트엔드/백엔드/인터). */
+export interface GraphSection {
+	id: string;
+	title: string;
+	nodes: GraphNode[];
+	edges: GraphEdge[];
+}
+
+/** 그래프 산출물 전체(=.json 파일 내용). Stage 3/4 산출물 포맷. */
+export interface GraphArtifact {
+	sections: GraphSection[];
+}
+
 /** 사용자 게이트에서 뷰어가 반환하는 결정. */
 export interface GateDecision {
 	verdict: GateVerdict;
 	comments: Comment[];
+	/** 그래프 단계(Stage 3/4)에서 사용자가 편집한 그래프. 직접 편집 → 에이전트가 채택해 산출물로 저장. */
+	graphSections?: GraphSection[];
 }
 
 /** 게이트 통과 이력(NFR-3 감사). */

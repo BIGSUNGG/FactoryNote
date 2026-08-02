@@ -13,7 +13,7 @@ FactoryNote 개발 문서의 중앙 인덱스(MOC)다. 모든 영역과 주요 �
 | ------ | ------ | ------ |
 | `00-vision/` | 정체성 · 목표 · 5대 원칙 · 용어집 | [[project-identity]] |
 | `01-architecture/` | 6단계 파이프라인 · 에이전트 역할 · 구현 아키텍처 | [[multi-agent-pipeline]] · [[implementation-architecture]] |
-| `02-decisions/` | ADR (정해진 사항) | [[ADR-001-documentation-system]] · [[ADR-002-hybrid-harness-and-graph-git]] · [[ADR-003-viewer-architecture]] · [[ADR-004-monorepo-structure]] · [[ADR-005-mvp-implementation]] |
+| `02-decisions/` | ADR (정해진 사항) | [[ADR-001-documentation-system]] · [[ADR-002-hybrid-harness-and-graph-git]] · [[ADR-003-viewer-architecture]] · [[ADR-004-monorepo-structure]] · [[ADR-005-mvp-implementation]] · [[ADR-006-graph-editor]] |
 | `03-design/` | 기능별 설계 산출물 | [[03-design/plan-page/core-features | plan-page]] · [[03-design/module-design/features | 모듈 설계]] · [[03-design/classes/features | 클래스]] · [[03-design/plan-viewer/ui-mapping | UI 매핑]] · [[03-design/workflow-core/06-viewer-ui | 뷰어 사양]] |
 | `04-development/` | Changelog · Dev-Log (수정 사항) | [[Changelog]] · [[Dev-Log]] |
 | `05-problems/` | 이슈 · 블로커 · 포스트모템 | 비어있음 |
@@ -29,6 +29,7 @@ FactoryNote 개발 문서의 중앙 인덱스(MOC)다. 모든 영역과 주요 �
 - [[How-To-Update-Docs]] — 결정/구현/문제 발생 시 무엇을 기록할지
 - [[ADR-004-monorepo-structure]] — 코드 레포 폴더 구조(plannotator 모노레포 패턴 채택)
 - [[ADR-005-mvp-implementation]] — MVP 구현 결정(plan 모드 토글·웹-as-게이트·통합 런타임 디렉터리·Tier 0)
+- [[ADR-006-graph-editor]] — Stage 3/4 다중 섹션 그래프 에디터(직접 편집→에이전트 채택)
 - [[usage-guide]] · [[development-guide]] — 설치/사용법 · 빌드/테스트/확장 가이드
 - [[ADR-001-documentation-system]] — 이 볼트 구조와 도구를 왜 이렇게 정했는가
 - [[Changelog]] · [[Dev-Log]] — 변경 이력과 일일 작업 기록

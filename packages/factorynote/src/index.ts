@@ -5,6 +5,10 @@ export type {
 	Comment,
 	GateDecision,
 	GateVerdict,
+	GraphArtifact,
+	GraphEdge,
+	GraphNode,
+	GraphSection,
 	HistoryEntry,
 	PipelineState,
 	StageId,
@@ -28,3 +32,8 @@ export {
 	statePath,
 	writeArtifact,
 } from "./persistence.ts";
+export {
+	coerceGraphArtifact,
+	emptyGraphArtifact,
+	parseGraphArtifact,
+} from "./graph.ts";

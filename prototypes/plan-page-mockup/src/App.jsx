@@ -1,8 +1,10 @@
 // FactoryNote Plan 뷰어 — 런타임 진입.
-// /api/state 로 현재 단계+산출물을 받아 PlanPage(마크다운+코멘트+게이트) 로 렌더.
-// 게이트 결정(확정/수정/정정) 은 /api/decision 로 POST → pi 에이전트로 전달.
+// /api/state 로 현재 단계+산출물을 받아 렌더:
+//   Stage 3/4(그래프) → GraphStage(다중 섹션 에디터), 그 외 → PlanPage(마크다운).
+// 게이트 결정(확정/수정/정정 + 그래프 편집) 은 /api/decision 로 POST → pi 에이전트로 전달.
 import { useState, useEffect } from "react";
 import PlanPage from "./components/PlanPage";
+import GraphStage from "./components/GraphStage";
 
 export default function App() {
 	const [state, setState] = useState(null);
@@ -24,8 +26,6 @@ export default function App() {
 	if (error) return <Center>게이트 상태 조회 실패: {error}</Center>;
 	if (!state) return <Center>게이트 로딩 중…</Center>;
 
-	const md = pickMarkdown(state);
-
 	const onGate = async (decision) => {
 		try {
 			await fetch("/api/decision", {
@@ -39,9 +39,24 @@ export default function App() {
 		setSubmitted(true);
 	};
 
+	const isGraph = state.stage === 3 || state.stage === 4;
+	const cur = (state.artifacts || []).find((a) => a.stage === state.stage);
+
+	if (isGraph) {
+		return (
+			<GraphStage
+				stage={state.stage}
+				stageName={state.stageName}
+				feature={state.feature}
+				sections={cur?.graphSections || []}
+				onGate={onGate}
+			/>
+		);
+	}
+
 	return (
 		<PlanPage
-			mdSource={md}
+			mdSource={pickMarkdown(state)}
 			stage={state.stage}
 			stageName={state.stageName}
 			feature={state.feature}
@@ -50,11 +65,23 @@ export default function App() {
 	);
 }
 
+// 그래프 산출물은 텍스트 요약으로(Stage 6 검토용). 마크다운은 그대로.
+function artifactText(a) {
+	if (a.graphSections) {
+		const lines = a.graphSections.map(
+			(s) =>
+				`- 섹션 "${s.title}": 노드 ${s.nodes.length} · 관계 ${s.edges.length}`,
+		);
+		return `(그래프 — 섹션 ${a.graphSections.length}개)\n${lines.join("\n")}`;
+	}
+	return a.md ?? "(산출물 없음)";
+}
+
 function pickMarkdown(state) {
 	const arts = state.artifacts || [];
 	if (state.stage >= 6) {
 		const body = arts
-			.map((a) => `# Stage ${a.stage} — ${a.name}\n\n${a.md}`)
+			.map((a) => `# Stage ${a.stage} — ${a.name}\n\n${artifactText(a)}`)
 			.join("\n\n---\n\n");
 		return body || "# 최종 검증\n\n> 승인된 산출물이 없습니다.";
 	}

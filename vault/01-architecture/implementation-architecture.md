@@ -59,9 +59,10 @@ Pi 와 코어를 잇는 유일한 계층. pi가 jiti로 TS 를 직접 로드한�
 
 빌드 산출물 `dist/` 가 게이트 서버를 통해 서빙된다.
 
-- **`App.jsx`** — `/api/state` fetch → 현 단계 산출물 마크다운 선택(Stage 6는 전체 결합) → `PlanPage` 렌더. `/api/decision` POST 후 "전송 완료" 화면.
-- **`PlanPage.jsx`** — 마크다운 → 블록(`mdToBlocks`) 렌더 + 블록/셀/드래그 영역 코멘트 + pending 큐([[core-features]] 사양). 게이트 버튼 → `onGate({verdict, comments})`.
-- **`GateBar.jsx`** — 하단 게이트 바: **✓ 확정**(confirm) / **✎ 수정 지시**(modify, pending 코멘트 전송) / **← 정정**(revert). MVP 전 단계를 이 마크다운 뷰로 통일(Stage 3/4 그래프 에디터는 연기, [[ADR-005-mvp-implementation]]).
+- **`App.jsx`** — `/api/state` fetch → Stage 3/4 는 `GraphStage`, 나머지는 `PlanPage` 로 분기 렌더. `/api/decision` POST 후 "전송 완료" 화면.
+- **`PlanPage.jsx`** — 마크다운 단계(1/2/5/6). 마크다운 → 블록(`mdToBlocks`) 렌더 + 블록/셀/드래그 영역 코멘트 + pending 큐([[core-features]] 사양). 게이트 버튼 → `onGate({verdict, comments})`.
+- **`GraphStage.jsx`** — 그래프 단계(3/4). 다중 섹션 인터랙티브 에디터(react-flow): `/api/state` 의 `graphSections` 로 데이터 주동 렌더 + 섹션 추가·이름·삭제 + 노드/엣지 CRUD(우클릭 메뉴) + 상세 패널 편집 + 클래스 parent-child·`NodeResizer` + 코멘트. 게이트 제출 시 편집된 그래프 전체(`graphSections`)를 `onGate` 로 전달(직접 편집 → 에이전트 채택, [[ADR-006-graph-editor]]).
+- **`GateBar.jsx`** — 하단 게이트 바: **✓ 확정**(confirm) / **✎ 수정 지시**(modify, pending 코멘트 전송) / **← 정정**(revert). `PlanPage`·`GraphStage` 공용.
 
 ## 런타임 데이터 흐름
 
@@ -126,8 +127,9 @@ sequenceDiagram
   "designPrompt": "…",
   "feedbackChecklist": ["…"],
   "artifacts": [
-    { "stage": 1, "name": "요청 이해",   "file": "01-requirements.md", "md": "# 요구사항\n…" },
-    { "stage": 2, "name": "시나리오",     "file": "02-scenarios.md",    "md": "# 시나리오\n…" }
+    { "stage": 1, "name": "요청 이해", "file": "01-requirements.md", "format": "markdown", "md": "# 요구사항\n…" },
+    { "stage": 3, "name": "모듈 아키텍처 설계", "file": "03-modules.json", "format": "nodes-edges",
+      "graphSections": [{ "id": "frontend", "title": "프론트엔드", "nodes": [{ "id": "UI", "data": { "label": "UI" } }], "edges": [] }] }
   ]
 }
 ```
@@ -135,16 +137,36 @@ sequenceDiagram
 ### `POST /api/decision` ← `GateDecision`
 
 ```json
-{ "verdict": "modify", "comments": [ { "blockId": "b3", "quote": "일부 텍스트", "text": "더 구체적으로" } ] }
+{ "verdict": "modify", "comments": [ { "blockId": "b3", "quote": "일부 텍스트", "text": "더 구체적으로" } ],
+  "graphSections": [ { "id": "frontend", "title": "프론트엔드", "nodes": […], "edges": […] } ] }
 ```
 
 - `verdict`: `confirm`(다음 단계) · `modify`(현 단계 재작성, 코멘트 전달) · `revert`(이전 단계 회귀).
 - `comments`: 블록(`blockId`) / 드래그 영역(`quote`) / 셀 공통. modify 일 때만 의미.
+- `graphSections`: 그래프 단계(Stage 3/4)에서 사용자가 편집한 그래프 전체. `drivePlan` 이 이를 `.json` 산출물로 저장(직접 편집 → 에이전트 채택).
 
 ### `factorynote_plan` 도구 — `drivePlan` 입출력
 
 - **입력**: `{ feature: string, artifactMd?: string }` (도구 파라미터). 내부적으로 `root`·`viewerDistDir`·`signal` 추가.
 - **출력(에이전트로)**: `{ done, stage, stageName, needArtifact, designPrompt, feedbackChecklist, gateResult, message }`. `message` 가 다음 행동을 직접 지시(modify→재작성, confirm→다음 산출물 작성, done→종료).
+
+### 그래프 산출물(Stage 3/4) — `.json`
+
+그래프 단계(모듈·클래스) 산출물은 마크다운이 아닌 **다중 섹션 그래프 JSON** (`03-modules.json`·`04-classes.json`):
+
+```json
+{
+  "sections": [
+    { "id": "frontend", "title": "프론트엔드",
+      "nodes": [{ "id": "UI", "data": { "label": "UI", "layer": "API" } }],
+      "edges": [{ "id": "UI->API", "source": "UI", "target": "API", "data": { "desc": "호출" } }] }
+  ]
+}
+```
+
+- 섹션 = 독립 그래프(교차 관계는 별도 섹션). 에이전트는 의미 구조만(`position` 생략 가능 → 뷰어 자동 배치).
+- `core/graph.ts`(`parseGraphArtifact`)가 envelope(`sections`) 검증; 노드/엣지는 react-flow 호환 필드를 불투명하게 담는다.
+- 직접 편집 → 채택: 게이트 결정의 `graphSections` 를 `drivePlan` 이 그대로 `.json` 산출물로 저장([[ADR-006-graph-editor]])。
 
 ## 설치 레이아웃 — `~/.pi/agent/extensions/factorynote/`
 
@@ -174,7 +196,8 @@ factorynote/
 | 산출물/상태 위치 | `.factorynote/<feature>/` 통합 | 시드 부합 + gitignore 1건 |
 | 에이전트 티어 | Tier 0(단일 에이전트 역할 전환) | NFR-7, pi-crew(Tier 1)는 연기 |
 | 제어 vs 판단 | 제어·영속=코드, 산출물=LLM | 하이브리드 원칙(NFR-4) |
-| 단계별 렌더 | 전 단계 마크다운(PlanPage) | 그래프 에디터는 게이트에 불필(연기) |
+| 단계별 렌더 | 1/2/5/6=마크다운(PlanPage), 3/4=다중 섹션 그래프(GraphStage) | [[ADR-006-graph-editor]] |
+| 그래프 편집 | 직접 편집 → 에이전트 채택(graphSections) | 목업 UX + 5대 원칙(게이트 거쳐 채택) |
 
 전체 결정 배경은 [[ADR-005-mvp-implementation]].
 

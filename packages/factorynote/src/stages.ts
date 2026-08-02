@@ -51,10 +51,10 @@ export const STAGES: readonly StageDefinition[] = [
 		name: "모듈 아키텍처 설계",
 		artifact: "모듈 구조도",
 		format: "nodes-edges",
-		artifactFile: "03-modules.md",
+		artifactFile: "03-modules.json",
 		producesArtifact: true,
 		designPrompt:
-			"시스템을 모듈 단위로 분해하고 모듈 간 책임과 의존성을 정의하라. MVP에서는 마크다운(필요시 mermaid 다이어그램)으로 서술한다. 순환 의존성을 피하라.",
+			"시스템을 모듈 단위로 분해하고 모듈 간 의존성을 정의하라. 산출물은 다중 섹션 그래프 JSON({sections:[{id,title,nodes,edges}]})이다. 섹션은 독립된 관계도(예: 프론트엔드/백엔드/프론트-백엔드 인터)로 필요한 만큼 둔다. 노드={id,label,layer(API|Service|Repository|Util|External),desc}, 엣지={id:`${from}->${to}`,source,target,data:{desc}}. position 은 생략 가능(뷰어가 자동 배치). 순환 의존성을 피하라. 마크다운이 아닌 JSON만 출력한다.",
 		feedbackChecklist: [
 			"순환 의존성이 없는가?",
 			"각 모듈이 단일 책임을 갖는가?",
@@ -66,10 +66,10 @@ export const STAGES: readonly StageDefinition[] = [
 		name: "클래스 수준 구조 설계",
 		artifact: "클래스 명세",
 		format: "nodes-edges",
-		artifactFile: "04-classes.md",
+		artifactFile: "04-classes.json",
 		producesArtifact: true,
 		designPrompt:
-			"모듈 내부를 클래스/인터페이스 수준으로 설계하라. 메서드 시그니처, 상태, 협력 관계를 명세한다. MVP에서는 마크다운으로 서술한다.",
+			"모듈 내부를 클래스/인터페이스 수준으로 설계하라. 산출물은 다중 섹션 그래프 JSON({sections:[{id,title,nodes,edges}]})이다. 노드는 모듈 그룹({id,type:`group`,label,width,height}) 또는 그 안의 클래스({id,type:`class`,name,module,attrs:[],methods:[],parentNode})이다. 엣지={id:`${from}->${to}`,source,target,data:{desc}}. position 은 생략 가능(뷰어가 자동 배치). 공용 API를 최소화하라. JSON만 출력한다.",
 		feedbackChecklist: [
 			"클래스 책임이 응집되어 있는가?",
 			"공용 API가 최소인가?",

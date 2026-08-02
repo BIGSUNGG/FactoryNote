@@ -8,8 +8,11 @@ import { fileURLToPath } from "node:url";
 import {
 	STAGES,
 	loadState,
+	parseGraphArtifact,
 	readArtifact,
+	type ArtifactFormat,
 	type GateDecision,
+	type GraphSection,
 } from "@factorynote/core";
 
 export interface ViewerState {
@@ -24,7 +27,9 @@ export interface ViewerState {
 		stage: number;
 		name: string;
 		file: string;
-		md: string;
+		format: ArtifactFormat;
+		md?: string;
+		graphSections?: GraphSection[];
 	}[];
 }
 
@@ -38,9 +43,27 @@ async function buildViewerState(
 	const artifacts: ViewerState["artifacts"] = [];
 	for (const s of STAGES) {
 		if (!s.artifactFile) continue;
-		const md = await readArtifact(root, feature, s.artifactFile);
-		if (md !== undefined) {
-			artifacts.push({ stage: s.id, name: s.name, file: s.artifactFile, md });
+		const raw = await readArtifact(root, feature, s.artifactFile);
+		if (raw === undefined) continue;
+		if (s.format === "nodes-edges") {
+			const ga = parseGraphArtifact(raw);
+			if (ga) {
+				artifacts.push({
+					stage: s.id,
+					name: s.name,
+					file: s.artifactFile,
+					format: s.format,
+					graphSections: ga.sections,
+				});
+			}
+		} else {
+			artifacts.push({
+				stage: s.id,
+				name: s.name,
+				file: s.artifactFile,
+				format: s.format,
+				md: raw,
+			});
 		}
 	}
 	return {
@@ -126,6 +149,9 @@ export async function runGate(opts: RunGateOptions): Promise<GateDecision> {
 				const decision: GateDecision = {
 					verdict: parsed.verdict,
 					comments: Array.isArray(parsed.comments) ? parsed.comments : [],
+					...(Array.isArray(parsed.graphSections)
+						? { graphSections: parsed.graphSections }
+						: {}),
 				};
 				res.writeHead(200, { "Content-Type": "application/json" });
 				res.end(JSON.stringify({ ok: true }), () =>
