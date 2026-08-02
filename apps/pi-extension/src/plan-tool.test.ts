@@ -10,6 +10,7 @@ import {
 	loadState,
 	readArtifact,
 	saveState,
+	writeArtifact,
 	type Comment,
 	type GateVerdict,
 } from "@factorynote/core";
@@ -139,6 +140,43 @@ test("graph stage: agent submits JSON, user edits+confirm → adopted graph save
 	}
 	expect(parsed.sections[0]?.nodes).toHaveLength(2);
 	expect(parsed.sections[0]?.edges[0]?.id).toBe("UI->API");
+});
+
+test("#3 gateOpen resume: artifact on disk + gateOpen reopens gate instead of requesting rewrite", async () => {
+	// 인터럽트 복구 상태: gateOpen=true 로 남은 채 재시작, 산출물은 이미 디스크에 존재.
+	const feat = "resumefeat";
+	const md = "# 요구사항(이미 저장됨)\n\n데모.";
+	await writeArtifact(root, feat, "01-requirements.md", md);
+	await saveState(root, {
+		...initialState(feat),
+		stage: 1,
+		gateOpen: true,
+	});
+	let posted = false;
+	const out = await drivePlan({
+		root,
+		viewerDistDir: VIEWER_DIST,
+		feature: feat,
+		open: false,
+		onReady: async (url) => {
+			posted = true;
+			await fetch(`${url}/api/decision`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ verdict: "confirm", comments: [] }),
+			});
+		},
+	});
+	// 게이트가 즉시 재오픈되어 결정을 받았다(게이트 통과).
+	expect(posted).toBe(true);
+	expect(out.gateResult?.verdict).toBe("confirm");
+	expect(out.message).toContain("게이트 재오픈(인터럽트 복구)");
+	// confirm → stage 2 로 전이(stage 2 도 산출물 단계이므로 needArtifact=true 는 정상).
+	expect(out.stage).toBe(2);
+	const st = await loadState(root, feat);
+	expect(st?.stage).toBe(2);
+	// 인터럽트 복구는 산출물 재작성을 요구하지 않는다 — 원본 산출물이 그대로 보존됨.
+	expect(await readArtifact(root, feat, "01-requirements.md")).toBe(md);
 });
 
 test("teardown", async () => {

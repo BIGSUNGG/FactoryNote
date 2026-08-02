@@ -120,7 +120,19 @@ export default function (pi: ExtensionAPI): void {
 					: {}),
 				...(signal ? { signal } : {}),
 			});
-			ctx.ui.notify(`FactoryNote: Stage ${out.stage} ${out.stageName}`, "info");
+			// #5 파이프라인 완료 시 plan 모드 자동 해제(사용자가 매번 /factorynote 토글하지 않도록).
+			if (out.done) {
+				planMode = false;
+				ctx.ui.notify(
+					"FactoryNote: 계획 완료 — plan 모드 자동 해제. 이제 구현 가능.",
+					"info",
+				);
+			} else {
+				ctx.ui.notify(
+					`FactoryNote: Stage ${out.stage} ${out.stageName}`,
+					"info",
+				);
+			}
 			return {
 				content: [{ type: "text", text: formatForAgent(feature, out) }],
 				details: {},

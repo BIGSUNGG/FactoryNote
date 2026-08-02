@@ -8,11 +8,13 @@ import {
 	isComplete,
 	loadState,
 	markArtifactReady,
+	readArtifact,
 	requiresArtifact,
 	saveState,
 	stageById,
 	writeArtifact,
 	type GateDecision,
+	type PipelineState,
 } from "@factorynote/core";
 import { runGate } from "./gate-server.ts";
 
@@ -51,7 +53,7 @@ export interface DrivePlanOutput {
 export async function drivePlan(
 	input: DrivePlanInput,
 ): Promise<DrivePlanOutput> {
-	const { root, viewerDistDir, feature, signal } = input;
+	const { root, feature } = input;
 
 	let state = await loadState(root, feature);
 	if (!state) state = initialState(feature);
@@ -64,6 +66,18 @@ export async function drivePlan(
 	const artifactKind = graphStage
 		? "그래프 JSON({sections:[{id,title,nodes,edges}]})"
 		: "마크다운";
+
+	// #3 인터럽트 복구: 게이트가 열린(gateOpen) 채 끊겼고 산출물이 이미 디스크에 있으면,
+	// 산출물 재작성을 요구하지 않고 곧바로 게이트를 재오픈한다.
+	if (
+		requiresArtifact(state.stage) &&
+		input.artifactMd === undefined &&
+		state.gateOpen &&
+		def.artifactFile &&
+		(await readArtifact(root, feature, def.artifactFile)) !== undefined
+	) {
+		return await runOpenGate(input, state, def, true);
+	}
 
 	// 산출물이 필요한 단계인데 artifactMd 가 없으면 작성 지시.
 	if (requiresArtifact(state.stage) && input.artifactMd === undefined) {
@@ -79,12 +93,25 @@ export async function drivePlan(
 		};
 	}
 
-	// 산출물 저장(산출물 단계만).
-	if (
-		requiresArtifact(state.stage) &&
-		input.artifactMd !== undefined &&
-		def.artifactFile
-	) {
+	return await runOpenGate(input, state, def, false);
+}
+
+/**
+ * 게이트 오픈 → 결정 → 결정 적용·저장 → 다음 안내 반환.
+ * resume=true 이면 인터럽트 복구로 게이트 재오픈임을 message 에 표시한다.
+ * 게이트 결정 이후 흐름(graphSections 채택, applyVerdict, 저장)은 기존과 동일.
+ */
+async function runOpenGate(
+	input: DrivePlanInput,
+	stateIn: PipelineState,
+	def: ReturnType<typeof stageById>,
+	resume: boolean,
+): Promise<DrivePlanOutput> {
+	const { root, viewerDistDir, feature, signal } = input;
+	let state = stateIn;
+
+	// 산출물 저장(산출물 단계 + 신규 제출시만 — resume 은 이미 디스크에 있으므로 건너뜀).
+	if (!resume && input.artifactMd !== undefined && def.artifactFile) {
 		await writeArtifact(root, feature, def.artifactFile, input.artifactMd);
 	}
 
@@ -124,7 +151,7 @@ export async function drivePlan(
 	const needNext = requiresArtifact(state.stage);
 	const nextGraph = nextDef.format === "nodes-edges";
 	const commentsBlock = `\n코멘트:\n${formatComments(decision.comments)}`;
-	const message =
+	const base =
 		decision.verdict === "modify"
 			? nextGraph
 				? `사용자가 Stage ${state.stage}(${nextDef.name}) 그래프를 직접 편집했다(채택 저장됨). 코멘트를 반영해 그래프 JSON을 수정하거나, 코멘트가 없으면 현재 그래프를 그대로 artifactMd 에 담아 재제출해 게이트를 다시 열어라.${commentsBlock}`
@@ -135,6 +162,12 @@ export async function drivePlan(
 						? "그래프 JSON 산출물을 작성해 artifactMd 와 함께 제출하라."
 						: "산출물을 작성해 artifactMd 와 함께 제출하라."
 					: "이 단계는 산출물 없음 — factorynote_plan 을 다시 호출해 최종 검증 게이트를 열어라.");
+	const message =
+		(resume ? "[게이트 재오픈(인터럽트 복구)] " : "") +
+		base +
+		(state.loopCount >= 3
+			? `\n※ 이 단계가 ${state.loopCount}회 수정됨 — 근본적 설계 갈등이 있는지 확인을 권장.`
+			: "");
 
 	return {
 		done: false,
@@ -158,7 +191,7 @@ function complete(stage: number): DrivePlanOutput {
 		feedbackChecklist: [],
 		gateResult: null,
 		message:
-			"파이프라인 완료 — 6단계 모두 사용자 승인됨. 계획 산출물은 .factorynote/<feature>/ 에 저장되었다. plan 모드를 끄려면 /factorynote 를 다시 입력.",
+			"파이프라인 완료 — 6단계 모두 사용자 승인됨. 계획 산출물은 .factorynote/<feature>/ 에 저장되었다. plan 모드는 자동으로 해제되었다(이제 구현 가능).",
 	};
 }
 
