@@ -43,6 +43,9 @@ async function buildViewerState(
 	const artifacts: ViewerState["artifacts"] = [];
 	for (const s of STAGES) {
 		if (!s.artifactFile) continue;
+		// 회귀 정합성(#1): revert 로 state.stage 가 뒤로 옮겨졌다면 그 이후 단계의
+		// (이제 무효한) 산출물은 뷰어에서 숨긴다. state 미지정 시 기존 동작 유지.
+		if (state && s.id > state.stage) continue;
 		const raw = await readArtifact(root, feature, s.artifactFile);
 		if (raw === undefined) continue;
 		if (s.format === "nodes-edges") {
@@ -117,6 +120,8 @@ export interface RunGateOptions {
 	viewerDistDir: string;
 	signal?: AbortSignal;
 	open?: boolean;
+	/** 게이트 자동 만료(ms). 0 또는 미지정=끄기(무한대기, 기존 동작). 좀비 게이트 방지(#4). */
+	timeoutMs?: number;
 	/** 서버가 준비되면 URL 을 알림(테스트/디버그용). */
 	onReady?: (url: string) => void;
 }
@@ -126,12 +131,27 @@ export interface RunGateOptions {
  * 결정(POST /api/decision) 도착 또는 signal 중단 시 서버 닫고 결정 반환.
  */
 export async function runGate(opts: RunGateOptions): Promise<GateDecision> {
-	const { root, feature, viewerDistDir, signal, open = true, onReady } = opts;
+	const {
+		root,
+		feature,
+		viewerDistDir,
+		signal,
+		open = true,
+		timeoutMs = 0,
+		onReady,
+	} = opts;
 
 	let resolveDecision: ((d: GateDecision) => void) | null = null;
 	const decided = new Promise<GateDecision>((resolve) => {
 		resolveDecision = resolve;
 	});
+	// 결정 resolve 는 1회만(POST/abort/timeout 중복 발생 시 좀비 호출 방지, #4).
+	let settled = false;
+	const settle = (d: GateDecision): void => {
+		if (settled) return;
+		settled = true;
+		resolveDecision?.(d);
+	};
 
 	const server = createServer(async (req, res) => {
 		const url = req.url ?? "/";
@@ -154,9 +174,7 @@ export async function runGate(opts: RunGateOptions): Promise<GateDecision> {
 						: {}),
 				};
 				res.writeHead(200, { "Content-Type": "application/json" });
-				res.end(JSON.stringify({ ok: true }), () =>
-					resolveDecision?.(decision),
-				);
+				res.end(JSON.stringify({ ok: true }), () => settle(decision));
 				return;
 			}
 			// 정적 자원(SPA). /assets/* → dist 파일, 그 외 → index.html.
@@ -189,15 +207,27 @@ export async function runGate(opts: RunGateOptions): Promise<GateDecision> {
 	onReady?.(url);
 
 	const onAbort = () => {
-		resolveDecision?.({
+		settle({
 			verdict: "modify",
 			comments: [{ text: "(게이트 중단됨)" }],
 		});
 	};
 	signal?.addEventListener("abort", onAbort, { once: true });
 
+	// #4 게이트 타임아웃: 사용자 결정 없이 만료 시 자동 modify 복귀(좀비 게이트 방지).
+	const timer =
+		timeoutMs > 0
+			? setTimeout(() => {
+					settle({
+						verdict: "modify",
+						comments: [{ text: "(게이트 시간 초과 — 자동 복귀)" }],
+					});
+				}, timeoutMs)
+			: null;
+
 	const result = await decided;
 	signal?.removeEventListener("abort", onAbort);
+	if (timer) clearTimeout(timer);
 	// 클라이언트가 최종 응답 바이트를 읽어가도록 잠시 대기 후 종료.
 	// ponytail: 30ms flush 여유 — 크로즈 전 응답 잘림 방지. 게이트 종료 지연 무시 가능.
 	await new Promise((r) => setTimeout(r, 30));

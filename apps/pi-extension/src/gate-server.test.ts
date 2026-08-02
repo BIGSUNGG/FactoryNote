@@ -117,6 +117,67 @@ test("gate /api/state returns graphSections for graph artifact", async () => {
 	expect(captured.graphSections as unknown[]).toHaveLength(1);
 });
 
+test("gate /api/state hides artifacts past current stage on revert", async () => {
+	// 회귀 시뮬레이션: state.stage=3 이지만 4/5 단계 산출물이 디스크에 남아 있음.
+	await writeArtifact(root, "regress", "01-requirements.md", "# Req");
+	await writeArtifact(root, "regress", "02-scenarios.md", "# Scen");
+	await writeArtifact(
+		root,
+		"regress",
+		"03-modules.json",
+		JSON.stringify({
+			sections: [{ id: "s", title: "t", nodes: [{ id: "n" }], edges: [] }],
+		}),
+	);
+	await writeArtifact(
+		root,
+		"regress",
+		"04-classes.json",
+		JSON.stringify({
+			sections: [{ id: "s", title: "t", nodes: [], edges: [] }],
+		}),
+	);
+	await writeArtifact(root, "regress", "05-implementation-plan.md", "# Plan");
+	await saveState(root, { ...initialState("regress"), stage: 3 });
+
+	const captured: { stages?: number[] } = {};
+	await runGate({
+		root,
+		feature: "regress",
+		viewerDistDir: VIEWER_DIST,
+		open: false,
+		onReady: async (url) => {
+			const res = await fetch(`${url}/api/state`);
+			const st = (await res.json()) as { artifacts: Array<{ stage: number }> };
+			captured.stages = st.artifacts.map((a) => a.stage);
+			await fetch(`${url}/api/decision`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ verdict: "confirm", comments: [] }),
+			});
+		},
+	});
+
+	expect(captured.stages).toEqual([1, 2, 3]);
+	expect(captured.stages).not.toContain(4);
+	expect(captured.stages).not.toContain(5);
+});
+
+test("gate auto-returns modify on timeoutMs without a decision POST", async () => {
+	const decision = await runGate({
+		root,
+		feature: "demo",
+		viewerDistDir: VIEWER_DIST,
+		open: false,
+		timeoutMs: 50,
+		onReady: () => {
+			// 결정 POST 없음 — timeoutMs 만료가 자동 복귀해야 함(#4).
+		},
+	});
+	expect(decision.verdict).toBe("modify");
+	expect(decision.comments[0]?.text).toContain("시간 초과");
+});
+
 test("teardown", async () => {
 	await rm(root, { recursive: true, force: true });
 });
