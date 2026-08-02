@@ -228,6 +228,27 @@ test("invalidateArtifactsAfter deletes artifacts after stage (FR-7)", async () =
 	await rm(r, { recursive: true, force: true });
 });
 
+// --- FR-7 validThrough 마이그레이션(D4) ---
+
+test("loadState migrates legacy state.json missing validThrough → 0", async () => {
+	const feat = "legacymig";
+	await saveState(root, initialState(feat)); // 디렉토리 + state.json 생성
+	const legacy = {
+		feature: feat,
+		stage: 3,
+		gateOpen: false,
+		loopCount: 2,
+		done: false,
+		history: [{ stage: 2, verdict: "confirm", at: 1 }],
+		createdAt: 1,
+		updatedAt: 2,
+	}; // validThrough 의도적 누락(구 포맷)
+	await writeFile(join(root, feat, "state.json"), JSON.stringify(legacy), "utf8");
+	const loaded = await loadState(root, feat);
+	expect(loaded).toBeDefined();
+	expect(loaded?.validThrough).toBe(0);
+});
+
 test("teardown", async () => {
 	await cleanup();
 });

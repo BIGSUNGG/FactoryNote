@@ -78,7 +78,12 @@ function validateState(s: unknown): PipelineState {
 	) {
 		throw new Error("invalid state shape");
 	}
-	return o as unknown as PipelineState;
+	// FR-7 마이그레이션: 구 state.json(validThrough 누락) → 0 기본값(NaN 전파 방지).
+	const withMigration: Record<string, unknown> = {
+		...o,
+		validThrough: typeof o.validThrough === "number" ? o.validThrough : 0,
+	};
+	return withMigration as unknown as PipelineState;
 }
 
 /** 상태 atomic 쓰기(write-then-rename). 게이트 판정의 권위는 이 파일(NFR-2). */

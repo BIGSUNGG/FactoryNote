@@ -4,7 +4,9 @@
 import {
 	STAGES,
 	applyVerdict,
+	atLoopCeiling,
 	initialState,
+	invalidateArtifactsAfter,
 	isComplete,
 	loadState,
 	markArtifactReady,
@@ -17,6 +19,9 @@ import {
 	type PipelineState,
 } from "@factorynote/core";
 import { runGate } from "./gate-server.ts";
+
+/** #4 게이트 자동 만료(ms) — 사용자 이탈 시 좀비 게이트 방지. 30분. */
+const GATE_TIMEOUT_MS = 30 * 60 * 1000;
 
 export interface DrivePlanInput {
 	root: string;
@@ -122,6 +127,7 @@ async function runOpenGate(
 		root,
 		feature,
 		viewerDistDir,
+		timeoutMs: GATE_TIMEOUT_MS,
 		...(signal ? { signal } : {}),
 		...(input.open !== undefined ? { open: input.open } : {}),
 		...(input.onReady ? { onReady: input.onReady } : {}),
@@ -140,6 +146,10 @@ async function runOpenGate(
 
 	// 결정 적용·저장.
 	state = applyVerdict(state, decision);
+	// FR-7: 회귀(revert) 시 대상 단계(state.stage) 이후 산출물 자동 무효화(삭제).
+	if (decision.verdict === "revert") {
+		await invalidateArtifactsAfter(root, feature, state.stage);
+	}
 	await saveState(root, state);
 
 	if (isComplete(state)) {
@@ -165,7 +175,7 @@ async function runOpenGate(
 	const message =
 		(resume ? "[게이트 재오픈(인터럽트 복구)] " : "") +
 		base +
-		(state.loopCount >= 3
+		(atLoopCeiling(state)
 			? `\n※ 이 단계가 ${state.loopCount}회 수정됨 — 근본적 설계 갈등이 있는지 확인을 권장.`
 			: "");
 
