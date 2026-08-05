@@ -8,17 +8,17 @@ import SidePanel from "./SidePanel";
 import GateBar from "./GateBar";
 import { mdToBlocks } from "../lib/mdToBlocks";
 
-// plan 스타일 페이지 — 마크다운 문서 + 블록/영역 코멘트. Stage 1·2·5 가 공유.
+// plan 스타일 페이지 — 마크다운 문서 + 블록/영역 코멘트. Stage 1·3 이 공유.
 const STAGE_DEFS = [
-	{ n: 1, label: "요청 이해", route: "" },
-	{ n: 2, label: "시나리오", route: "scenarios" },
-	{ n: 3, label: "모듈 아키텍처", route: "modules" },
-	{ n: 4, label: "클래스 설계", route: "classes" },
-	{ n: 5, label: "구현 계획", route: "impl" },
-	{ n: 6, label: "최종 검증", route: "review" },
+	{ n: 1, label: "요청 이해·시나리오", route: "" },
+	{ n: 2, label: "모듈·클래스 설계", route: "design" },
+	{ n: 3, label: "구현 계획", route: "impl" },
 ];
 const stagesFor = (cur) =>
-	STAGE_DEFS.map((s) => ({ ...s, state: s.n === cur ? "current" : "done" }));
+	STAGE_DEFS.map((s) => ({
+		...s,
+		state: s.n === cur ? "current" : s.n < cur ? "done" : "locked",
+	}));
 
 const loop = { round: 2, remaining: "1 이슈" };
 const feedbackIssues = [
@@ -137,7 +137,7 @@ export default function PlanPage({ mdSource, stage, onGate, stageLabels = {} }) 
 
 	return (
 		<>
-			<Topbar stage={stage} total={6} />
+			<Topbar stage={stage} total={3} />
 			<Stepper stages={stagesFor(stage)} />
 			<div className="layout">
 				<Toc items={toc} />

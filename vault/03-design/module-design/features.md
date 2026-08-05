@@ -1,11 +1,11 @@
 ---
-updated: 2026-07-28
+updated: 2026-08-06
 tags: [design, module-design, ui, requirements, stage-3]
 ---
 
 # 모듈 설계 페이지 핵심 기능 — 인터랙티브 관계도 에디터
 
-FactoryNote Plan 뷰어의 **Stage 3(모듈 아키텍처)** 산출물 페이지에 반드시 포함되어야 하는 기능을 정의한다. React 목업(`prototypes/plan-page-mockup/`의 `#/modules`)에서 동작을 검증했으며, 향후 본 구현에서도 이 사양을 준수해야 한다.
+FactoryNote Plan 뷰어의 **Stage 3(모듈 아키텍처)** 산출물 페이지에 반드시 포함되어야 하는 기능을 정의한다. React 목업(`apps/plan-viewer/`의 `#/modules`)에서 동작을 검증했으며, 향후 본 구현에서도 이 사양을 준수해야 한다.
 
 > plan 페이지([[03-design/plan-page/core-features|core-features (plan-page)]])가 마크다운 **문서** 중심이라면, 모듈 설계 페이지는 **인터랙티브 관계도(그래프 에디터)** 중심이다. 노드·엣지를 직접 조작해 구조를 설계·수정하며, 코멘트 → '수정 지시' 일괄 적용 모델은 동일하다.
 
@@ -147,10 +147,10 @@ FactoryNote Plan 뷰어의 **Stage 3(모듈 아키텍처)** 산출물 페이지�
 
 ## 목업 참조
 
-- 코드: `prototypes/plan-page-mockup/src/components/ModuleDesign.jsx`
+- 코드: `apps/plan-viewer/src/components/ModuleDesign.jsx`
   - react-flow 에디터 + `ModuleNode`/`ExternalNode` + `ModulePanel`/`EdgePanel` + 우클릭 메뉴(`openMenu`/`menu` portal)
   - 진입: `/#modules`
-- 단일 HTML(초안, mermaid): `prototypes/module-design/module-design.html`
+- 단일 HTML(초안, mermaid): 삭제됨(초기 시안 — `apps/plan-viewer`로 계승)
 
 ## 한계 (본 구현 과제)
 

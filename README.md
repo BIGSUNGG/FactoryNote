@@ -35,15 +35,15 @@ node bin/factorynote.mjs status
 
 ## 모노레포 구조
 
-[plannotator](https://github.com/backnotprop/plannotator) 폴더 패턴. `apps/`·`packages/`·`prototypes/` 가 배포 산출물, `vault/`·`.pi/` 는 개발 참고용(배포 제외).
+[plannotator](https://github.com/backnotprop/plannotator) 폴더 패턴. `apps/`·`packages/` 가 배포 산출물, `vault/`·`.pi/` 는 개발 참고용(배포 제외).
 
 ```
 factorynote/
 ├── packages/factorynote/        # Layer 1-2 코어(harness-agnostic, 런타임 의존 0)
-│   └── src/                     #   types · stages(6단계 Registry) · engine(상태기계) · persistence(atomic r/w)
+│   └── src/                     #   types · stages(3단계 Registry) · engine(상태기계) · persistence(atomic r/w)
 ├── apps/pi-extension/           # Layer 3 Pi 어댑터(메인)
 │   └── src/                     #   index(/factorynote·plan모드) · plan-tool(도구) · gate-server(웹 게이트)
-├── prototypes/plan-page-mockup/ # 뷰어(React+Vite) — 빌드 dist 가 게이트 서버를 통해 서빙됨
+├── apps/plan-viewer/ # 뷰어(React+Vite) — 빌드 dist 가 게이트 서버를 통해 서빙됨
 ├── bin/factorynote.mjs          # CLI(순수 Node, 상태 조회)
 ├── scripts/install.sh           # 로컬 pi 설치
 ├── vault/                       # 문서(Obsidian 볼트 — 기획·설계·ADR·아키텍처)
@@ -56,7 +56,7 @@ factorynote/
 | ---- | ---- | ---------- |
 | Engine | `packages/factorynote/src` | 없음(런타임 npm 의존 0) |
 | Adapter | `apps/pi-extension/src` | 있음(Pi) |
-| Viewer | `prototypes/plan-page-mockup` | 없음(정적 웹) |
+| Viewer | `apps/plan-viewer` | 없음(정적 웹) |
 
 > Layer 1-2(`packages/factorynote`)만 복사하면 다른 harness로 이식. Layer 3만 harness별 재작성.
 

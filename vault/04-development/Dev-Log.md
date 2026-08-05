@@ -1,11 +1,56 @@
 ---
-updated: 2026-08-03
+updated: 2026-08-06
 tags: [development, dev-log]
 ---
 
 # Dev-Log
 
 날짜별 작업 기록. 무엇을 했는지, 왜, 무엇이 남았는지. [[Changelog]]는 외부용 단위, 본 파일은 일일 흐름.
+
+## 2026-08-06
+
+### 뷰어 이동 — prototypes/plan-page-mockup → apps/plan-viewer
+
+뷰어(게이트 UI)가 목업 폴더(`prototypes/`)에 있었으나 이제 production 코드이므로 `apps/plan-viewer`로 이동.
+
+#### 한 일
+
+- `prototypes/plan-page-mockup` → `apps/plan-viewer` 이동 + 패키지명 `plan-page-mockup`→`plan-viewer`. 루트 워크스페이스(`apps/*`) 멤버가 되어 의존성 hoist.
+- 경로 참조 갱신: `resolveViewerDistDir`(`index.ts`)·게이트/drivePlan 테스트 `VIEWER_DIST`·`ensure-viewer-dist.ts`·`install.sh` 모두 `apps/plan-viewer`로.
+- `prototypes/` 제거: 초기 HTML 시안 3개 삭제(React 뷰어에 계승, git 복구 가능).
+- 활성 문서 경로 일괄 갱신 + README 배포 산출물 라인·6단계 잔류 정정.
+
+#### 왜
+
+- 목업이 아닌 정식 게이트 UI가 `prototypes/plan-page-mockup`에 있는 것이 오해를 유발.
+- `apps/*` 워크스페이스 멤버로 두어 의존성 hoist + 빌드 파이프라인 일원화.
+
+#### 남은 것
+
+- `03-design/*` 스펙은 사전 병합(3단계) 설계 기록으로 일부 컴포넌트 참조가 부실(ModuleDesign/Classes.jsx 등은 GraphStage로 병합됨) — 별도 정리 필요 시 후속.
+
+### 6단계 파이프라인 → 3단계 통합
+
+사용자 요청으로 계획 파이프라인을 6단계에서 3단계로 재구성. [[ADR-008-3-stage-pipeline]]. [[Changelog]] [Unreleased] 3단계 통합 항목 참고.
+
+#### 한 일
+
+- **엔진 코어**: `StageId=1|2|3`, `ValidThrough=0..3`, `ArtifactFormat`에서 `matrix` 제거, `STAGES` 3개로 재정의(병합 designPrompt/체크리스트), `engine.ts` done=Stage 3 confirm, `persistence.ts` stage 상한 3.
+- **그래프 병합의 핵심**: 종류 판별을 스테이지(`stage===4`)에서 **노드 타입 per-section 추론**으로 이동. `graphNormalize.js`에 `sectionIsClass` 추가 → 한 페이지에 모듈 섹션·클래스 섹션이 공존. 기존 정규화 테스트 케이스도 동일 결과(규칙이 노드 의미를 그대로 존중).
+- **뷰어**: 죽은 목업 5종 삭제(어디서도 import 안 됨 — 삭제가 최소비용), `GraphStage`의 `isClass`를 활성 섹션에서 파생, `App.jsx`/`PlanPage`/`GateBar`/`Stepper` 3단계화, dist 재빌드.
+- **문서**: ADR-008 신규 + 5대원칙(AGENTS/identity)·파이프라인·정체성·구현아키텍처·Home·ui-mapping 갱신.
+- 테스트 49건 green(`bun run build`·`bun test` 0 종료). 엔진·게이트·drivePlan 종단 테스트 전부 새 파일명/단계에 맞춰 갱신.
+- **테스트 재현성**: 게이트 테스트가 gitignore된 뷰어 `dist`에 하드 의존해, dist 없는 환경(신규 클론/샌드박스)에서 `bun test`가 실패하던 문제 수정 — `ensure-viewer-dist.ts` preload(`bunfig.toml`)가 dist 부재 시 자동 빌드.
+
+#### 왜
+
+- 게이트 6회는 과다 — 요구↔시나리오, 모듈↔클래스는 같은 맥락이라 한 번에 보는 편이 자연스럽다.
+- Stage 6 정합 게이트는 순차 승인이 이미 각 산출물을 검토하므로 한계 효용 < 게이트 비용.
+
+#### 남은 것
+
+- `03-design/module-design`·`classes`·`workflow-core` 사양은 사전 병합 6단계 설계 기록으로 남음(현행은 ADR-008). 필요 시 별도 goal로 정리.
+- 병합으로 Stage 1·2 내 세분 회귀 불가(예: "모듈만 다시" → Stage 2 전체 재검토). 회귀는 Stage 1/2 단위로 동작.
 
 ## 2026-08-03
 

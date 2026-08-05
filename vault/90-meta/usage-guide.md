@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-01
+updated: 2026-08-06
 tags: [meta, usage, manual, how-to]
 ---
 
@@ -24,7 +24,7 @@ bash scripts/install.sh
 
 이 스크립트는:
 
-1. 뷰어가 빌드되어 있지 않으면 `prototypes/plan-page-mockup` 에서 `npm install && npm run build`.
+1. 뷰어가 빌드되어 있지 않으면 `apps/plan-viewer` 에서 `npm install && npm run build`.
 2. 확장을 `~/.pi/agent/extensions/factorynote/` 에 배치(확장 TS + `@factorynote/core` 로컬 패키지 + 뷰어 `dist/`).
 
 > 설치 후 **새 pi 세션**에서 pi 가 확장을 자동 발견한다.(`/reload` 불필요 — 새 세션 시작 시 로드)
@@ -127,7 +127,7 @@ node bin/factorynote.mjs help              # 사용법
 | `/factorynote` 가 인식 안 됨 | 새 pi 세션에서 재시도(로드는 세션 시작 시). 설치 경로 확인(`~/.pi/agent/extensions/factorynote/index.ts`). |
 | 브라우저가 안 열림 | pi 가 출력한 `http://127.0.0.1:포트` URL 을 수동으로 열기. 환경변수 `FACTORYNOTE_VIEWER_DIST` 로 dist 경로 오버라이드 가능. |
 | 에이전트가 코드를 바로 쓰려 함 | plan 모드가 꺼져 있음 → `/factorynote` 로 켜기. 또는 명시적으로 "계획만 해줘" 로 요청. |
-| 게이트 페이지가 빈 화면 | 뷰어 dist 미빌드 — `cd prototypes/plan-page-mockup && npm run build` 후 재설치. |
+| 게이트 페이지가 빈 화면 | 뷰어 dist 미빌드 — `cd apps/plan-viewer && npm run build` 후 재설치. |
 | 게이트 중단(Esc 등) 시 | modify 로 복귀("(게이트 중단됨)" 코멘트) — 산출물을 다시 제출하면 재개. |
 
 ## 참고

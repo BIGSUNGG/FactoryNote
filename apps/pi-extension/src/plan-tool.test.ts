@@ -15,10 +15,7 @@ import {
 	type GateVerdict,
 } from "@factorynote/core";
 
-const VIEWER_DIST = join(
-	import.meta.dir,
-	"../../../prototypes/plan-page-mockup/dist",
-);
+const VIEWER_DIST = join(import.meta.dir, "../../../apps/plan-viewer/dist");
 let root: string;
 
 const postDecision =
@@ -60,7 +57,11 @@ test("submit artifact + confirm advances to stage 2 and persists", async () => {
 	expect(out.gateResult?.verdict).toBe("confirm");
 	expect(out.stage).toBe(2);
 	// 산출물 디스크 저장.
-	const onDisk = await readArtifact(root, "smoke", "01-requirements.md");
+	const onDisk = await readArtifact(
+		root,
+		"smoke",
+		"01-understanding-and-scenarios.md",
+	);
 	expect(onDisk).toBe(md);
 	// 상태 영속화(stage 2).
 	const st = await loadState(root, "smoke");
@@ -84,8 +85,8 @@ test("modify keeps stage 2 and bumps loopCount", async () => {
 });
 
 test("graph stage: agent submits JSON, user edits+confirm → adopted graph saved + advance", async () => {
-	// Stage 3(모듈 그래프) 시드.
-	await saveState(root, { ...initialState("graphfeat"), stage: 3 });
+	// Stage 2(모듈·클래스 그래프) 시드.
+	await saveState(root, { ...initialState("graphfeat"), stage: 2 });
 	const initialGraph = {
 		sections: [
 			{
@@ -126,9 +127,9 @@ test("graph stage: agent submits JSON, user edits+confirm → adopted graph save
 		},
 	});
 	expect(out.gateResult?.verdict).toBe("confirm");
-	expect(out.stage).toBe(4); // 모듈(3) → 클래스(4)
+	expect(out.stage).toBe(3); // 설계(2) → 구현 계획(3)
 	// 편집된(채택된) 그래프가 저장되었는지 — 초기가 아닌 편집 결과.
-	const saved = await readArtifact(root, "graphfeat", "03-modules.json");
+	const saved = await readArtifact(root, "graphfeat", "02-design.json");
 	expect(saved).toBeTruthy();
 	let parsed: {
 		sections: Array<{ nodes: unknown[]; edges: Array<{ id: string }> }>;
@@ -146,7 +147,7 @@ test("#3 gateOpen resume: artifact on disk + gateOpen reopens gate instead of re
 	// 인터럽트 복구 상태: gateOpen=true 로 남은 채 재시작, 산출물은 이미 디스크에 존재.
 	const feat = "resumefeat";
 	const md = "# 요구사항(이미 저장됨)\n\n데모.";
-	await writeArtifact(root, feat, "01-requirements.md", md);
+	await writeArtifact(root, feat, "01-understanding-and-scenarios.md", md);
 	await saveState(root, {
 		...initialState(feat),
 		stage: 1,
@@ -176,13 +177,15 @@ test("#3 gateOpen resume: artifact on disk + gateOpen reopens gate instead of re
 	const st = await loadState(root, feat);
 	expect(st?.stage).toBe(2);
 	// 인터럽트 복구는 산출물 재작성을 요구하지 않는다 — 원본 산출물이 그대로 보존됨.
-	expect(await readArtifact(root, feat, "01-requirements.md")).toBe(md);
+	expect(
+		await readArtifact(root, feat, "01-understanding-and-scenarios.md"),
+	).toBe(md);
 });
 
 test("FR-2 escalation: modify at loop ceiling surfaces conflict + options", async () => {
 	const feat = "ceildemo";
 	const md = "# Req\n\n데모.";
-	await writeArtifact(root, feat, "01-requirements.md", md);
+	await writeArtifact(root, feat, "01-understanding-and-scenarios.md", md);
 	await saveState(root, {
 		...initialState(feat),
 		stage: 1,

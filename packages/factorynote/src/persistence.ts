@@ -73,7 +73,7 @@ function validateState(s: unknown): PipelineState {
 		typeof o.feature !== "string" ||
 		typeof stage !== "number" ||
 		stage < 1 ||
-		stage > 6 ||
+		stage > 3 ||
 		!Array.isArray(o.history)
 	) {
 		throw new Error("invalid state shape");

@@ -1,11 +1,11 @@
 ---
-updated: 2026-07-28
+updated: 2026-08-06
 tags: [design, plan-page, ui, requirements]
 ---
 
 # Plan 페이지 핵심 기능 — 블록 코멘트와 MD 렌더링
 
-FactoryNote의 Plan 뷰어(각 Stage 산출물을 사용자에게 보여주는 화면)에 **반드시 포함되어야 하는 세 핵심 기능**을 정의한다. 세 기능은 React 목업(`prototypes/plan-page-mockup/`)에서 동작을 검증했으며, 향후 본 구현에서도 이 사양을 준수해야 한다.
+FactoryNote의 Plan 뷰어(각 Stage 산출물을 사용자에게 보여주는 화면)에 **반드시 포함되어야 하는 세 핵심 기능**을 정의한다. 세 기능은 React 목업(`apps/plan-viewer/`)에서 동작을 검증했으며, 향후 본 구현에서도 이 사양을 준수해야 한다.
 
 > **배경**: Plannotator 분석([[plannotator-plan-page]])에서 차용한 어노테이션·마크다운 렌더링 패턴을 FactoryNote의 6단계 게이트 모델([[multi-agent-pipeline]])에 맞춰 재설계. Plannotator는 단일 `Approve` one-shot이지만, FactoryNote는 *직접 편집을 막고 코멘트로 모아 '수정 지시'로 일괄 반영*하는 것이 핵심 차이.
 
@@ -157,12 +157,12 @@ Plan 섹션(본문)은 **마크다운 파일(`.md`)을 인자로 받아 렌더�
 
 ## 목업 참조
 
-- 코드: `prototypes/plan-page-mockup/`
+- 코드: `apps/plan-viewer/`
   - `src/lib/mdToBlocks.js` — 변환기
   - `src/components/Block.jsx` — 블록 렌더 + 코멘트 팝오버 + 표 셀 팝오버(portal)
   - `src/data/plan.md` — 모든 마크다운 문법을 1회씩 포함한 샘플
   - `src/components/Document.jsx` — 블록 시퀀스 렌더
-- 시안 HTML: `prototypes/plan-page/variant-A-stepper.html` (모노톤 레이아웃 원본)
+- 시안 HTML: 삭제됨(초기 모노톤 레이아웃 원본 — `apps/plan-viewer`로 계승)
 
 > 목업은 정적(게이트 전환·셀 반영 시뮬레이션). 본 구현에서는 `Design Agent`·`Feedback Agent`와 연결되어 코멘트가 실제 수정을 유발한다.
 

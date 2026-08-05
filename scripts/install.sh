@@ -11,9 +11,9 @@ EXT_DIR="$AGENT_DIR/extensions/factorynote"
 echo "factorynote install → $EXT_DIR"
 
 # 1) 뷰어 빌드 보장.
-if [ ! -f "$ROOT/prototypes/plan-page-mockup/dist/index.html" ]; then
+if [ ! -f "$ROOT/apps/plan-viewer/dist/index.html" ]; then
 	echo "  뷰어 빌드 중…"
-	(cd "$ROOT/prototypes/plan-page-mockup" && npm install --silent && npm run build)
+	(cd "$ROOT/apps/plan-viewer" && npm install --silent && npm run build)
 fi
 
 # 2) 기존 설치 정리 후 재배치.
@@ -38,7 +38,7 @@ cat >"$EXT_DIR/node_modules/@factorynote/core/package.json" <<'JSON'
 JSON
 
 # 뷰어 빌드 산출물.
-cp -R "$ROOT/prototypes/plan-page-mockup/dist/." "$EXT_DIR/viewer/dist/"
+cp -R "$ROOT/apps/plan-viewer/dist/." "$EXT_DIR/viewer/dist/"
 
 # 확장 메타(pi 가 index.ts 자동 발견; type:module 로 ESM 인식 보조).
 cat >"$EXT_DIR/package.json" <<'JSON'

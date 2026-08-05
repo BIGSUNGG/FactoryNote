@@ -1,13 +1,13 @@
 // FactoryNote core types. Harness-agnostic (no pi, no LLM) — Layer 1-2.
 
-/** 6단계 파이프라인 단계 식별자. */
-export type StageId = 1 | 2 | 3 | 4 | 5 | 6;
+/** 3단계 파이프라인 단계 식별자. */
+export type StageId = 1 | 2 | 3;
 
-/** FR-7: 0..6. validThrough = 해당 단계까지 산출물이 승인됨(0=아직 승인된 산출물 없음). */
+/** FR-7: 0..3. validThrough = 해당 단계까지 산출물이 승인됨(0=아직 승인된 산출물 없음). */
 export type ValidThrough = 0 | StageId;
 
-/** 산출물 포맷(ADR-003). MVP는 모든 단계를 마크다운으로 렌더한다. */
-export type ArtifactFormat = "markdown" | "nodes-edges" | "matrix";
+/** 산출물 포맷(ADR-003). */
+export type ArtifactFormat = "markdown" | "nodes-edges";
 
 /** 사용자 게이트 판정. confirm=다음 단계, modify=현 단계 재작성, revert=이전 단계 회귀. */
 export type GateVerdict = "confirm" | "modify" | "revert";
@@ -20,7 +20,7 @@ export interface Comment {
 	text: string;
 }
 
-// --- 그래프 에디터(Stage 3 모듈 / Stage 4 클래스) 데이터 모델 ---
+// --- 그래프 에디터(Stage 2 모듈·클래스) 데이터 모델 ---
 // 코어는 envelope(sections) 만 다루고 노드/엣지 내부는 불투명(react-flow 호환 필드를 그대로 담는다).
 /** 그래프 노드(react-flow Node 호환 필드를 자유롭게 포함). */
 export type GraphNode = Record<string, unknown>;
@@ -35,7 +35,7 @@ export interface GraphSection {
 	edges: GraphEdge[];
 }
 
-/** 그래프 산출물 전체(=.json 파일 내용). Stage 3/4 산출물 포맷. */
+/** 그래프 산출물 전체(=.json 파일 내용). Stage 2 산출물 포맷. */
 export interface GraphArtifact {
 	sections: GraphSection[];
 }
@@ -46,7 +46,7 @@ export interface GateDecision {
 	comments: Comment[];
 	/** 그래프 단계(Stage 3/4)에서 사용자가 편집한 그래프. 직접 편집 → 에이전트가 채택해 산출물로 저장. */
 	graphSections?: GraphSection[];
-	/** FR-7: 회귀 대상 단계(1..6). 생략 시 종래대로 1단계 회귀. 현재 단계보다 앞으로만(엔진이 clamp). */
+	/** FR-7: 회귀 대상 단계(1..3). 생략 시 종래대로 1단계 회귀. 현재 단계보다 앞으로만(엔진이 clamp). */
 	revertTo?: StageId;
 }
 
@@ -67,7 +67,7 @@ export interface PipelineState {
 	loopCount: number;
 	/** FR-7: 해당 단계까지 산출물 유효(0=미승인). confirm→증가, revert→감소, modify→불변. */
 	validThrough: ValidThrough;
-	/** 파이프라인 완료(Stage 6 confirm) 여부. */
+	/** 파이프라인 완료(Stage 3 confirm) 여부. */
 	done: boolean;
 	history: HistoryEntry[];
 	createdAt: number;

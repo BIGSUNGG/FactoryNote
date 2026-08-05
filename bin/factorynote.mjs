@@ -84,7 +84,7 @@ const HELP = `FactoryNote CLI — human-gated plan pipeline 상태 도구.
 
 계획 구동(산출물 작성·게이트)은 pi 에서:
   /factorynote            plan 모드 토글
-  (plan 모드에서 기능 요청 → 6단계 게이트 파이프라인)
+  (plan 모드에서 기능 요청 → 3단계 게이트 파이프라인)
 
 상태/산출물 위치: .factorynote/<feature>/`;
 

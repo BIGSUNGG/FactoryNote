@@ -1,11 +1,11 @@
 ---
-updated: 2026-07-28
+updated: 2026-08-06
 tags: [design, classes, ui, requirements, stage-4]
 ---
 
 # 클래스 설계 페이지 핵심 기능 — 모듈 계층 클래스 에디터
 
-FactoryNote Plan 뷰어의 **Stage 4(클래스 수준 설계)** 산출물 페이지 사양. React 목업(`prototypes/plan-page-mockup/`의 `#/classes`)에서 검증. 향후 본 구현에서 이 사양을 준수해야 한다.
+FactoryNote Plan 뷰어의 **Stage 4(클래스 수준 설계)** 산출물 페이지 사양. React 목업(`apps/plan-viewer/`의 `#/classes`)에서 검증. 향후 본 구현에서 이 사양을 준수해야 한다.
 
 > 모듈 설계 페이지([[03-design/module-design/features|module-design features]])와 같은 **react-flow 에디터 UI**를 공유하되, **모듈(그룹)이 클래스를 감싸는 계층 구조**가 핵심 차이. Stage 3의 모듈 노드 → Stage 4의 모듈 그룹(컨테이너) + 클래스 노드(자식).
 
@@ -126,7 +126,7 @@ FactoryNote Plan 뷰어의 **Stage 4(클래스 수준 설계)** 산출물 페이
 
 ## 목업 참조
 
-- 코드: `prototypes/plan-page-mockup/src/components/Classes.jsx`
+- 코드: `apps/plan-viewer/src/components/Classes.jsx`
   - `ModGroup`(점선 컨테이너 + `NodeResizer`) · `ClassNode` · `ClassPanel`(모듈 select 포함) · `RelPanel` · 우클릭 메뉴
   - 진입: `/#classes`
 

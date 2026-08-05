@@ -35,7 +35,7 @@ export function initialState(feature: string, now = Date.now()): PipelineState {
 	};
 }
 
-/** 현 단계가 산출물을 생성하는가(Stage 6은 제외). */
+/** 현 단계가 산출물을 생성하는가(3단계 모두 산출물 생성). */
 export function requiresArtifact(stage: StageId): boolean {
 	const def = STAGES[stage - 1];
 	return def ? def.producesArtifact : false;
@@ -66,7 +66,7 @@ function clamp(value: number, min: number, max: number): number {
 
 /**
  * 사용자 게이트 판정 적용.
- * - confirm: 다음 단계(Stage 6 confirm → done). validThrough = max(기존, 승인된 단계).
+ * - confirm: 다음 단계(Stage 3 confirm → done). validThrough = max(기존, 승인된 단계).
  * - modify: 현 단계 재작성(gate 닫힘, loopCount 증가; validThrough 불변).
  * - revert: 회귀 — revertTo(생략 시 1단계) 로 점프. clamp 상한 = stage-1(앞으로만).
  *   validThrough = target-1(target 단계 산출물부터 무효). Stage 1에서는 no-op.
@@ -110,10 +110,10 @@ export function applyVerdict(
 		state.validThrough,
 		state.stage,
 	) as ValidThrough;
-	if (state.stage >= 6) {
+	if (state.stage >= 3) {
 		return {
 			...withHistory,
-			stage: 6,
+			stage: 3,
 			gateOpen: false,
 			done: true,
 			validThrough: confirmedValid,
@@ -131,12 +131,12 @@ export function applyVerdict(
 	};
 }
 
-/** 파이프라인 완료(Stage 6 confirm). */
+/** 파이프라인 완료(Stage 3 confirm). */
 export function isComplete(state: PipelineState): boolean {
 	return state.done;
 }
 
 /** 다음 단계 예상(안내용). */
 export function nextStageId(stage: StageId): StageId | null {
-	return stage >= 6 ? null : ((stage + 1) as StageId);
+	return stage >= 3 ? null : ((stage + 1) as StageId);
 }

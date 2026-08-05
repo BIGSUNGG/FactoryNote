@@ -19,16 +19,13 @@ import "reactflow/dist/style.css";
 import Topbar from "./Topbar";
 import Stepper from "./Stepper";
 import GateBar from "./GateBar";
-import { gridPos, normalizeSections } from "../lib/graphNormalize";
+import { gridPos, normalizeSections, sectionIsClass } from "../lib/graphNormalize";
 
 const LAYERS = ["API", "Service", "Repository", "Util", "External"];
 const STAGE_DEFS = [
-	{ n: 1, label: "요청 이해" },
-	{ n: 2, label: "시나리오" },
-	{ n: 3, label: "모듈 아키텍처" },
-	{ n: 4, label: "클래스 설계" },
-	{ n: 5, label: "구현 계획" },
-	{ n: 6, label: "최종 검증" },
+	{ n: 1, label: "요청 이해·시나리오" },
+	{ n: 2, label: "모듈·클래스 설계" },
+	{ n: 3, label: "구현 계획" },
 ];
 const stagesFor = (cur) =>
 	STAGE_DEFS.map((s) => ({
@@ -116,12 +113,14 @@ export default function GraphStage({
 	onGate,
 	stageLabels = {},
 }) {
-	const isClass = stage === 4;
 	const [sections, setSections] = useState(() =>
-		normalizeSections(initialSections, stage),
+		normalizeSections(initialSections),
 	);
 	const [activeId, setActiveId] = useState(() => sections[0]?.id ?? null);
 	const active = sections.find((s) => s.id === activeId) ?? sections[0] ?? null;
+	// 종류는 스테이지가 아닌 활성 섹션의 노드 타입으로 판별(병합 페이지는 모듈 섹션과
+	// 클래스 섹션이 공존). 빈 섹션은 모듈로 간주(모듈→클래스 흐름의 기본).
+	const isClass = active ? sectionIsClass(active) : false;
 	const [selected, setSelected] = useState({ type: "node", id: null });
 	// 코멘트: { `${secId}::${targetId}`: string[] }
 	const [comments, setComments] = useState({});
@@ -430,12 +429,10 @@ export default function GraphStage({
 
 	return (
 		<>
-			<Topbar stage={stage} total={6} />
+			<Topbar stage={stage} total={3} />
 			<Stepper stages={stagesFor(stage)} />
 			<div className="meta">
-				<span className="stage-tag">
-					Stage {stage} / 6 · {stageName}
-				</span>
+				<span className="stage-tag">Stage {stage} / 3 · {stageName}</span>
 				<span>
 					<b>섹션:</b> {sections.length} · <b>노드:</b>{" "}
 					{active?.nodes.length ?? 0} · <b>관계:</b> {active?.edges.length ?? 0}

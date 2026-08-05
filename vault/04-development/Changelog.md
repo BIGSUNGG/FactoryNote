@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-03
+updated: 2026-08-06
 tags: [development, changelog]
 ---
 
@@ -38,6 +38,18 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ### Changed
 
+- **뷰어 목업 → production 앱 이동** — `prototypes/plan-page-mockup` → `apps/plan-viewer`(`apps/*` 워크스페이스 멤버). 더 이상 목업이 아닌 게이트 UI의 정식 위치. 패키지명 `plan-page-mockup` → `plan-viewer`.
+  - 경로 참조 갱신: `resolveViewerDistDir`(`apps/pi-extension/src/index.ts`), 게이트·drivePlan 테스트 `VIEWER_DIST`, `ensure-viewer-dist.ts` preload, `scripts/install.sh`.
+  - `prototypes/` 폴더 제거: 초기 HTML 시안 3개(`module-design/`, `plan-page/` — React 뷰어에 계승, git 복구 가능) 삭제.
+  - 루트 `bun install`이 `apps/plan-viewer` 의존성을 hoist. 활성 문서(AGENTS·README·architecture·03-design·90-meta guides) 경로 갱신.
+- **6단계 → 3단계 파이프라인 통합** ([[ADR-008-3-stage-pipeline]]) — 게이트 6→3으로 축소.
+  - **Stage 1**(구 1+2): 요청 이해 + 동작 시나리오를 한 마크다운 산출물(`01-understanding-and-scenarios.md`)로 통합.
+  - **Stage 2**(구 3+4): 모듈·클래스 설계를 한 그래프 산출물(`02-design.json`)로 통합. 종류 판별을 스테이지에서 **노드 타입 per-section 추론**으로 이동(`lib/graphNormalize.js` `sectionIsClass`) — 한 페이지에 모듈 섹션과 클래스 섹션이 공존. `GraphStage.jsx`의 `isClass`를 활성 섹션에서 파생.
+  - **Stage 3**(구 5 유지): 구현 계획 — **종료 게이트**(확정 시 파이프라인 완료, `engine.ts` done=Stage 3 confirm).
+  - **구 Stage 6(사용자 최종 검증) 폐지** — 정합성 게이트는 이관하지 않음. `ArtifactFormat` `matrix` 제거, `StageId=1|2|3`/`ValidThrough=0..3`.
+  - 뷰어: 죽은 목업 5종(`Classes`/`ImplementationPlan`/`ModuleDesign`/`Scenarios`/`FinalReview`) 삭제, `App.jsx`/`GraphStage`/`PlanPage`/`GateBar`/`Stepper` 3단계화, 뷰어 dist 재빌드.
+  - 문서: `AGENTS.md`(5대원칙·카운트), [[project-identity]], [[multi-agent-pipeline]], [[implementation-architecture]], [[Home]], [[03-design/plan-viewer/ui-mapping|ui-mapping]] 갱신. (참고: `03-design/module-design`·`classes`·`workflow-core` 사양은 사전 병합 6단계 설계 기록 — 현행은 ADR-008 + Stage 2 designPrompt.)
+  - 자체체크 49건 green(`bun run build`·`bun test` 0 종료). `bun test`는 뷰어 dist(gitignore 빌드 산출물)가 없으면 자동 빌드(`ensure-viewer-dist.ts` preload, `bunfig.toml`) — 신규 클론에서도 게이트 테스트가 재현 가능.
 - **파이프라인 경화(hardening, fn-integration)** — MVP 병렬 3-워크트리 통합 후 식별된 통합 결함·요구사항 gap을 단일-owner 직접 수정으로 폐쇄. Orca supervised orchestration(3 워크트리×pi 에이전트) + metricless /loop(review 서브 재심사 구동)로 진행.
   - **FR-7 다단계 회귀 end-to-end 완결** — `GateDecision.revertTo` + 엔진 clamp + `PipelineState.validThrough` + `invalidateArtifactsAfter(root,feature,state.stage)`(회귀 시 대상 이후 산출물 무효화) + 뷰어 회귀대상 Stage 셀렉터(`GateBar.jsx`→`revertTo` POST) + gate-server forward. 기존엔 엔진 역량만 있고 뷰어/서버 seam이 끊겨 1단계 회귀만 동작.
   - **FR-2 반복 상한 경성 에스컬레이션** — `MAX_LOOPS`/`atLoopCeiling(state)` 헬퍼 + modify@ceiling 시 에스컬레이션 메시지(잔존 이슈 노출 + (a)재작성 (b)회귀 (c)재협의 옵션). 기존 advisory-only → 경성.

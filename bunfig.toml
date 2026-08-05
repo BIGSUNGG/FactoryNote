@@ -1,0 +1,2 @@
+[test]
+preload = ["./ensure-viewer-dist.ts"]

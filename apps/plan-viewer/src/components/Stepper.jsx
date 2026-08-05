@@ -1,6 +1,6 @@
 import React from "react";
 
-// 6단계 스텝퍼. 단계 클릭 시 해당 Stage 페이지로 전환(잠긴 단계는 제외).
+// 3단계 스텝퍼. 단계 클릭 시 해당 Stage 페이지로 전환(잠긴 단계는 제외).
 export default function Stepper({ stages }) {
 	const go = (s) => {
 		window.location.hash = s.route ? `#/${s.route}` : "#/";

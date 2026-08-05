@@ -1,6 +1,6 @@
 // @factorynote/pi-extension — Pi harness 어댑터(Layer 3). FactoryNote 메인 구현체.
 //  - /factorynote 명령 = plan 모드 토글(모드 ON 시 계획 전용 프롬프트 주입)
-//  - factorynote_plan 도구 = 6단계 게이트 파이프라인 구동(웹 페이지가 게이트)
+//  - factorynote_plan 도구 = 3단계 게이트 파이프라인 구동(웹 페이지가 게이트)
 //  - Tier 0: 단일 에이전트가 Design/Feedback 역할 인라인 전환(1패스 자기검토)
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
@@ -17,14 +17,14 @@ const PLAN_MODE_PROMPT = `
 너는 지금 FactoryNote plan 모드에 있다. 아래 규칙을 엄격히 지킨다.
 
 1. 코드를 작성하지 않는다(기존 코드 수정·생성 금지). 오직 '계획'을 만든다.
-2. 사용자의 기능 요청이 들어오면 factorynote_plan 도구로 6단계 게이트 파이프라인을 구동한다.
+2. 사용자의 기능 요청이 들어오면 factorynote_plan 도구로 3단계 게이트 파이프라인을 구동한다.
 3. 파이프라인 절차:
    a. factorynote_plan({ feature }) 호출 → 현재 단계와 산출물 작성 지시(designPrompt)를 받는다.
    b. Design 역할: 지시대로 해당 단계 산출물을 마크다운으로 작성한다.
    c. Feedback 역할(자기검토): feedbackChecklist 로 산출물을 1패스 비판 검토한 뒤 반영한다.
    d. factorynote_plan({ feature, artifactMd }) 로 산출물을 제출 → 사용자 게이트(웹)가 열리고 결정이 돌아온다.
    e. verdict=modify → 코멘트 반영해 재작성 후 재제출. verdict=confirm → 다음 단계로. done=true → 종료.
-4. 6단계(요구사항→시나리오→모듈설계→클래스설계→구현계획→최종검증)를 순차 진행한다. 단계를 건너뛰지 않는다.
+4. 3단계(요청 이해·시나리오 → 모듈·클래스 설계 → 구현 계획)를 순차 진행한다. 단계를 건너뛰지 않는다.
 5. 사용자가 웹에서 승인하기 전에는 다음 단계로 넘어가지 않는다(5대 원칙).
 plan 모드를 끄려면 /factorynote 를 다시 입력한다.
 `.trim();
@@ -34,7 +34,7 @@ async function resolveViewerDistDir(cwd: string): Promise<string> {
 	const candidates = [
 		process.env.FACTORYNOTE_VIEWER_DIST,
 		join(extDir, "viewer", "dist"), // 설치형: <ext>/viewer/dist
-		join(cwd, "prototypes", "plan-page-mockup", "dist"), // 개발: 리포 내 목업
+		join(cwd, "apps", "plan-viewer", "dist"), // 개발: 리포 내 뷰어
 	];
 	for (const c of candidates) {
 		if (!c) continue;
@@ -46,7 +46,7 @@ async function resolveViewerDistDir(cwd: string): Promise<string> {
 		}
 	}
 	// 마지막 후보를 기본값으로 반환(에러 메시지에 활용).
-	return join(cwd, "prototypes", "plan-page-mockup", "dist");
+	return join(cwd, "apps", "plan-viewer", "dist");
 }
 
 function modeLine(): string {
@@ -74,13 +74,13 @@ export default function (pi: ExtensionAPI): void {
 		};
 	});
 
-	// factorynote_plan — 6단계 게이트 파이프라인 구동 도구.
+	// factorynote_plan — 3단계 게이트 파이프라인 구동 도구.
 	pi.registerTool({
 		name: "factorynote_plan",
 		label: "FactoryNote Plan",
 		description:
-			"FactoryNote 6단계 human-gated 계획 파이프라인을 1스텝 구동. plan 모드에서 기능 요청을 처리한다. 반환값의 needArtifact/message 에 따라 산출물 작성·재제출·다음 단계 진행을 결정.",
-		promptSnippet: "Drive the FactoryNote 6-stage gated plan pipeline",
+			"FactoryNote 3단계 human-gated 계획 파이프라인을 1스텝 구동. plan 모드에서 기능 요청을 처리한다. 반환값의 needArtifact/message 에 따라 산출물 작성·재제출·다음 단계 진행을 결정.",
+		promptSnippet: "Drive the FactoryNote 3-stage gated plan pipeline",
 		promptGuidelines: [
 			"Use factorynote_plan when in FactoryNote plan mode to produce a human-gated plan instead of writing code.",
 		],

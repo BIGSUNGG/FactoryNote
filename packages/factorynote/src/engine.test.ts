@@ -41,20 +41,20 @@ test("confirm advances stage and closes gate", () => {
 	expect(s.loopCount).toBe(0);
 });
 
-test("full pipeline 1->6 completes", () => {
+test("full pipeline 1->3 completes", () => {
 	let s = initialState("demo");
 	for (
-		let stage = 1 as 1 | 2 | 3 | 4 | 5 | 6;
-		stage <= 6;
-		stage = (stage + 1) as 1 | 2 | 3 | 4 | 5 | 6
+		let stage = 1 as 1 | 2 | 3;
+		stage <= 3;
+		stage = (stage + 1) as 1 | 2 | 3
 	) {
 		expect(s.stage).toBe(stage);
-		expect(requiresArtifact(s.stage)).toBe(stage < 6);
+		expect(requiresArtifact(s.stage)).toBe(true); // 3단계 모두 산출물
 		s = markArtifactReady(s);
 		s = applyVerdict(s, { verdict: "confirm", comments: [] });
 	}
 	expect(isComplete(s)).toBe(true);
-	expect(s.stage).toBe(6);
+	expect(s.stage).toBe(3);
 });
 
 test("modify keeps stage, bumps loopCount, closes gate", () => {
@@ -94,10 +94,19 @@ test("state atomic save/load round-trip", async () => {
 });
 
 test("artifact write/read round-trip", async () => {
-	const md = "# 요구사항 명세\n\n데모 기능입니다.";
-	const path = await writeArtifact(root, "rt", "01-requirements.md", md);
+	const md = "# 요구사항·시나리오 명세\n\n데모 기능입니다.";
+	const path = await writeArtifact(
+		root,
+		"rt",
+		"01-understanding-and-scenarios.md",
+		md,
+	);
 	expect(path).toContain(join(root, "rt"));
-	const back = await readArtifact(root, "rt", "01-requirements.md");
+	const back = await readArtifact(
+		root,
+		"rt",
+		"01-understanding-and-scenarios.md",
+	);
 	expect(back).toBe(md);
 });
 
@@ -143,26 +152,26 @@ test("modify keeps validThrough unchanged", () => {
 
 test("revert without revertTo steps back one, decreases validThrough", () => {
 	let s = initialState("vt3");
-	for (let i = 0; i < 3; i++) {
+	for (let i = 0; i < 2; i++) {
 		s = applyVerdict(markArtifactReady(s), {
 			verdict: "confirm",
 			comments: [],
 		});
-	} // stage4, vt3
+	} // stage3, vt2
 	s = applyVerdict(markArtifactReady(s), { verdict: "revert", comments: [] });
-	expect(s.stage).toBe(3);
-	expect(s.validThrough).toBe(2);
+	expect(s.stage).toBe(2);
+	expect(s.validThrough).toBe(1);
 	expect(s.loopCount).toBe(0);
 });
 
 test("revert with revertTo jumps multiple stages (FR-7)", () => {
 	let s = initialState("vt4");
-	for (let i = 0; i < 4; i++) {
+	for (let i = 0; i < 2; i++) {
 		s = applyVerdict(markArtifactReady(s), {
 			verdict: "confirm",
 			comments: [],
 		});
-	} // stage5, vt4
+	} // stage3, vt2
 	s = applyVerdict(markArtifactReady(s), {
 		verdict: "revert",
 		comments: [],
@@ -176,11 +185,11 @@ test("revert with revertTo jumps multiple stages (FR-7)", () => {
 test("revertTo clamped to stage-1 (cannot jump forward)", () => {
 	let s = initialState("vt5");
 	s = applyVerdict(markArtifactReady(s), { verdict: "confirm", comments: [] }); // stage2, vt1
-	// revertTo=5 at stage2 → clamp 상한(stage-1=1)
+	// revertTo=3 at stage2 → clamp 상한(stage-1=1)
 	s = applyVerdict(markArtifactReady(s), {
 		verdict: "revert",
 		comments: [],
-		revertTo: 5,
+		revertTo: 3,
 	});
 	expect(s.stage).toBe(1);
 	expect(s.validThrough).toBe(0);
@@ -211,20 +220,17 @@ test("atLoopCeiling true at/above MAX_LOOPS, false below", () => {
 
 test("invalidateArtifactsAfter deletes artifacts after stage (FR-7)", async () => {
 	const r = await mkdtemp(join(tmpdir(), "fn-inv-"));
-	await writeArtifact(r, "f", "01-requirements.md", "s1");
-	await writeArtifact(r, "f", "02-scenarios.md", "s2");
-	await writeArtifact(r, "f", "03-modules.json", "s3");
-	await writeArtifact(r, "f", "04-classes.json", "s4");
-	await writeArtifact(r, "f", "05-implementation-plan.md", "s5");
-	// afterStage=2 → delete id>2 (stages 3,4,5)
-	await invalidateArtifactsAfter(r, "f", 2);
-	expect(await readArtifact(r, "f", "01-requirements.md")).toBe("s1");
-	expect(await readArtifact(r, "f", "02-scenarios.md")).toBe("s2");
-	expect(await readArtifact(r, "f", "03-modules.json")).toBeUndefined();
-	expect(await readArtifact(r, "f", "04-classes.json")).toBeUndefined();
+	await writeArtifact(r, "f", "01-understanding-and-scenarios.md", "s1");
+	await writeArtifact(r, "f", "02-design.json", "s2");
+	await writeArtifact(r, "f", "03-implementation-plan.md", "s3");
+	// afterStage=1 → delete id>1 (stages 2,3)
+	await invalidateArtifactsAfter(r, "f", 1);
 	expect(
-		await readArtifact(r, "f", "05-implementation-plan.md"),
-	).toBeUndefined();
+		await readArtifact(r, "f", "01-understanding-and-scenarios.md"),
+	).toBe("s1");
+	expect(await readArtifact(r, "f", "02-design.json")).toBeUndefined();
+	expect(await readArtifact(r, "f", "03-implementation-plan.md"))
+		.toBeUndefined();
 	await rm(r, { recursive: true, force: true });
 });
 

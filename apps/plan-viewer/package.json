@@ -1,9 +1,9 @@
 {
-  "name": "plan-page-mockup",
+  "name": "plan-viewer",
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "FactoryNote plan page — 시안 A(모노톤) React 목업",
+  "description": "FactoryNote plan 뷰어 — 게이트 UI(React+Vite)",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

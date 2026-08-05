@@ -12,10 +12,7 @@ import {
 	writeArtifact,
 } from "@factorynote/core";
 
-const VIEWER_DIST = join(
-	import.meta.dir,
-	"../../../prototypes/plan-page-mockup/dist",
-);
+const VIEWER_DIST = join(import.meta.dir, "../../../apps/plan-viewer/dist");
 
 let root: string;
 
@@ -25,8 +22,8 @@ test("setup", async () => {
 	await writeArtifact(
 		root,
 		"demo",
-		"01-requirements.md",
-		"# 요구사항\n\n데모.",
+		"01-understanding-and-scenarios.md",
+		"# 요구사항·시나리오\n\n데모.",
 	);
 	let s = initialState("demo");
 	s = markArtifactReady(s);
@@ -73,18 +70,18 @@ test("gate server serves viewer, state, and accepts decision", async () => {
 });
 
 test("gate /api/state returns graphSections for graph artifact", async () => {
-	// 그래프 산물(03-modules.json) + stage 3 시드.
+	// 그래프 산물(02-design.json) + stage 2 시드.
 	await writeArtifact(
 		root,
 		"graphdemo",
-		"03-modules.json",
+		"02-design.json",
 		JSON.stringify({
 			sections: [
 				{ id: "fe", title: "프론트", nodes: [{ id: "UI" }], edges: [] },
 			],
 		}),
 	);
-	await saveState(root, { ...initialState("graphdemo"), stage: 3 });
+	await saveState(root, { ...initialState("graphdemo"), stage: 2 });
 
 	type StateResp = {
 		artifacts: Array<{
@@ -103,7 +100,7 @@ test("gate /api/state returns graphSections for graph artifact", async () => {
 		onReady: async (url) => {
 			const res = await fetch(`${url}/api/state`);
 			const st = (await res.json()) as StateResp;
-			const art = st.artifacts.find((a) => a.file === "03-modules.json");
+			const art = st.artifacts.find((a) => a.file === "02-design.json");
 			if (art?.graphSections) captured.graphSections = art.graphSections;
 			await fetch(`${url}/api/decision`, {
 				method: "POST",
@@ -118,27 +115,23 @@ test("gate /api/state returns graphSections for graph artifact", async () => {
 });
 
 test("gate /api/state hides artifacts past current stage on revert", async () => {
-	// 회귀 시뮬레이션: state.stage=3 이지만 4/5 단계 산출물이 디스크에 남아 있음.
-	await writeArtifact(root, "regress", "01-requirements.md", "# Req");
-	await writeArtifact(root, "regress", "02-scenarios.md", "# Scen");
+	// 회귀 시뮬레이션: state.stage=2 이지만 3단계 산출물이 디스크에 남아 있음.
 	await writeArtifact(
 		root,
 		"regress",
-		"03-modules.json",
+		"01-understanding-and-scenarios.md",
+		"# Req+Scen",
+	);
+	await writeArtifact(
+		root,
+		"regress",
+		"02-design.json",
 		JSON.stringify({
 			sections: [{ id: "s", title: "t", nodes: [{ id: "n" }], edges: [] }],
 		}),
 	);
-	await writeArtifact(
-		root,
-		"regress",
-		"04-classes.json",
-		JSON.stringify({
-			sections: [{ id: "s", title: "t", nodes: [], edges: [] }],
-		}),
-	);
-	await writeArtifact(root, "regress", "05-implementation-plan.md", "# Plan");
-	await saveState(root, { ...initialState("regress"), stage: 3 });
+	await writeArtifact(root, "regress", "03-implementation-plan.md", "# Plan");
+	await saveState(root, { ...initialState("regress"), stage: 2 });
 
 	const captured: { stages?: number[] } = {};
 	await runGate({
@@ -158,9 +151,8 @@ test("gate /api/state hides artifacts past current stage on revert", async () =>
 		},
 	});
 
-	expect(captured.stages).toEqual([1, 2, 3]);
-	expect(captured.stages).not.toContain(4);
-	expect(captured.stages).not.toContain(5);
+	expect(captured.stages).toEqual([1, 2]);
+	expect(captured.stages).not.toContain(3);
 });
 
 test("gate auto-returns modify on timeoutMs without a decision POST", async () => {
@@ -180,8 +172,13 @@ test("gate auto-returns modify on timeoutMs without a decision POST", async () =
 
 test("gate /api/decision forwards revertTo to the engine (FR-7)", async () => {
 	// 회귀 대상 선택이 뷰어→서버→엔진으로 누락 없이 전달되는지(P0 회귀 가드).
-	await writeArtifact(root, "revtgt", "01-requirements.md", "# Req");
-	await writeArtifact(root, "revtgt", "02-scenarios.md", "# Scen");
+	await writeArtifact(
+		root,
+		"revtgt",
+		"01-understanding-and-scenarios.md",
+		"# Req",
+	);
+	await writeArtifact(root, "revtgt", "02-design.json", "{}");
 	await saveState(root, { ...initialState("revtgt"), stage: 3 });
 	const decision = await runGate({
 		root,

@@ -1,7 +1,7 @@
 {
   "name": "factorynote",
   "private": true,
-  "description": "Human-Gated Plan generation workflow package — harness-agnostic 6-stage pipeline.",
+  "description": "Human-Gated Plan generation workflow package — harness-agnostic 3-stage pipeline.",
   "workspaces": [
     "packages/*",
     "apps/*"

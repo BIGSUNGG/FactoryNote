@@ -1,4 +1,4 @@
-// factorynote_plan 도구 드라이버 — 6단계 게이트 파이프라인의 단일 진입.
+// factorynote_plan 도구 드라이버 — 3단계 게이트 파이프라인의 단일 진입.
 // 에이전트가 호출: 산출물 작성→제출(artifactMd) → 게이트(웹) → 결과 반환(수정/승인/완료).
 // 코어(@factorynote/core) 상태기계 + gate-server(웹 게이트) 를 연결.
 import {
@@ -133,7 +133,7 @@ async function runOpenGate(
 		...(input.onReady ? { onReady: input.onReady } : {}),
 	});
 
-	// 그래프 단계(Stage 3/4)에서 사용자가 직접 편집한 그래프를 산출물로 채택(저장).
+	// 그래프 단계(Stage 2)에서 사용자가 직접 편집한 그래프를 산출물로 채택(저장).
 	// 직접 편집 → 에이전트 채택: 사용자의 편집 결과가 곧 산출물(5대 원칙 — 게이트 거쳐 채택).
 	if (decision.graphSections && def.artifactFile?.endsWith(".json")) {
 		await writeArtifact(
@@ -170,12 +170,10 @@ async function runOpenGate(
 			? nextGraph
 				? `사용자가 Stage ${state.stage}(${nextDef.name}) 그래프를 직접 편집했다(채택 저장됨). 코멘트를 반영해 그래프 JSON을 수정하거나, 코멘트가 없으면 현재 그래프를 그대로 artifactMd 에 담아 재제출해 게이트를 다시 열어라.${commentsBlock}`
 				: `사용자가 Stage ${state.stage}(${nextDef.name}) 산출물의 수정을 요청했다. 코멘트를 반영해 산출물을 재작성 후 artifactMd 와 함께 다시 제출하라.${commentsBlock}`
-			: `Stage ${state.stage}(${nextDef.name}) 승인. 다음 단계 ${state.stage}(${nextDef.name})로 진행. ` +
-				(needNext
-					? nextGraph
-						? "그래프 JSON 산출물을 작성해 artifactMd 와 함께 제출하라."
-						: "산출물을 작성해 artifactMd 와 함께 제출하라."
-					: "이 단계는 산출물 없음 — factorynote_plan 을 다시 호출해 최종 검증 게이트를 열어라.");
+			: `Stage ${state.stage}(${nextDef.name}) 승인. 다음 단계로 진행. ` +
+				(nextGraph
+					? "그래프 JSON 산출물을 작성해 artifactMd 와 함께 제출하라."
+					: "산출물을 작성해 artifactMd 와 함께 제출하라.");
 	const message = (resume ? "[게이트 재오픈(인터럽트 복구)] " : "") + base;
 
 	return {
@@ -194,13 +192,13 @@ function complete(stage: number): DrivePlanOutput {
 	return {
 		done: true,
 		stage,
-		stageName: STAGES[5]!.name,
+		stageName: STAGES[2]!.name,
 		needArtifact: false,
 		designPrompt: "",
 		feedbackChecklist: [],
 		gateResult: null,
 		message:
-			"파이프라인 완료 — 6단계 모두 사용자 승인됨. 계획 산출물은 .factorynote/<feature>/ 에 저장되었다. plan 모드는 자동으로 해제되었다(이제 구현 가능).",
+			"파이프라인 완료 — 3단계 모두 사용자 승인됨. 계획 산출물은 .factorynote/<feature>/ 에 저장되었다. plan 모드는 자동으로 해제되었다(이제 구현 가능).",
 	};
 }
 

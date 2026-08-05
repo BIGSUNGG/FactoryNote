@@ -11,7 +11,7 @@ export default function GateBar({
 	onModify,
 	onRevert,
 }) {
-	const isLast = stage >= 6;
+	const isLast = stage >= 3;
 	// 회귀 대상 후보 = 현재 단계보다 앞선 Stage(1..stage-1).
 	const targets = [];
 	for (let s = 1; s < stage; s++) targets.push(s);

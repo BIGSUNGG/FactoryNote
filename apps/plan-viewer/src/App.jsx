@@ -1,6 +1,6 @@
 // FactoryNote Plan 뷰어 — 런타임 진입.
 // /api/state 로 현재 단계+산출물을 받아 렌더:
-//   Stage 3/4(그래프) → GraphStage(다중 섹션 에디터), 그 외 → PlanPage(마크다운).
+//   Stage 2(그래프: 모듈·클래스) → GraphStage(다중 섹션 에디터), 그 외 → PlanPage(마크다운).
 // 게이트 결정(확정/수정/정정 + 그래프 편집) 은 /api/decision 로 POST → pi 에이전트로 전달.
 import { useState, useEffect } from "react";
 import PlanPage from "./components/PlanPage";
@@ -44,7 +44,7 @@ export default function App() {
 	for (const a of state.artifacts || []) stageLabels[a.stage] = a.name;
 	stageLabels[state.stage] = state.stageName;
 
-	const isGraph = state.stage === 3 || state.stage === 4;
+	const isGraph = state.stage === 2;
 	const cur = (state.artifacts || []).find((a) => a.stage === state.stage);
 
 	if (isGraph) {
@@ -72,26 +72,9 @@ export default function App() {
 	);
 }
 
-// 그래프 산출물은 텍스트 요약으로(Stage 6 검토용). 마크다운은 그대로.
-function artifactText(a) {
-	if (a.graphSections) {
-		const lines = a.graphSections.map(
-			(s) =>
-				`- 섹션 "${s.title}": 노드 ${s.nodes.length} · 관계 ${s.edges.length}`,
-		);
-		return `(그래프 — 섹션 ${a.graphSections.length}개)\n${lines.join("\n")}`;
-	}
-	return a.md ?? "(산출물 없음)";
-}
-
+// 마크다운 단계(Stage 1·3)의 산출물 텍스트를 반환.
 function pickMarkdown(state) {
 	const arts = state.artifacts || [];
-	if (state.stage >= 6) {
-		const body = arts
-			.map((a) => `# Stage ${a.stage} — ${a.name}\n\n${artifactText(a)}`)
-			.join("\n\n---\n\n");
-		return body || "# 최종 검증\n\n> 승인된 산출물이 없습니다.";
-	}
 	const cur = arts.find((a) => a.stage === state.stage);
 	return (
 		cur?.md ||
