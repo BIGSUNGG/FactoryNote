@@ -38,6 +38,13 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ### Changed
 
+- **영속 게이트 서버 + 단계별 탭 유지** — 단계마다 새 서버/포트/탭을 여는 대신 **기능별 하나의 영속 게이트 서버(안정 포트)** 로 전환. 같은 브라우저 탭이 단계 전환을 따라간다.
+  - `gate-server.ts`: `runGate` 가 단계마다 `createServer`→`listen(0)`→`openBrowser`→`close` 하던 것을 `getOrCreateGate(root, feature)` 가 기능별 서버를 Map 캐싱해 재사용. `POST /api/decision` 후 서버를 닫지 않음. 신규 `closeGate(root, feature)`(플랜 완료 시 종료, 멱등). 브라우저 오픈은 **탭이 없을 때만** — 뷰어 `/api/state` 2s 폴링이 `gate.lastSeen` 갱신(하트비트); 탭 살아있으면 재오픈 안 함(다중 탭 방지), 닫혔거나 최초면 다음 게이트 시작 시 재오픈. `signal` 중단·`timeoutMs` 만료 시 modify 복귀하되 서버 유지(인터럽트 복구가 같은 탭 재사용).
+  - `ViewerState` 에 `gateOpen: boolean` 추가(`/api/state`).
+  - `plan-tool.ts`: 플랜 완료(done) 시 `closeGate` 호출.
+  - `App.jsx`: **폴링 상태머신**(loading/reviewing/preparing/closed). 결정 POST 후 "다음 준비 중…" 화면으로 1초 폴링 → `gateOpen` 다시 true 시 같은 탭에서 다음 단계 자동 표시 + **알림**(Web Notification + 타이틀 점멸 + `window.focus`). 비-최종 결정 후 마감 화면으로 끊기지 않음.
+  - `onReady` 훅을 async 대기하도록 정확화(레이스 가드). 자체체크 52건(서버 재사용·탭 생존 시 비재오픈·탭 닫힘 시 재오픈 테스트 추가) green. `bun run build`/`bun test` 0 종료.
+
 - **뷰어 목업 → production 앱 이동** — `prototypes/plan-page-mockup` → `apps/plan-viewer`(`apps/*` 워크스페이스 멤버). 더 이상 목업이 아닌 게이트 UI의 정식 위치. 패키지명 `plan-page-mockup` → `plan-viewer`.
   - 경로 참조 갱신: `resolveViewerDistDir`(`apps/pi-extension/src/index.ts`), 게이트·drivePlan 테스트 `VIEWER_DIST`, `ensure-viewer-dist.ts` preload, `scripts/install.sh`.
   - `prototypes/` 폴더 제거: 초기 HTML 시안 3개(`module-design/`, `plan-page/` — React 뷰어에 계승, git 복구 가능) 삭제.

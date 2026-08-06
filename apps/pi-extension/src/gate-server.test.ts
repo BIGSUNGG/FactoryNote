@@ -4,7 +4,7 @@ import { mkdtemp, rm, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, expect } from "bun:test";
-import { runGate } from "./gate-server.ts";
+import { runGate, closeGate } from "./gate-server.ts";
 import {
 	initialState,
 	markArtifactReady,
@@ -195,6 +195,120 @@ test("gate /api/decision forwards revertTo to the engine (FR-7)", async () => {
 	});
 	expect(decision.verdict).toBe("revert");
 	expect(decision.revertTo).toBe(1);
+});
+
+test("영속 게이트: 연속된 게이트가 같은 서버/포트를 재사용한다", async () => {
+	// 단계마다 새 포트가 아니라 기능별 하나의 서버/포트가 재사용되는지(사용자 불만: 단계마다 포트·탭 변경).
+	const urls: string[] = [];
+	const postConfirm = (u: string) =>
+		fetch(`${u}/api/decision`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ verdict: "confirm", comments: [] }),
+		});
+	await runGate({
+		root,
+		feature: "persist",
+		viewerDistDir: VIEWER_DIST,
+		open: false,
+		onReady: async (u) => {
+			urls.push(u);
+			await postConfirm(u);
+		},
+	});
+	await runGate({
+		root,
+		feature: "persist",
+		viewerDistDir: VIEWER_DIST,
+		open: false,
+		onReady: async (u) => {
+			urls.push(u);
+			await postConfirm(u);
+		},
+	});
+	expect(urls).toHaveLength(2);
+	expect(urls[0]).toBe(urls[1]); // 같은 포트 재사용
+	await closeGate(root, "persist");
+});
+
+test("영속 게이트: 탭이 살아있으면 브라우저를 재오픈하지 않는다", async () => {
+	// 뷰어 탭이 살아있는(최근 /api/state 요청) 동안은 새 단계 게이트에서 브라우저를 다시 열지 않는다(다중 탭 방지).
+	let opens = 0;
+	const opener = () => {
+		opens++;
+	};
+	const heartbeat = (u: string) => fetch(`${u}/api/state`); // 뷰어 하트비트 시뮬레이션
+	const postConfirm = (u: string) =>
+		fetch(`${u}/api/decision`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ verdict: "confirm", comments: [] }),
+		});
+	await runGate({
+		root,
+		feature: "openonce",
+		viewerDistDir: VIEWER_DIST,
+		open: true,
+		browserOpener: opener,
+		onReady: async (u) => {
+			await heartbeat(u);
+			await postConfirm(u);
+		},
+	});
+	await runGate({
+		root,
+		feature: "openonce",
+		viewerDistDir: VIEWER_DIST,
+		open: true,
+		browserOpener: opener,
+		onReady: async (u) => {
+			await heartbeat(u);
+			await postConfirm(u);
+		},
+	});
+	expect(opens).toBe(1); // 하트비트 살아있어 2회 runGate 에도 오픈 1회
+	await closeGate(root, "openonce");
+});
+
+test("영속 게이트: 탭이 닫혀(하트비트 경과) 다음 게이트 시 브라우저 재오픈", async () => {
+	// 뷰어 탭이 닫혀 하트비트가 끊기면, 다음 게이트 시작 시 브라우저를 다시 연다(사용자 불만: 첫 단계에서 안 열림의 근인 — 고착 플래그 — 해결).
+	let opens = 0;
+	const opener = () => {
+		opens++;
+	};
+	const postConfirm = (u: string) =>
+		fetch(`${u}/api/decision`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ verdict: "confirm", comments: [] }),
+		});
+	await runGate({
+		root,
+		feature: "reopen",
+		viewerDistDir: VIEWER_DIST,
+		open: true,
+		browserOpener: opener,
+		reopenAfterMs: 30,
+		onReady: async (u) => {
+			await postConfirm(u);
+		},
+	});
+	expect(opens).toBe(1); // 최초 1회 오픈
+	// 탭이 닫혔다고 가정 — 하트비트 없이 reopenAfterMs 이상 대기.
+	await new Promise((r) => setTimeout(r, 50));
+	await runGate({
+		root,
+		feature: "reopen",
+		viewerDistDir: VIEWER_DIST,
+		open: true,
+		browserOpener: opener,
+		reopenAfterMs: 30,
+		onReady: async (u) => {
+			await postConfirm(u);
+		},
+	});
+	expect(opens).toBe(2); // 하트비트 경과 → 재오픈
+	await closeGate(root, "reopen");
 });
 
 test("teardown", async () => {

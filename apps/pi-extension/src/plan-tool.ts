@@ -18,7 +18,7 @@ import {
 	type GateDecision,
 	type PipelineState,
 } from "@factorynote/core";
-import { runGate } from "./gate-server.ts";
+import { runGate, closeGate } from "./gate-server.ts";
 
 /** #4 게이트 자동 만료(ms) — 사용자 이탈 시 좀비 게이트 방지. 30분. */
 const GATE_TIMEOUT_MS = 30 * 60 * 1000;
@@ -33,8 +33,8 @@ export interface DrivePlanInput {
 	signal?: AbortSignal;
 	/** false 면 브라우저 자동 오픈 생략(테스트용). */
 	open?: boolean;
-	/** 게이트 서버 준비 시 URL 통보(테스트/디버그용). */
-	onReady?: (url: string) => void;
+	/** 게이트 서버 준비 시 URL 통보(테스트/디버그용). async 면 완료를 기다린다. */
+	onReady?: (url: string) => void | Promise<void>;
 }
 
 export interface DrivePlanOutput {
@@ -63,6 +63,7 @@ export async function drivePlan(
 	let state = await loadState(root, feature);
 	if (!state) state = initialState(feature);
 	if (state.done) {
+		await closeGate(root, feature); // 영속 게이트 정리(멱등 — 이미 닫혀 있으면 no-op).
 		return complete(state.stage);
 	}
 
@@ -153,6 +154,7 @@ async function runOpenGate(
 	await saveState(root, state);
 
 	if (isComplete(state)) {
+		await closeGate(root, feature); // 플랜 완료 → 영속 게이트 종료(탭 마감).
 		return complete(state.stage);
 	}
 

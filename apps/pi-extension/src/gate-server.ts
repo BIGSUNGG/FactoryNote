@@ -21,6 +21,8 @@ export interface ViewerState {
 	stageName: string;
 	requiresArtifact: boolean;
 	done: boolean;
+	/** 현 단계 산출물이 사용자 검토 대기 중인지(에이전트가 게이트를 열었는지). 뷰어 폴링 신호. */
+	gateOpen: boolean;
 	designPrompt: string;
 	feedbackChecklist: string[];
 	artifacts: {
@@ -75,6 +77,7 @@ async function buildViewerState(
 		stageName: def.name,
 		requiresArtifact: def.producesArtifact,
 		done: state?.done ?? false,
+		gateOpen: state?.gateOpen ?? false,
 		designPrompt: def.designPrompt,
 		feedbackChecklist: [...def.feedbackChecklist],
 		artifacts,
@@ -120,45 +123,54 @@ export interface RunGateOptions {
 	viewerDistDir: string;
 	signal?: AbortSignal;
 	open?: boolean;
-	/** 게이트 자동 만료(ms). 0 또는 미지정=끄기(무한대기, 기존 동작). 좀비 게이트 방지(#4). */
+	/** 게이트 자동 만료(ms). 0 또는 미지정=끄기. 좀비 게이트 방지(#4). */
 	timeoutMs?: number;
-	/** 서버가 준비되면 URL 을 알림(테스트/디버그용). */
-	onReady?: (url: string) => void;
+	/** 서버가 준비되면 URL 을 알릨(테스트/디버그용). async 면 완료를 기다린다. */
+	onReady?: (url: string) => void | Promise<void>;
+	/** 브라우저 오픈 함수(테스트 주입용). 미지정 시 기본 openBrowser. */
+	browserOpener?: (url: string) => void;
+	/** 탭 하트비트가 이 시간(ms) 이상 없으면 브라우저 재오픈(테스트용). 미지정 시 기본값. */
+	reopenAfterMs?: number;
 }
 
-/**
- * 게이트 서버 구동 → 브라우저 오픈 → 사용자 결정 대기 → 종료.
- * 결정(POST /api/decision) 도착 또는 signal 중단 시 서버 닫고 결정 반환.
- */
-export async function runGate(opts: RunGateOptions): Promise<GateDecision> {
-	const {
-		root,
-		feature,
-		viewerDistDir,
-		signal,
-		open = true,
-		timeoutMs = 0,
-		onReady,
-	} = opts;
+// --- 영속 게이트 서버(기능별 1개) ---
+// 단계마다 서버를 새로 만들지 않고 플랜 전체에서 하나의 서버/포트를 재사용 →
+// 같은 브라우저 탭이 단계 전환을 따라간다. 서버는 플랜 완료(closeGate) 시에만 닫힌다.
+// 브라우저 오픈은 하트비트로 제어: 뷰어 탭이 살아있는(최근 요청 있음) 동안은 재오픈하지 않고,
+// 탭이 없거나(최초) 닫혔으면 새 게이트 시작 시 다시 연다(다중 탭 방지 + 재오픈 보장).
+interface PersistentGate {
+	root: string;
+	feature: string;
+	viewerDistDir: string;
+	server: import("node:http").Server;
+	url: string;
+	port: number;
+	/** 마지막 뷰어 요청 시각(ms). 탭 생존 하트비트 — 오래되면 탭이 닫힌 것으로 보고 브라우저 재오픈. */
+	lastSeen: number;
+	currentResolver: ((d: GateDecision) => void) | null;
+}
 
-	let resolveDecision: ((d: GateDecision) => void) | null = null;
-	const decided = new Promise<GateDecision>((resolve) => {
-		resolveDecision = resolve;
-	});
-	// 결정 resolve 는 1회만(POST/abort/timeout 중복 발생 시 좀비 호출 방지, #4).
-	let settled = false;
-	const settle = (d: GateDecision): void => {
-		if (settled) return;
-		settled = true;
-		resolveDecision?.(d);
-	};
+const gates = new Map<string, PersistentGate>();
 
-	const server = createServer(async (req, res) => {
+/** 뷰어 하트비트가 이 시간(ms) 이상 없으면 탭이 닫힌 것으로 보고 브라우저를 다시 연다. 뷰어 폴링 주기(2s)의 2.5배 여유. */
+const BROWSER_REOPEN_AFTER_MS = 5000;
+
+function gateKey(root: string, feature: string): string {
+	return `${root}::${feature}`;
+}
+
+/** 게이트 HTTP 핸들러(영속 gate 객체를 클로저로 잡는다). */
+function makeGateHandler(gate: PersistentGate) {
+	return async (
+		req: import("node:http").IncomingMessage,
+		res: import("node:http").ServerResponse,
+	): Promise<void> => {
 		const url = req.url ?? "/";
+		gate.lastSeen = Date.now(); // 뷰어 하트비트 — 탭 생존 신호(재오픈 판정에 사용).
 		res.setHeader("Cache-Control", "no-store");
 		try {
 			if (url === "/api/state") {
-				const payload = await buildViewerState(root, feature);
+				const payload = await buildViewerState(gate.root, gate.feature);
 				res.writeHead(200, { "Content-Type": "application/json" });
 				res.end(JSON.stringify(payload));
 				return;
@@ -172,18 +184,22 @@ export async function runGate(opts: RunGateOptions): Promise<GateDecision> {
 					...(Array.isArray(parsed.graphSections)
 						? { graphSections: parsed.graphSections }
 						: {}),
-					// FR-7: 회귀 대상 단계(revertTo) 뷰어→엔진으로 전달(drop 되면 다단계 회귀 무력화).
+					// FR-7: 회귀 대상 단계(revertTo) 뷰어→엔진으로 전달.
 					...(typeof parsed.revertTo === "number"
 						? { revertTo: parsed.revertTo }
 						: {}),
 				};
 				res.writeHead(200, { "Content-Type": "application/json" });
-				res.end(JSON.stringify({ ok: true }), () => settle(decision));
+				res.end(JSON.stringify({ ok: true }), () => {
+					const r = gate.currentResolver;
+					gate.currentResolver = null;
+					r?.(decision);
+				});
 				return;
 			}
 			// 정적 자원(SPA). /assets/* → dist 파일, 그 외 → index.html.
-			const filePath = safeJoin(viewerDistDir, url);
-			const fallback = join(viewerDistDir, "index.html");
+			const filePath = safeJoin(gate.viewerDistDir, url);
+			const fallback = join(gate.viewerDistDir, "index.html");
 			const target =
 				filePath && (await canRead(filePath)) ? filePath : fallback;
 			if (!(await canRead(target))) {
@@ -201,17 +217,93 @@ export async function runGate(opts: RunGateOptions): Promise<GateDecision> {
 			res.writeHead(500);
 			res.end("server error");
 		}
-	});
+	};
+}
 
+/** 기능별 영속 게이트 조회(없으면 생성). 같은 기능은 항상 같은 서버/포트. */
+async function getOrCreateGate(opts: {
+	root: string;
+	feature: string;
+	viewerDistDir: string;
+}): Promise<PersistentGate> {
+	const key = gateKey(opts.root, opts.feature);
+	const existing = gates.get(key);
+	if (existing && existing.server.listening) return existing;
+
+	const gate: PersistentGate = {
+		root: opts.root,
+		feature: opts.feature,
+		viewerDistDir: opts.viewerDistDir,
+		// 생성 직후 덮어쓰기 전 임시값(handler 가 gate 를 참조해야 해 선언이 꼬임).
+		server: undefined as unknown as PersistentGate["server"],
+		url: "",
+		port: 0,
+		lastSeen: 0,
+		currentResolver: null,
+	};
+	const server = createServer(makeGateHandler(gate));
+	gate.server = server;
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
 	const addr = server.address();
-	const port = typeof addr === "object" && addr ? addr.port : 0;
-	const url = `http://127.0.0.1:${port}`;
-	if (open) openBrowser(url);
-	onReady?.(url);
+	gate.port = typeof addr === "object" && addr ? addr.port : 0;
+	gate.url = `http://127.0.0.1:${gate.port}`;
+	gates.set(key, gate);
+	return gate;
+}
+
+/** 영속 게이트 종료(플랜 완료 시 호출). 멱등. */
+export async function closeGate(root: string, feature: string): Promise<void> {
+	const key = gateKey(root, feature);
+	const gate = gates.get(key);
+	if (!gate) return;
+	gates.delete(key);
+	gate.currentResolver = null;
+	// 클라이언트가 최종 응답 바이트를 읽어가도록 잠시 대기 후 종료.
+	await new Promise((r) => setTimeout(r, 30));
+	gate.server.closeAllConnections?.();
+	await new Promise<void>((resolve) => gate.server.close(() => resolve()));
+}
+
+/**
+ * 게이트: 영속 서버에서 이번 단계의 사용자 결정을 대기한다.
+ * 서버는 플랜 전체에서 재사용 → 브라우저는 첫 게이트에서 1회만 오픈.
+ * 결정·중단·시간초과 시 결정을 반환하되 서버는 닫지 않는다(완료 시 closeGate).
+ */
+export async function runGate(opts: RunGateOptions): Promise<GateDecision> {
+	const {
+		root,
+		feature,
+		viewerDistDir,
+		signal,
+		open = true,
+		timeoutMs = 0,
+		onReady,
+		browserOpener,
+		reopenAfterMs,
+	} = opts;
+
+	const gate = await getOrCreateGate({ root, feature, viewerDistDir });
+
+	// 브라우저 오픈: 최초(또는 탭이 닫혀 하트비트가 오래된 경우)에만. 탭이 살아있으면 재오픈하지 않는다(다중 탭 방지).
+	if (
+		open &&
+		Date.now() - gate.lastSeen > (reopenAfterMs ?? BROWSER_REOPEN_AFTER_MS)
+	) {
+		(browserOpener ?? openBrowser)(gate.url);
+	}
+
+	let resolveDecision: ((d: GateDecision) => void) | null = null;
+	const decided = new Promise<GateDecision>((resolve) => {
+		resolveDecision = resolve;
+	});
+	gate.currentResolver = (d) => resolveDecision?.(d);
+
+	await onReady?.(gate.url);
 
 	const onAbort = () => {
-		settle({
+		// 중단 시 modify 복귀. 서버는 유지 — 인터럽트 복구가 같은 탭을 재사용.
+		gate.currentResolver = null;
+		resolveDecision?.({
 			verdict: "modify",
 			comments: [{ text: "(게이트 중단됨)" }],
 		});
@@ -222,7 +314,8 @@ export async function runGate(opts: RunGateOptions): Promise<GateDecision> {
 	const timer =
 		timeoutMs > 0
 			? setTimeout(() => {
-					settle({
+					gate.currentResolver = null;
+					resolveDecision?.({
 						verdict: "modify",
 						comments: [{ text: "(게이트 시간 초과 — 자동 복귀)" }],
 					});
@@ -232,11 +325,6 @@ export async function runGate(opts: RunGateOptions): Promise<GateDecision> {
 	const result = await decided;
 	signal?.removeEventListener("abort", onAbort);
 	if (timer) clearTimeout(timer);
-	// 클라이언트가 최종 응답 바이트를 읽어가도록 잠시 대기 후 종료.
-	// ponytail: 30ms flush 여유 — 크로즈 전 응답 잘림 방지. 게이트 종료 지연 무시 가능.
-	await new Promise((r) => setTimeout(r, 30));
-	server.closeAllConnections?.();
-	server.close();
 	return result;
 }
 

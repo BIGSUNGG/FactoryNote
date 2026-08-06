@@ -9,6 +9,47 @@ tags: [development, dev-log]
 
 ## 2026-08-06
 
+### 하트비트 기반 브라우저 재오픈 (고착 browserOpened 플래그 교체)
+
+#### 현상
+
+- 첫 단계에서 웹 페이지가 열리지 않는다는 보고. 재현/조사 결과: `start "" url` 자체는 정상 작동(서버 hit 확인), fresh 게이트에서 오픈 로직도 정상 호출됨. 원인은 영속 게이트의 `browserOpened` 플래그가 한 번 true 가 되면 영구 고착되어, 같은 feature 재시도/재개/탭 닫힘 시 재오픈이 막힘.
+
+#### 한 일
+
+- `gate-server.ts`: `browserOpened`/`openCount` 제거 → `lastSeen`(마지막 뷰어 요청 시각) 하트비트로 교체. `runGate` 오픈 조건 = `open && now - lastSeen > BROWSER_REOPEN_AFTER_MS(5s)`. 핸들러는 모든 요청에서 `lastSeen` 갱신. `reopenAfterMs` 옵션(테스트용) 추가.
+- `App.jsx`: 폴링을 preparing 전용에서 항상(2s, closed 제외)으로 변경 → 상태 동기화 + 탭 생존 하트비트 동시 수행.
+- 테스트: "탭 살아있으면 비재오픈" + "탭 닫힘(하트비트 경과) 시 재오픈" 2건(총 52건 green).
+- 문서 갱신: implementation-architecture gate-server 불릿, Changelog.
+
+#### 왜
+
+- 사용자 요구: 첫 단계에서 페이지가 열려야 함. 고착 플래그가 재오픈을 막아 실패. 하트비트로 “탭이 살아있으면 한 탭 유지, 없으면 다시 연다”를 모두 만족(다중 탭 방지 + 재오픈 보장).
+
+#### 남은 것
+
+- 게이트 리뷰 중(블로킹) 탭을 닫은 경우: 결정 안 오면 30min 타임아웃 후 modify 복귀 → 다음 게이트에서 재오픈(자가 치유). 즉시 복구 원하면 타임아웃 단축 고려.
+
+### 영속 게이트 서버 — 단계마다 탭·포트 바뀌는 문제 수정
+
+#### 한 일
+
+- `gate-server.ts`: `runGate` 를 단계마다 `createServer`→`listen(0)`→`openBrowser`→`close` 하던 모델에서 **기능별 영속 서버**(`getOrCreateGate` Map 캐싱)로 전환. 같은 기능은 항상 같은 포트/URL. 결정 후 서버 유지, `closeGate` 로 완료 시만 종료. 브라우저 오픈 1회 가드(`browserOpened`).
+- `ViewerState` + `/api/state` 에 `gateOpen`(이미 엔진에 있던 필드) 추가.
+- `plan-tool.ts`: `done` 시 `closeGate`.
+- `App.jsx`: `gateOpen` 구동 폴링 상태머신. 결정 후 "준비 중" 폴링 → 다음 단계 ready 시 같은 탭 교체 + Notification/타이틀 점멸/포커스 알림. 마감 화면은 done/서버 종료시만.
+- `onReady` async 대기로 테스트 레이스 수정(30ms flush 제거 후 발생).
+- 테스트 2건 추가(연속 게이트 동일 포트 재사용, 오픈 1회). 51건 green.
+
+#### 왜
+
+- 단계 전환마다 포트가 바뀌고 새 탭이 열려 사용자가 매번 페이지를 다시 봐야 했음. "페이지를 유지한 채 다음 단계가 준비되면 같은 탭에서 보고 싶다"는 요구. 영속 서버 + 폴링으로 하나의 탭이 플랜 전체를 따라가게 함.
+
+#### 남은 것
+
+- 중단 후 미이행 플랜의 서버는 완료 전까지 포트를 점유(`ponytail:` 주석). 프로세스 종료로 정리. 빈도 높아지면 LRU/유휴 종료 고려.
+- pi 재시작 후 영속 서버 재연결은 범위 밖(기존 인터럽트 복구 경로가 새 서버로 재오픈).
+
 ### 뷰어 이동 — prototypes/plan-page-mockup → apps/plan-viewer
 
 뷰어(게이트 UI)가 목업 폴더(`prototypes/`)에 있었으나 이제 production 코드이므로 `apps/plan-viewer`로 이동.

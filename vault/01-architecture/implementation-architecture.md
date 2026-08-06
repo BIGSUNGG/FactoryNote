@@ -48,18 +48,18 @@ Pi 와 코어를 잇는 유일한 계층. pi가 jiti로 TS 를 직접 로드한�
   2. 현 단계가 산출물 단계인데 `artifactMd` 가 없으면 → 작성 지시(`designPrompt`+`feedbackChecklist`) 반환.
   3. `artifactMd` 제출 → 산출물 저장 → `markArtifactReady` → `runGate`(블로킹) → 결정 → `applyVerdict` → 저장.
   4. 결과로 에이전트에게 다음 행동 안내(modify=재작성, confirm=다음 단계, done=종료).
-- **`gate-server.ts`** — 웹 게이트. `runGate(opts)`:
-  - `node:http` 서버를 임의 포트(`127.0.0.1:0`)에 구동.
-  - `GET /api/state` → `ViewerState` JSON(현 단계 + 산출물 마크다운 목록).
+- **`gate-server.ts`** — 웹 게이트. **기능별 영속 서버**(`runGate(opts)`):
+  - `getOrCreateGate(root, feature)` 가 기능별로 `node:http` 서버를 **하나만** 구동(`127.0.0.1:0`)해 Map 에 캐싱 → 같은 기능은 **항상 같은 포트/URL**. 단계마다 새 포트가 열리지 않는다.
+  - `GET /api/state` → `ViewerState` JSON(현 단계 + `gateOpen` + 산출물 마크다운 목록).
   - `GET /` · `GET /assets/*` → 뷰어 dist 정적 서빙(SPA fallback).
-  - `POST /api/decision` → `{verdict, comments}` 수신 → 결정 Promise 해결 → 30ms flush 여유 후 서버 종료.
-  - 브라우저 자동 오픈(Win=`start`, mac=`open`, linux=`xdg-open`). `signal` 중단 시 modify 로 복귀.
+  - `POST /api/decision` → `{verdict, comments}` 수집 → 이번 단계 결정 Promise 해결. **서버는 닫지 않는다**(플랜 전체에서 재사용).
+  - 브라우저 자동 오픈(Win=`start`, mac=`open`, linux=`xdg-open`)은 **탭이 없을 때만**(하트비트 경과 시). 뷰어가 `/api/state` 를 2s 폴링해 `gate.lastSeen` 갱신 → 탭이 살아있으면 재오픈하지 않고(다중 탭 방지), 닫혔거나 최초면 다음 게이트 시작 시 다시 연다. `signal` 중단·`timeoutMs` 만료 시 modify 로 복귀(서버 유지 — 인터럽트 복구가 같은 탭 재사용). `closeGate(root, feature)` 로 플랜 완료 시에만 종료.
 
 ### Viewer — `apps/plan-viewer/` (React + Vite)
 
 빌드 산출물 `dist/` 가 게이트 서버를 통해 서빙된다.
 
-- **`App.jsx`** — `/api/state` fetch → Stage 2 는 `GraphStage`, 나머지는 `PlanPage` 로 분기 렌더. `/api/decision` POST 후 "전송 완료" 화면.
+- **`App.jsx`** — **폴링 상태머신**(loading/reviewing/preparing/closed). `/api/state` 의 `gateOpen` 으로 구동: `gateOpen=true` 면 현 단계 렌더(Stage 2 는 `GraphStage`, 나머지는 `PlanPage`) + 게이트 바, `false` 면 "다음 준비 중…" 화면으로 1초 폴링. 결정 POST 후 preparing 전환 → `gateOpen` 이 다시 true 가 되면(preparing→reviewing) **같은 탭에서 다음 단계로 교체 + 알림**(Web Notification + 타이틀 점멸 + `window.focus`, 백그라운드 탭 대응). 서버 종료/`done` 시 마감 화면.
 - **`PlanPage.jsx`** — 마크다운 단계(1/2/5/6). 마크다운 → 블록(`mdToBlocks`) 렌더 + 블록/셀/드래그 영역 코멘트 + pending 큐([[core-features]] 사양). 게이트 버튼 → `onGate({verdict, comments})`.
 - **`GraphStage.jsx`** — 그래프 단계(2). 다중 섹션 인터랙티브 에디터(react-flow): `/api/state` 의 `graphSections` 로 데이터 주동 렌더 + 섹션 추가·이름·삭제 + 노드/엣지 CRUD(우클릭 메뉴) + 상세 패널 편집 + 클래스 parent-child·`NodeResizer` + 코멘트. 게이트 제출 시 편집된 그래프 전체(`graphSections`)를 `onGate` 로 전달(직접 편집 → 에이전트 채택, [[ADR-006-graph-editor]]).
 - **`GateBar.jsx`** — 하단 게이트 바: **✓ 확정**(confirm) / **✎ 수정 지시**(modify, pending 코멘트 전송) / **← 정정**(revert). `PlanPage`·`GraphStage` 공용.
@@ -81,16 +81,17 @@ sequenceDiagram
     Note over Pi: Design: 산출물 작성<br/>Feedback: checklist 자기검토
     Pi->>T: factorynote_plan({ feature, artifactMd })
     T->>T: 산출물 저장(.factorynote/X/01-*.md)<br/>state.gateOpen=true 저장
-    T->>S: runGate() — 서버 listen
-    S->>W: 브라우저 오픈(http://127.0.0.1:포트)
+    T->>S: runGate() — 영속 서버 재사용(첫 게이트만 생성+브라우저 오픈)
+    S->>W: 첫 게이트만 브라우저 오픈(http://127.0.0.1:포트)<br/>이후 단계는 같은 탭이 폴링으로 갱신
     W->>S: GET /api/state
-    S-->>W: { stage, artifacts:[{md}], … }
+    S-->>W: { stage, gateOpen:true, artifacts:[{md}], … }
     W->>W: 마크다운 렌더 + 코멘트 UI
     U->>W: ✓확정 / ✎수정지시 / ←정정
     W->>S: POST /api/decision { verdict, comments, revertTo? }
-    S-->>T: 결정 반환 (서버 종료)
-    T->>T: applyVerdict + state.json 저장
-    T-->>Pi: 결과(modify→재작성 / confirm→다음 단계 / done→종료)
+    S-->>T: 결정 반환 (서버 유지)
+    T->>T: applyVerdict + state.json 저장 (gateOpen=false)
+    Note over W: "다음 준비 중…" 폴링 → 다음 runGate 시 gateOpen=true<br/>같은 탭에서 다음 단계 자동 표시 + 알림
+    T-->>Pi: 결과(modify→재작성 / confirm→다음 단계 / done→closeGate+종료)
 ```
 
 > 핵심: 게이트 결정은 **에이전트 기억이 아닌 `state.json` 이 권위**(NFR-2). 세션을 넘어 resume 되어도 단계가 보존된다.
