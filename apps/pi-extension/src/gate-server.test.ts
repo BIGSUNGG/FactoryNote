@@ -40,7 +40,7 @@ test("gate server serves viewer, state, and accepts decision", async () => {
 		decOk?: boolean;
 	} = {};
 
-	const decision = await runGate({
+	const event = await runGate({
 		root,
 		feature: "demo",
 		viewerDistDir: VIEWER_DIST,
@@ -66,31 +66,30 @@ test("gate server serves viewer, state, and accepts decision", async () => {
 	expect(captured.state?.stage).toBe(1);
 	expect(captured.indexHtml ?? "").toMatch(/<html|<div id="root"|FactoryNote/i);
 	expect(captured.decOk).toBe(true);
-	expect(decision.verdict).toBe("confirm");
+	expect(event.kind).toBe("decision");
+	if (event.kind === "decision") expect(event.decision.verdict).toBe("confirm");
 });
 
-test("gate /api/state returns graphSections for graph artifact", async () => {
-	// 그래프 산물(02-design.json) + stage 2 시드.
-	await writeArtifact(
-		root,
-		"graphdemo",
-		"02-design.json",
+test("gate /api/state returns Stage 2 design as markdown", async () => {
+	// Stage 2 산물(02-design.md) + stage 2 시드.
+	const designMd =
+		"# 설계\n\n## 구조\n\n```factorynote-graph\n" +
 		JSON.stringify({
 			sections: [
 				{ id: "fe", title: "프론트", nodes: [{ id: "UI" }], edges: [] },
 			],
-		}),
-	);
+		}) +
+		"\n```\n\n## 아키텍처 설명\n\n프론트 계층.";
+	await writeArtifact(root, "graphdemo", "02-design.md", designMd);
 	await saveState(root, { ...initialState("graphdemo"), stage: 2 });
 
 	type StateResp = {
-		artifacts: Array<{
-			file: string;
-			format: string;
-			graphSections?: unknown[];
-		}>;
+		artifacts: Array<{ file: string; format: string; md?: string }>;
 	};
-	const captured: { graphSections?: unknown[] } = {};
+	const captured: { md: string | undefined; format: string | undefined } = {
+		md: undefined,
+		format: undefined,
+	};
 
 	await runGate({
 		root,
@@ -100,8 +99,11 @@ test("gate /api/state returns graphSections for graph artifact", async () => {
 		onReady: async (url) => {
 			const res = await fetch(`${url}/api/state`);
 			const st = (await res.json()) as StateResp;
-			const art = st.artifacts.find((a) => a.file === "02-design.json");
-			if (art?.graphSections) captured.graphSections = art.graphSections;
+			const art = st.artifacts.find((a) => a.file === "02-design.md");
+			if (art) {
+				captured.md = art.md;
+				captured.format = art.format;
+			}
 			await fetch(`${url}/api/decision`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -110,8 +112,9 @@ test("gate /api/state returns graphSections for graph artifact", async () => {
 		},
 	});
 
-	expect(captured.graphSections).toBeTruthy();
-	expect(captured.graphSections as unknown[]).toHaveLength(1);
+	expect(captured.format).toBe("markdown");
+	expect(captured.md).toBeTruthy();
+	expect(captured.md).toContain("factorynote-graph");
 });
 
 test("gate /api/state hides artifacts past current stage on revert", async () => {
@@ -122,14 +125,7 @@ test("gate /api/state hides artifacts past current stage on revert", async () =>
 		"01-understanding-and-scenarios.md",
 		"# Req+Scen",
 	);
-	await writeArtifact(
-		root,
-		"regress",
-		"02-design.json",
-		JSON.stringify({
-			sections: [{ id: "s", title: "t", nodes: [{ id: "n" }], edges: [] }],
-		}),
-	);
+	await writeArtifact(root, "regress", "02-design.md", "# 설계");
 	await writeArtifact(root, "regress", "03-implementation-plan.md", "# Plan");
 	await saveState(root, { ...initialState("regress"), stage: 2 });
 
@@ -156,7 +152,7 @@ test("gate /api/state hides artifacts past current stage on revert", async () =>
 });
 
 test("gate auto-returns modify on timeoutMs without a decision POST", async () => {
-	const decision = await runGate({
+	const event = await runGate({
 		root,
 		feature: "demo",
 		viewerDistDir: VIEWER_DIST,
@@ -166,8 +162,11 @@ test("gate auto-returns modify on timeoutMs without a decision POST", async () =
 			// 결정 POST 없음 — timeoutMs 만료가 자동 복귀해야 함(#4).
 		},
 	});
-	expect(decision.verdict).toBe("modify");
-	expect(decision.comments[0]?.text).toContain("시간 초과");
+	expect(event.kind).toBe("decision");
+	if (event.kind === "decision") {
+		expect(event.decision.verdict).toBe("modify");
+		expect(event.decision.comments[0]?.text).toContain("시간 초과");
+	}
 });
 
 test("gate /api/decision forwards revertTo to the engine (FR-7)", async () => {
@@ -178,9 +177,9 @@ test("gate /api/decision forwards revertTo to the engine (FR-7)", async () => {
 		"01-understanding-and-scenarios.md",
 		"# Req",
 	);
-	await writeArtifact(root, "revtgt", "02-design.json", "{}");
+	await writeArtifact(root, "revtgt", "02-design.md", "# 설계");
 	await saveState(root, { ...initialState("revtgt"), stage: 3 });
-	const decision = await runGate({
+	const event = await runGate({
 		root,
 		feature: "revtgt",
 		viewerDistDir: VIEWER_DIST,
@@ -193,8 +192,11 @@ test("gate /api/decision forwards revertTo to the engine (FR-7)", async () => {
 			});
 		},
 	});
-	expect(decision.verdict).toBe("revert");
-	expect(decision.revertTo).toBe(1);
+	expect(event.kind).toBe("decision");
+	if (event.kind === "decision") {
+		expect(event.decision.verdict).toBe("revert");
+		expect(event.decision.revertTo).toBe(1);
+	}
 });
 
 test("영속 게이트: 연속된 게이트가 같은 서버/포트를 재사용한다", async () => {
@@ -309,6 +311,83 @@ test("영속 게이트: 탭이 닫혀(하트비트 경과) 다음 게이트 시 
 	});
 	expect(opens).toBe(2); // 하트비트 경과 → 재오픈
 	await closeGate(root, "reopen");
+});
+
+test("gate /api/chat accepts and returns chat messages", async () => {
+	const captured: { msgs?: unknown[] } = {};
+	await runGate({
+		root,
+		feature: "chatdemo",
+		viewerDistDir: VIEWER_DIST,
+		open: false,
+		onReady: async (url) => {
+			await fetch(`${url}/api/chat`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					text: "이 블록 수정해줘",
+					blockId: "b3",
+					quote: "선택된 범위 텍스트",
+				}),
+			});
+			const res = await fetch(`${url}/api/chat`);
+			captured.msgs = ((await res.json()) as { messages: unknown[] }).messages;
+			await fetch(`${url}/api/decision`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ verdict: "confirm", comments: [] }),
+			});
+		},
+	});
+	const msgs = captured.msgs as Array<{
+		text: string;
+		blockId?: string;
+		quote?: string;
+		role: string;
+	}>;
+	expect(msgs).toHaveLength(1);
+	expect(msgs[0]?.text).toBe("이 블록 수정해줘");
+	expect(msgs[0]?.blockId).toBe("b3");
+	expect(msgs[0]?.quote).toBe("선택된 범위 텍스트");
+	expect(msgs[0]?.role).toBe("user");
+	await closeGate(root, "chatdemo");
+});
+
+test("runGate resolves chat event while waiting, then decision on re-entry", async () => {
+	// 게이트 대기 중 채팅 도착 → chat 이벤트; 재진입 시 결정 이벤트(게이트 유지 루프).
+	const first = await runGate({
+		root,
+		feature: "chatrace",
+		viewerDistDir: VIEWER_DIST,
+		open: false,
+		onReady: async (url) => {
+			await fetch(`${url}/api/chat`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ text: "질문" }),
+			});
+		},
+	});
+	expect(first.kind).toBe("chat");
+	if (first.kind === "chat") expect(first.messages[0]?.text).toBe("질문");
+
+	const second = await runGate({
+		root,
+		feature: "chatrace",
+		viewerDistDir: VIEWER_DIST,
+		open: false,
+		onReady: async (url) => {
+			await fetch(`${url}/api/decision`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ verdict: "confirm", comments: [] }),
+			});
+		},
+	});
+	expect(second.kind).toBe("decision");
+	if (second.kind === "decision")
+		expect(second.decision.verdict).toBe("confirm");
+	await closeGate(root, "chatrace");
 });
 
 test("teardown", async () => {

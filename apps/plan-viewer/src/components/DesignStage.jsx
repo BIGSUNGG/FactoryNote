@@ -1,8 +1,9 @@
-// 다중 섹션 인터랙티브 그래프 에디터 — Stage 3(모듈) · Stage 4(클래스) 공용.
-// /api/state 의 graphSections 로 렌더(데이터 주동), 섹션 추가·이름·삭제,
-// 노드/엣지 CRUD(우클릭 메뉴), 상세 패널 편집, 코멘트. 게이트 제출 시 편집된
-// 그래프 전체(sections)를 onGate 로 전달 → 에이전트 채택(직접 편집 → 채택).
-import { useCallback, useEffect, useState } from "react";
+// Stage 2(모듈·클래스 설계) — md 단일진실 에디터. F2.
+// mdSource 의 ```factorynote-graph 펜스(구조) → react-flow 그래프(편집 가능),
+// 나머지 prose → 하단 아키텍처 설명. 그래프 편집은 게이트 제출 시 md 구조 펜스로
+// 역동기화(applyStructureToMarkdown)해 artifactMd 로 전송 → 에이전트 채택.
+// 직접 편집 → 채택(5대 원칙 — 게이트 거쳐 채택). F1 채팅으로 구조/설명 모두 수정.
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import ReactFlow, {
 	Background,
@@ -19,7 +20,13 @@ import "reactflow/dist/style.css";
 import Topbar from "./Topbar";
 import Stepper from "./Stepper";
 import GateBar from "./GateBar";
-import { gridPos, normalizeSections, sectionIsClass } from "../lib/graphNormalize";
+import {
+	gridPos,
+	normalizeSections,
+	sectionIsClass,
+} from "../lib/graphNormalize";
+import { parseDesignMarkdown, applyStructureToMarkdown } from "../lib/designMd";
+import { mdToBlocks } from "../lib/mdToBlocks";
 
 const LAYERS = ["API", "Service", "Repository", "Util", "External"];
 const STAGE_DEFS = [
@@ -33,10 +40,7 @@ const stagesFor = (cur) =>
 		state: s.n === cur ? "current" : s.n < cur ? "done" : "locked",
 	}));
 
-// 정규화 로직(에이전트 JSON → react-flow 호환)은 lib/graphNormalize.js 로 분리 —
-// 순수 함수라 테스트(graphNormalize.test.js) 가 회귀를 가드한다.
-
-// --- 노드 렌더 컴포넌트 ---
+// --- 노드 렌더 컴포넌트(GraphStage 와 동일) ---
 function ModuleNode({ data }) {
 	return (
 		<div className="rf-module" title="드래그 · 클릭 상세 · 우클릭 제거">
@@ -105,29 +109,53 @@ function ClassNode({ data }) {
 const NODE_TYPES_3 = { module: ModuleNode, external: ExternalNode };
 const NODE_TYPES_4 = { modGroup: ModGroup, cls: ClassNode };
 
-export default function GraphStage({
+export default function DesignStage({
+	mdSource,
 	stage,
 	stageName,
-	sections: initialSections,
 	feature,
 	onGate,
 	stageLabels = {},
 }) {
 	const [sections, setSections] = useState(() =>
-		normalizeSections(initialSections),
+		normalizeSections(parseDesignMarkdown(mdSource).structure.sections),
 	);
+	const prose = useMemo(() => parseDesignMarkdown(mdSource).prose, [mdSource]);
+	// 산출물 원본에서 구조를 찾았는지(에이전트가 ```factorynote-graph 를 썼는지).
+	// 못 찾았으면 빈 그래프의 원인을 사용자에게 안내(자가진단).
+	const sourceHadStructure = useMemo(
+		() => parseDesignMarkdown(mdSource).structure.sections.length > 0,
+		[mdSource],
+	);
+	// 구조 미검색 시 원인 진단(사용자가 파일을 열지 않아도 화면에서 식별 가능).
+	const structureDiag = useMemo(() => {
+		const src = mdSource ?? "";
+		let reason;
+		if (/```mermaid/.test(src))
+			reason =
+				"에이전트가 mermaid 다이어그램을 생성(JSON 구조 아님) — ```factorynote-graph JSON 재작성 요청";
+		else if (/```json/.test(src))
+			reason = "```json 펜스가 있으나 {sections:[...]} 형태가 아님";
+		else if (/```[a-zA-Z]/.test(src))
+			reason = "알 수 없는 코드펜스(포맷 불일치)";
+		else reason = "구조 펜스 전무(에이전트가 prose만 작성했을 가능성)";
+		return { reason, preview: src.slice(0, 240).trim() };
+	}, [mdSource]);
 	const [activeId, setActiveId] = useState(() => sections[0]?.id ?? null);
 	const active = sections.find((s) => s.id === activeId) ?? sections[0] ?? null;
-	// 종류는 스테이지가 아닌 활성 섹션의 노드 타입으로 판별(병합 페이지는 모듈 섹션과
-	// 클래스 섹션이 공존). 빈 섹션은 모듈로 간주(모듈→클래스 흐름의 기본).
 	const isClass = active ? sectionIsClass(active) : false;
 	const [selected, setSelected] = useState({ type: "node", id: null });
-	// 코멘트: { `${secId}::${targetId}`: string[] }
 	const [comments, setComments] = useState({});
 	const [draft, setDraft] = useState("");
-	const [menu, setMenu] = useState(null); // {x,y,type,id?}
+	const [menu, setMenu] = useState(null);
 
-	// 섹션이 하나도 없으면 하나 생성(편의).
+	// 에이전트가 채팅으로 산출물을 고치면 mdSource 가 갱신 → 구조를 다시 파싱(동기화).
+	useEffect(() => {
+		setSections(
+			normalizeSections(parseDesignMarkdown(mdSource).structure.sections),
+		);
+	}, [mdSource]);
+
 	useEffect(() => {
 		if (sections.length === 0) {
 			const id = `sec-${Date.now().toString(36)}`;
@@ -144,7 +172,6 @@ export default function GraphStage({
 		[active],
 	);
 
-	// --- 섹션 관리 ---
 	const addSection = () => {
 		const id = `sec-${Date.now().toString(36)}`;
 		setSections((ss) => [
@@ -162,7 +189,6 @@ export default function GraphStage({
 			return next;
 		});
 
-	// --- 활성 섹션 노드/엣지 업데이트 ---
 	const patchActive = (fn) =>
 		setSections((ss) => ss.map((s) => (s.id === active?.id ? fn(s) : s)));
 	const onNodesChange = useCallback(
@@ -192,7 +218,6 @@ export default function GraphStage({
 		[active?.id],
 	);
 
-	// --- CRUD ---
 	const addNode = (parentId) => {
 		const id = `${isClass ? "c" : "m"}-${Date.now().toString(36)}`;
 		patchActive((s) => {
@@ -300,7 +325,6 @@ export default function GraphStage({
 		setSelected({ type: "node", id: null });
 	};
 
-	// --- 우클릭 컨텍스트 메뉴 ---
 	const openMenu = (e, type, id) => {
 		e.preventDefault();
 		setMenu({ x: e.clientX, y: e.clientY, type, id });
@@ -322,20 +346,24 @@ export default function GraphStage({
 		};
 	}, [menu]);
 
-	// --- 코멘트 ---
 	const ckey = (targetId) => `${active?.id}::${targetId}`;
-	const pendingTotal = Object.values(comments).reduce(
-		(a, b) => a + b.length,
-		0,
-	);
 	const addComment = () => {
 		if (!draft.trim() || !selected.id) return;
 		const k = ckey(selected.id);
-		setComments((c) => ({ ...c, [k]: [...(c[k] || []), draft.trim()] }));
+		const text = draft.trim();
+		setComments((c) => ({ ...c, [k]: [...(c[k] || []), text] }));
+		// 코멘트 → 실시간 에이전트 채팅으로 즉시 전달(게이트 유지, chatPending 루프).
+		fetch("/api/chat", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ text, blockId: k }),
+		})
+			.then(() => window.dispatchEvent(new Event("fn-chat-update")))
+			.catch(() => {});
 		setDraft("");
 	};
 
-	// --- 게이트 제출: 편집된 그래프 전체 + 코멘트 ---
+	// 게이트 제출: 편집된 구조를 md 구조 펜스로 역동기화해 artifactMd 로 전송(직접편집→채택).
 	const serialized = () =>
 		sections.map((s) => ({
 			id: s.id,
@@ -343,15 +371,13 @@ export default function GraphStage({
 			nodes: s.nodes,
 			edges: s.edges,
 		}));
-	const submit = (verdict, withComments, revertTo) =>
+	const submit = (verdict, revertTo) =>
 		onGate({
 			verdict,
-			comments: withComments
-				? Object.entries(comments).flatMap(([k, arr]) =>
-						arr.map((text) => ({ blockId: k, text })),
-					)
-				: [],
-			graphSections: serialized(),
+			comments: [],
+			artifactMd: applyStructureToMarkdown(mdSource ?? "", {
+				sections: serialized(),
+			}),
 			...(revertTo ? { revertTo } : {}),
 		});
 
@@ -432,7 +458,9 @@ export default function GraphStage({
 			<Topbar stage={stage} total={3} />
 			<Stepper stages={stagesFor(stage)} />
 			<div className="meta">
-				<span className="stage-tag">Stage {stage} / 3 · {stageName}</span>
+				<span className="stage-tag">
+					Stage {stage} / 3 · {stageName}
+				</span>
 				<span>
 					<b>섹션:</b> {sections.length} · <b>노드:</b>{" "}
 					{active?.nodes.length ?? 0} · <b>관계:</b> {active?.edges.length ?? 0}
@@ -442,7 +470,6 @@ export default function GraphStage({
 				</span>
 			</div>
 
-			{/* 다중 섹션 선택 + 관리 */}
 			<div className="section-bar">
 				{sections.map((s) => (
 					<button
@@ -487,6 +514,49 @@ export default function GraphStage({
 								{isClass ? "🔧 클래스 구조" : "📦 모듈 의존 관계도"} (편집 가능)
 								— {active.title}
 							</h3>
+							{!sourceHadStructure && (active?.nodes.length ?? 0) === 0 && (
+								<div
+									style={{
+										padding: "10px 14px",
+										marginBottom: 8,
+										border: "1px solid #f59e0b",
+										background: "#fffbeb",
+										color: "#92400e",
+										borderRadius: 8,
+										fontSize: 13,
+										lineHeight: 1.5,
+									}}
+								>
+									⚠️ 구조 블록(<code>```factorynote-graph</code>)을 찾지
+									못했습니다 — 그래프를 그릴 구조가 없습니다.
+									<br />
+									<b>진단:</b> {structureDiag.reason}. 우측 채팅으로
+									“```factorynote-graph JSON 으로 모듈·클래스 구조를
+									작성해줘”라고 요청하거나, 아래 빈 캔버스에서 우클릭으로 직접
+									노드를 추가할 수 있습니다.
+									<details style={{ marginTop: 6 }}>
+										<summary style={{ cursor: "pointer" }}>
+											에이전트 산출물 미리보기 (원인 확인용)
+										</summary>
+										<pre
+											style={{
+												marginTop: 6,
+												padding: 8,
+												background: "#fff",
+												border: "1px solid #fcd34d",
+												borderRadius: 6,
+												fontSize: 11,
+												whiteSpace: "pre-wrap",
+												wordBreak: "break-word",
+												maxHeight: 160,
+												overflow: "auto",
+											}}
+										>
+											{structureDiag.preview || "(빈 산출물)"}
+										</pre>
+									</details>
+								</div>
+							)}
 							<div className="rf-wrap">
 								<ReactFlow
 									nodes={active.nodes}
@@ -581,28 +651,95 @@ export default function GraphStage({
 						/>
 					) : (
 						<div className="empty">
-							노드/엣지를 클릭해 상세·편집. 노드·관계에 코멘트 후 하단 수정
-							지시.
+							노드/엣지를 클릭해 상세·편집. 노드·관계에 코멘트를 남기면 우측
+							채팅으로 즉시 전달됩니다.
 						</div>
 					)}
 				</aside>
 			</div>
 
+			<ProseView prose={prose} />
+
 			<GateBar
 				stage={stage}
 				label={stageName}
-				pendingCount={pendingTotal}
 				stageLabels={stageLabels}
-				onConfirm={() => submit("confirm", false)}
-				onModify={() => submit("modify", true)}
-				onRevert={(t) => submit("revert", false, t)}
+				onConfirm={() => submit("confirm")}
+				onRevert={(t) => submit("revert", t)}
 			/>
 			{menuEl}
 		</>
 	);
 }
 
-// --- 상세 패널 ---
+// --- 하단 아키텍처 설명(prose) 렌더 ---
+function ProseView({ prose }) {
+	const blocks = useMemo(() => mdToBlocks(prose), [prose]);
+	if (!prose || blocks.length === 0) return null;
+	return (
+		<section className="design-prose">
+			<div className="prose-doc">
+				{blocks.map((b) => (
+					<BlockView key={b.id} b={b} />
+				))}
+			</div>
+		</section>
+	);
+}
+
+function BlockView({ b }) {
+	if (b.type === "heading") {
+		const Tag = `h${Math.min(Math.max(b.level, 1), 6)}`;
+		return <Tag dangerouslySetInnerHTML={{ __html: b.html }} />;
+	}
+	if (b.type === "paragraph")
+		return <p dangerouslySetInnerHTML={{ __html: b.html }} />;
+	if (b.type === "quote")
+		return <blockquote dangerouslySetInnerHTML={{ __html: b.html }} />;
+	if (b.type === "hr") return <hr />;
+	if (b.type === "code")
+		return (
+			<pre>
+				<code>{b.code}</code>
+			</pre>
+		);
+	if (b.type === "list") {
+		const items = b.items.map((it, i) => (
+			<li
+				key={i}
+				className={it.checked != null ? "task" : undefined}
+				dangerouslySetInnerHTML={{ __html: it.html }}
+			/>
+		));
+		return b.ordered ? <ol>{items}</ol> : <ul>{items}</ul>;
+	}
+	if (b.type === "table") {
+		return (
+			<table>
+				<thead>
+					<tr>
+						{b.headers.map((h, i) => (
+							<th key={i} dangerouslySetInnerHTML={{ __html: h }} />
+						))}
+					</tr>
+				</thead>
+				<tbody>
+					{b.rows.map((r, ri) => (
+						<tr key={ri}>
+							{r.map((c, ci) => (
+								<td key={ci} dangerouslySetInnerHTML={{ __html: c }} />
+							))}
+						</tr>
+					))}
+				</tbody>
+			</table>
+		);
+	}
+	if (b.type === "image") return <img src={b.src} alt={b.alt} />;
+	return null;
+}
+
+// --- 상세 패널(GraphStage 과 동일) ---
 function DepRows({ edges, nodeId, labelOf, onSelectEdge, dir }) {
 	const list =
 		dir === "out"
@@ -711,9 +848,6 @@ function ClassPanel({
 	onMove,
 	onSelectEdge,
 }) {
-	const move = (gid) => {
-		onMove(node.id, gid); // parent handler reparents
-	};
 	return (
 		<>
 			<h4 className="card-title">클래스 상세 · 편집</h4>
@@ -727,7 +861,7 @@ function ClassPanel({
 			<select
 				className="edge-desc-input"
 				value={node.parentNode ?? ""}
-				onChange={(e) => move(e.target.value)}
+				onChange={(e) => onMove(node.id, e.target.value)}
 			>
 				{groups.map((g) => (
 					<option key={g.id} value={g.id}>

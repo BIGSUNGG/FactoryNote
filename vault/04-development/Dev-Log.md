@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-06
+updated: 2026-08-07
 tags: [development, dev-log]
 ---
 
@@ -7,7 +7,84 @@ tags: [development, dev-log]
 
 날짜별 작업 기록. 무엇을 했는지, 왜, 무엇이 남았는지. [[Changelog]]는 외부용 단위, 본 파일은 일일 흐름.
 
+## 2026-08-07
+
+### 코멘트 → 실시간 채팅 통합 — SidePanel·"수정 지시" 버튼 폐지
+
+#### 배경
+
+- 사용자 요청: 문서와 채팅 사이 "코멘트를 남긴 위치를 보여주는 라인"(= 우측 `SidePanel` 검토 큐) 제거, 하단 "수정 요청 버튼"(= "✎ 수정 지시") 제거, 코멘트를 남기면 기존 실시간 채팅으로 즉시 에이전트에게 전달 + 채팅창에 내 코멘트가 채팅처럼 표시. 요약 = "기존 코멘트 기능을 실시간 채팅으로 넘김".
+- 기준: `bc674f6`(Feature 1 채팅 사이드바가 들어간 커밋). 본 워크트리 HEAD(`4e63738`)가 1커밋 뒤처져 `git checkout bc674f6 -- apps packages vault AGENTS.md package.json` 로 코드만 가져옴(`.pi-glla` 세션/골 상태는 보존).
+
+#### 조치
+
+- `PlanPage.jsx`: `SidePanel` import·렌더 + `loop`/`feedbackIssues` 목 데이터 제거. `addComment` 가 로컬(인라인 💬 표시용) 추가와 동시에 `POST /api/chat`{text, blockId} 즉시 전송하도록 변경 — 블록/셀/영역 세 entry point 가 한 함수를 통해 일괄 채팅 전달(근본 지점 1곳). `applyComments`/`pendingCount`/`toGateComment`/`sendModify` 및 `applied` 필드 제거.
+- `DesignStage.jsx`: 그래프 코멘트 `addComment` 도 동일하게 `POST /api/chat`(blockId=ckey) 즉시 전송. `submit` 에서 `withComments`/modify 코멘트 적재 제거, `pendingTotal` 제거.
+- `GateBar.jsx`(공용): "✎ 수정 지시" 버튼 + `onModify`/`pendingCount` prop 제거. "✓ 확정"·"← 정정" 유지.
+- `SidePanel.jsx` 삭제(미사용). 신규 [[ADR-011-comment-to-chat-consolidation]].
+
+#### 검증 / 남음
+
+- 계약 7항 전부 PASS: `SidePanel` 잔존 0, `수정 지시`/`onModify`/`sendModify` 잔존 0, 확정·정정 유지, `/api/chat` POST 가 양 코멘트면에 존재.
+- `bun run typecheck`(tsc -b) 0, `bun run build:viewer` 0, `bun test` 68 pass / 0 fail.
+- 남음: 백엔드 modify-verdict 엔진 경로는 UI 트리거 소멸 상태로 잔존(필요시 복원). Design↔Feedback 루프 표시(라운드/이슈)가 뷰어에서 사라졌으므로, 필요시 채팅 헤더 등으로 재노출.
+
+#### 후속 수정 — 범위 코멘트 인용(quote) 누락
+
+- 사용자 질의 "범위 코멘트가 에이전트에 해당 범위인지 전달되나?" 로 확인한 누락: 채팅 통합 시 `addComment` 가 `quote` 파라미터를 받고도 `POST /api/chat` body 에 안 넣어, 에이전트는 블록은 알아도 드래그한 정확 텍스트(인용)를 몰랐다(이전 `formatComments` 경로엔 있었다).
+- 5곳 전면 수정: `ChatMessage.quote?` 타입 · `gate-server` `/api/chat` 파싱·저정 · `PlanPage` `addComment` body 전송 · `plan-tool` `formatChat` `(인용: "…")` 렌더 · `ChatSidebar` 말풍선 인용 표시(`.chat-quote` CSS, 기존 quote 그룹 선택자 재사용). gate-server 테스트에 quote 왕복 검증 추가.
+- 검증: `tsc -b` 0, `bun test` 0 fail(quote 왕복 포함), `bun run build` 0(배포). 배포 확장(gate-server·plan-tool·core types)·뷰어 dist 모두 quote 처리 포함 확인.
+
+#### 후속 수정 — 여러 블록에 걸친 범위 코멘트
+
+- 사용자 질의 "여러 블록 선택 코멘트도 정상 동작?" 로 확인. 두 제약: (1) `range.surroundContents()` 가 여러 블록/노드에 걸친 범위에서 `InvalidStateError` 를 던져 하이라이트가 스킵됨(코드 주석도 “다중 노드 범위 — 하이라이트 생략” 명시). (2) `Document.handleMouseUp` 가 `sel.anchorNode` 의 블록 하나만 잡아, b2→b4 드래그해도 `[블록 b2]` 만 갔음.
+- (1) `highlightRange(range, cls)` 헬퍼 추가 — `commonAncestorContainer` 아래 `TreeWalker(SHOW_TEXT)` 로 범위 교차 텍스트 노드를 순회하며 `splitText` 로 범위 내 구간만 `<mark>` 로 교체. 단일/멀티 노드 모두 안전. (2) `Document` 에 `mainRef` 를 두고 `range.intersectsNode` 로 `[data-block-id]` 전체 중 선택이 걸친 블록을 수집 → `blockIds[]`. `PlanPage.addComment` 가 다중이면 쉼표 결합(`b2,b3,b4`)으로 `blockId` 스코프 전달(로컬 인라인 표시는 시작 블록). 팝오버 헤더도 전체 범위 표시.
+- 검증: `tsc -b` 0, `bun test` 0 fail, `bun run build` 0(배포). 배포 번들에 `intersectsNode`/`highlightRange` 존재·`surroundContents` 부재 확인.
+
+### 사용자 보고 버그 2건 수정 — 에이전트 채팅 미동작 · Stage 2 그래프 안 보임
+
+#### 현상
+
+- 사용자 보고: (1) 계획 페이지 에이전트 채팅 섹션에 코멘트를 남겨도 동작 안 함. (2) Stage 2(2페이지)에서 모듈·클래스 그래프가 안 보임.
+
+#### 원인
+
+- **Bug 1(채팅)**: F1 워커가 `plan-tool.ts` 에 채팅 루프(`chatPending`/`chatResponse`)를 구현했으나, **실제 pi 도구 등록층(`apps/pi-extension/src/index.ts`)에 연결이 누락** — 도구 parameters 에 `chatResponse` 없음·`execute` 미전달·`formatForAgent` 가 `chatPending` 삼킴 → 에이전트가 사용자 채팅을 전혀 못 받음.
+- **Bug 2(그래프) 근본**: 코드 수정이 **설치 확장(`~/.pi/agent/extensions/factorynote`)에 배포되지 않아** 사용자가 구버전을 쓰고 있었다. pi 는 설치 확장을 로드하고 게이트도 설치 viewer dist 를 서빙(env → `<extDir>/viewer/dist` → dev 순서) → 소스만 고친 6회 반복이 무효. 추가로 `designMd.js` 파서가 에이전트 출력 편차(후행쉼표·비 `factorynote-graph` 펜스·bare 섹션)에 취약.
+
+#### 조치
+
+- `index.ts`: `chatResponse` 파라미터 + `execute`→`drivePlan` 전달 + `AgentOut.chatPending`/`formatForAgent` 노출 + `PLAN_MODE_PROMPT` 채팅 지시(f).
+- `designMd.js`: `sanitizeJson`(후행쉼표·`//` 주석 제거) + 비 factorynote-graph 펜스 fallback(`ANY_FENCE_RE`) + **bare 섹션 객체**(sections 래퍼 누락) 수용. `designMd.test.js` 8건(왕복·무경화·fallback·bare 섹션·designPrompt bare-노드 렌더 계약).
+- `DesignStage.jsx`: 구조 미검색 시 원인 특정 진단 배너(mermaid/```json/no-fence 분류) + 산출물 미리보기(접기식).
+- **배포 동기화**: `install.sh` 재배포 → `diff -rq packages/factorynote/src ↔ 설치 core` 빈 결과로 전 컴포넌트 byte-identical 확인(index.ts·plan-tool·gate-server·core·viewer dist).
+- **재발 방지**: `bun run build` = `tsc -b` + viewer 빌드 + `install.sh` 배포 자동화(루트 package.json `build`/`build:viewer`/`deploy`/`typecheck`). AGENTS.md 빌드 설명 갱신. — 미배포(근본 원인) 재발 차단.
+
+#### 검증 / 남음
+
+- `bun test` 68 pass / 0 fail(신규 designMd 8). `bun run build` 0 종료(빌드=배포). 설치 확장 = 소스 동기화 확정.
+- 런타임 증명: designPrompt 그대로의 bare 노드 md 가 `parse→normalize` 를 거쳐 react-flow 렌더 가능 노드로 정규화됨(dmtest2 진단).
+- **남음(사용자 경험적 1회 확인)**: pi 세션 재시작 후 `/factorynote` → Stage 1 채팅 동작·Stage 2 그래프(또는 진단 배너) 확인.
+
 ## 2026-08-06
+
+### 실시간 채팅 · md 설계 · 프롬프트 품질 (Feature 1·2·3)
+
+#### 한 일
+
+- **F1(실시간 채팅 사이드바)**: `runGate` 반환을 `GateEvent({kind:decision|chat})` 유니온으로 변경. `POST /api/chat`(사용자 메시지)·`GET /api/chat`(뷰어 폴링)·`appendAgentChat`(에이전트 답변). `drivePlan`/`runOpenGate` 가 `chat` 이벤트 시 `chatPending` 반환 → 에이전트 재호출(`chatResponse`+선택 `artifactMd`)로 게이트 유지 재진입. **채팅 수정은 `loopCount` 미포함**(사전 다듬기). 부분 코멘트는 `blockId` 단위(PlanPage 가 선택 블록을 상위로 lift). 우측 `ChatSidebar.jsx`. [[ADR-009-realtime-chat-loop]].
+- **F2(Stage 2 md 단일진실)**: Stage 2 산출물을 `02-design.md`(markdown)로 전환. `## 구조` 의 ```factorynote-graph 펜스(JSON)에서 그래프 파생 + 하단 `## 아키텍처 설명` prose. 역동기화(`applyStructureToMarkdown`)로 시각 편집 → md 반영. 게이트 제출 `decision.artifactMd` 채택. `ArtifactFormat="markdown"` 단일화, `graphSections`→`artifactMd`. `GraphStage.jsx`→`DesignStage.jsx` 교체. [[ADR-010-md-design-stage]].
+- **F3(프롬프트 품질)**: `stages.ts` Stage 1(미래 확장 포인트·확장성/유지보수성 참고 명시)·Stage 2(객체지향 적합성·불필요 관계/모듈/클래스 검증) designPrompt/feedbackChecklist 갱신(엔진 로직 변경 없음).
+
+#### 검증
+
+- `bun run build`(tsc -b) exit 0. `bun test` **60 pass / 0 fail**(기존 49 + F1 채팅 루프 6 + F2 md 왕복·채택 갱신 5). `apps/plan-viewer` vite 빌드 exit 0(287 모듈).
+- 단위 테스트로 보증: 게이트 `/api/chat`·runGate 채팅→결정 경쟁·chat 왕복(loopCount 0 유지); md 파싱/직렬화/역동기화 왕복 일관성; Stage 2 `artifactMd` 채택 경로.
+
+#### 남은 것 / 수동 검증
+
+- **수동 게이트 흐름**(단위 테스트가 못 담는 브라우저 UI 종단): (a) `/factorynote` ON → Stage 1 게이트 → ChatSidebar 에서 질문→에이전트 답변, 블록 수정 요청→산출물 실시간 갱신(게이트 유지) 후 confirm; (b) Stage 2 md 산출물→그래프+설명 렌더, 노드 편집→md 역동기화 확인; (c) Stage 1/2 designPrompt 확장성·OOP 항목이 산출물에 반영되는지. — pi 세션에서 실구동 후 확인 예정.
+- 작업 분할: Orca(codex 미설치·claude 온보딩 블록) → pi 서브에이전트 `worker`(fresh 컨텍스트) F1·F2 순차, F3 는 코디네이터 직접 적용.
 
 ### 하트비트 기반 브라우저 재오픈 (고착 browserOpened 플래그 교체)
 

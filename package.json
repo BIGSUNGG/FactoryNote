@@ -7,8 +7,10 @@
     "apps/*"
   ],
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc -b && bun run build:viewer && bash scripts/install.sh",
+    "build:viewer": "cd apps/plan-viewer && bun run build",
     "typecheck": "tsc -b",
+    "deploy": "bash scripts/install.sh",
     "clean": "git clean -fdX packages apps"
   },
   "devDependencies": {

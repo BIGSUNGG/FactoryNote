@@ -6,7 +6,8 @@
 // 게이트 결정은 /api/decision 로 POST → pi 에이전트로 전달. 서버는 플랜 완료 시 닫힌다.
 import { useState, useEffect, useRef } from "react";
 import PlanPage from "./components/PlanPage";
-import GraphStage from "./components/GraphStage";
+import DesignStage from "./components/DesignStage";
+import ChatSidebar from "./components/ChatSidebar";
 
 const HEARTBEAT_MS = 2000; // /api/state 폴링 주기 = 탭 생존 하트비트(서버 재오픈 판정에 사용).
 
@@ -14,6 +15,8 @@ export default function App() {
 	const [state, setState] = useState(null); // 마지막 /api/state
 	const [phase, setPhase] = useState("loading"); // loading | reviewing | preparing | closed
 	const notifiedRef = useRef(false); // 전환 알림 1회 가드(preparing→reviewing)
+	// F1: 채팅 부분 코멘트용 현재 선택 블록(PlanPage 가 갱신). Stage 2 는 미사용.
+	const [activeBlockId, setActiveBlockId] = useState(null);
 
 	// 초기 1회 로드.
 	useEffect(() => {
@@ -27,6 +30,11 @@ export default function App() {
 		const id = setInterval(fetchState, HEARTBEAT_MS);
 		return () => clearInterval(id);
 	}, [phase]);
+
+	// 단계 전환 시 채팅 부분코멘트 블록 선택을 초기화(Stage 2 는 블록 선택 미사용).
+	useEffect(() => {
+		setActiveBlockId(null);
+	}, [state?.stage]);
 
 	async function fetchState() {
 		try {
@@ -84,27 +92,22 @@ export default function App() {
 		);
 	if (!state) return <Center>게이트 로딩 중…</Center>;
 
-	// reviewing: 현재 단계 산출물 렌더.
-	const isGraph = state.stage === 2;
+	// reviewing: 현재 단계 산출물 렌더. Stage 2 는 md 단일진실 DesignStage, 나머지는 PlanPage.
 	const cur = (state.artifacts || []).find((a) => a.stage === state.stage);
 	const stageLabels = {};
 	for (const a of state.artifacts || []) stageLabels[a.stage] = a.name;
 	stageLabels[state.stage] = state.stageName;
 
-	if (isGraph) {
-		return (
-			<GraphStage
-				stage={state.stage}
-				stageName={state.stageName}
-				feature={state.feature}
-				sections={cur?.graphSections || []}
-				stageLabels={stageLabels}
-				onGate={onGate}
-			/>
-		);
-	}
-
-	return (
+	const main = state.stage === 2 ? (
+		<DesignStage
+			mdSource={cur?.md || ""}
+			stage={state.stage}
+			stageName={state.stageName}
+			feature={state.feature}
+			stageLabels={stageLabels}
+			onGate={onGate}
+		/>
+	) : (
 		<PlanPage
 			mdSource={pickMarkdown(state)}
 			stage={state.stage}
@@ -112,7 +115,16 @@ export default function App() {
 			feature={state.feature}
 			stageLabels={stageLabels}
 			onGate={onGate}
+			onActiveBlock={setActiveBlockId}
 		/>
+	);
+
+	// reviewing: 메인 산출물 + 우측 실시간 에이전트 채팅 사이드바(게이트 열린 동안).
+	return (
+		<div className="review-shell">
+			<div className="review-main">{main}</div>
+			<ChatSidebar stage={state.stage} activeBlockId={activeBlockId} />
+		</div>
 	);
 }
 

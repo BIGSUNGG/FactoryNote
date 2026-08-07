@@ -2,6 +2,7 @@
 // M3 Persistence · M1 Stage Registry · Engine(상태기계). harness-agnostic(Layer 1-2).
 export type {
 	ArtifactFormat,
+	ChatMessage,
 	Comment,
 	GateDecision,
 	GateVerdict,
@@ -37,7 +38,11 @@ export {
 	writeArtifact,
 } from "./persistence.ts";
 export {
+	applyStructureToMarkdown,
 	coerceGraphArtifact,
 	emptyGraphArtifact,
+	parseDesignMarkdown,
 	parseGraphArtifact,
+	serializeDesignMarkdown,
 } from "./graph.ts";
+export type { DesignMarkdown } from "./graph.ts";

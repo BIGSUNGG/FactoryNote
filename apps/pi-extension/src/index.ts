@@ -24,6 +24,7 @@ const PLAN_MODE_PROMPT = `
    c. Feedback 역할(자기검토): feedbackChecklist 로 산출물을 1패스 비판 검토한 뒤 반영한다.
    d. factorynote_plan({ feature, artifactMd }) 로 산출물을 제출 → 사용자 게이트(웹)가 열리고 결정이 돌아온다.
    e. verdict=modify → 코멘트 반영해 재작성 후 재제출. verdict=confirm → 다음 단계로. done=true → 종료.
+   f. 게이트가 열린 동안 사용자가 실시간 채팅을 보내면 반환값에 '사용자 실시간 채팅' 섹션(chatPending)이 나타난다. 게이트는 닫히지 않는다. 질문이면 factorynote_plan({ feature, chatResponse }) 로 답변하고, 산출물 수정이 필요하면 factorynote_plan({ feature, chatResponse, artifactMd }) 로 수정본과 답변을 함께 전달하라(게이트 유지). 채팅 수정은 modify 루프에 포함되지 않는다. 최종 확정은 사용자가 웹 게이트 바로 한다.
 4. 3단계(요청 이해·시나리오 → 모듈·클래스 설계 → 구현 계획)를 순차 진행한다. 단계를 건너뛰지 않는다.
 5. 사용자가 웹에서 승인하기 전에는 다음 단계로 넘어가지 않는다(5대 원칙).
 plan 모드를 끄려면 /factorynote 를 다시 입력한다.
@@ -94,6 +95,12 @@ export default function (pi: ExtensionAPI): void {
 						"현 단계 산출물 마크다운. 생략 시 현재 단계 작성 지시를 반환한다. 작성 후 담아 재호출해 게이트를 연다.",
 				}),
 			),
+			chatResponse: Type.Optional(
+				Type.String({
+					description:
+						"게이트 열린 동안 사용자 실시간 채팅(chatPending)에 대한 답변. 산출물 수정이 필요하면 artifactMd(수정본)와 함께 담아 재호출 — 게이트를 유지한 채 반영.",
+				}),
+			),
 		}),
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 			const feature = String(params.feature ?? "").trim();
@@ -117,6 +124,9 @@ export default function (pi: ExtensionAPI): void {
 				feature,
 				...(params.artifactMd !== undefined
 					? { artifactMd: params.artifactMd }
+					: {}),
+				...(params.chatResponse !== undefined
+					? { chatResponse: params.chatResponse }
 					: {}),
 				...(signal ? { signal } : {}),
 			});
@@ -150,6 +160,7 @@ interface AgentOut {
 	feedbackChecklist: string[];
 	gateResult: { verdict: string; comments: unknown[] } | null;
 	message: string;
+	chatPending?: { id: string; role: string; text: string; blockId?: string }[];
 }
 
 function formatForAgent(feature: string, out: AgentOut): string {
@@ -160,6 +171,16 @@ function formatForAgent(feature: string, out: AgentOut): string {
 	if (out.gateResult) {
 		lines.push(
 			`게이트 결과: ${out.gateResult.verdict} (코멘트 ${out.gateResult.comments.length}건)`,
+		);
+	}
+	if (out.chatPending && out.chatPending.length > 0) {
+		lines.push("");
+		lines.push(`## 사용자 실시간 채팅 (게이트 열려있는 동안 — 게이트 유지)`);
+		for (const c of out.chatPending) {
+			lines.push(`- ${c.blockId ? `[블록 ${c.blockId}] ` : ""}${c.text}`);
+		}
+		lines.push(
+			`→ 위 채팅에 답한다: 질문이면 chatResponse 로 답변. 산출물 수정이 필요하면 artifactMd(수정본)와 답변 chatResponse 를 함께 담아 factorynote_plan 을 다시 호출하라(게이트 유지). 최종 확정은 사용자가 게이트 바로 한다.`,
 		);
 	}
 	lines.push("");

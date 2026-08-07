@@ -14,6 +14,7 @@ export default function Document({
 	activeTargetId,
 }) {
 	const skipRef = useRef(false); // 직전 mouseup 이 드래그였으면 뒤따르는 click 무시
+	const mainRef = useRef(null);
 
 	const handleMouseUp = () => {
 		const sel = window.getSelection();
@@ -22,7 +23,14 @@ export default function Document({
 		if (!text) return;
 		const el = sel.anchorNode?.parentElement?.closest?.("[data-block-id]");
 		if (!el) return;
-		onRangeComment(el.dataset.blockId, sel, text);
+		// 선택이 걸친 모든 블록 수집(멀티 블록 드래그 → 전체 범위를 에이전트 스코프로).
+		const range = sel.getRangeAt(0);
+		const blockIds = mainRef.current
+			? [...mainRef.current.querySelectorAll("[data-block-id]")]
+					.filter((b) => range.intersectsNode(b))
+					.map((b) => b.dataset.blockId)
+			: [el.dataset.blockId];
+		onRangeComment(el.dataset.blockId, sel, text, blockIds);
 		skipRef.current = true; // 다음 click(블록 팝오버) 억제
 	};
 
@@ -36,7 +44,12 @@ export default function Document({
 	};
 
 	return (
-		<main className="doc" onMouseUp={handleMouseUp} onClick={handleClick}>
+		<main
+			ref={mainRef}
+			className="doc"
+			onMouseUp={handleMouseUp}
+			onClick={handleClick}
+		>
 			{blocks.map((b) => (
 				<Block
 					key={b.id}

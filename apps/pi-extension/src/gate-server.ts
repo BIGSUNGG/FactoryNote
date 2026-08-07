@@ -8,12 +8,16 @@ import { fileURLToPath } from "node:url";
 import {
 	STAGES,
 	loadState,
-	parseGraphArtifact,
 	readArtifact,
 	type ArtifactFormat,
+	type ChatMessage,
 	type GateDecision,
-	type GraphSection,
 } from "@factorynote/core";
+
+/** 게이트 대기 중 발생 이벤트: 사용자 최종 결정, 또는 실시간 채팅(에이전트에 전달해 답변/수정 유도). */
+export type GateEvent =
+	| { kind: "decision"; decision: GateDecision }
+	| { kind: "chat"; messages: ChatMessage[] };
 
 export interface ViewerState {
 	feature: string;
@@ -31,7 +35,6 @@ export interface ViewerState {
 		file: string;
 		format: ArtifactFormat;
 		md?: string;
-		graphSections?: GraphSection[];
 	}[];
 }
 
@@ -50,26 +53,13 @@ async function buildViewerState(
 		if (state && s.id > state.stage) continue;
 		const raw = await readArtifact(root, feature, s.artifactFile);
 		if (raw === undefined) continue;
-		if (s.format === "nodes-edges") {
-			const ga = parseGraphArtifact(raw);
-			if (ga) {
-				artifacts.push({
-					stage: s.id,
-					name: s.name,
-					file: s.artifactFile,
-					format: s.format,
-					graphSections: ga.sections,
-				});
-			}
-		} else {
-			artifacts.push({
-				stage: s.id,
-				name: s.name,
-				file: s.artifactFile,
-				format: s.format,
-				md: raw,
-			});
-		}
+		artifacts.push({
+			stage: s.id,
+			name: s.name,
+			file: s.artifactFile,
+			format: s.format,
+			md: raw,
+		});
 	}
 	return {
 		feature,
@@ -147,7 +137,11 @@ interface PersistentGate {
 	port: number;
 	/** 마지막 뷰어 요청 시각(ms). 탭 생존 하트비트 — 오래되면 탭이 닫힌 것으로 보고 브라우저 재오픈. */
 	lastSeen: number;
-	currentResolver: ((d: GateDecision) => void) | null;
+	currentResolver: ((e: GateEvent) => void) | null;
+	/** 채팅 누적 로그(사용자+에이전트). 뷰어가 GET /api/chat 로 폴링. */
+	chatLog: ChatMessage[];
+	/** 에이전트에 아직 전달되지 않은 사용자 채팅(runGate 가 chat 이벤트로 resolve 시 비움). */
+	pendingChats: ChatMessage[];
 }
 
 const gates = new Map<string, PersistentGate>();
@@ -181,8 +175,8 @@ function makeGateHandler(gate: PersistentGate) {
 				const decision: GateDecision = {
 					verdict: parsed.verdict,
 					comments: Array.isArray(parsed.comments) ? parsed.comments : [],
-					...(Array.isArray(parsed.graphSections)
-						? { graphSections: parsed.graphSections }
+					...(typeof parsed.artifactMd === "string"
+						? { artifactMd: parsed.artifactMd }
 						: {}),
 					// FR-7: 회귀 대상 단계(revertTo) 뷰어→엔진으로 전달.
 					...(typeof parsed.revertTo === "number"
@@ -193,8 +187,48 @@ function makeGateHandler(gate: PersistentGate) {
 				res.end(JSON.stringify({ ok: true }), () => {
 					const r = gate.currentResolver;
 					gate.currentResolver = null;
-					r?.(decision);
+					r?.({ kind: "decision", decision });
 				});
+				return;
+			}
+			if (url === "/api/chat") {
+				if (req.method === "POST") {
+					const body = await readBody(req);
+					const parsed = JSON.parse(body) as {
+						text?: unknown;
+						blockId?: unknown;
+						quote?: unknown;
+					};
+					const text = typeof parsed.text === "string" ? parsed.text : "";
+					if (text.trim()) {
+						const msg: ChatMessage = {
+							id: crypto.randomUUID(),
+							role: "user",
+							text,
+							...(typeof parsed.blockId === "string"
+								? { blockId: parsed.blockId }
+								: {}),
+							...(typeof parsed.quote === "string" && parsed.quote.trim()
+								? { quote: parsed.quote }
+								: {}),
+							at: Date.now(),
+						};
+						gate.chatLog.push(msg);
+						gate.pendingChats.push(msg);
+						// 대기 중인 runGate 가 있으면 chat 이벤트로 즉시 전달(게이트 유지).
+						const r = gate.currentResolver;
+						if (r) {
+							gate.currentResolver = null;
+							r({ kind: "chat", messages: gate.pendingChats.splice(0) });
+						}
+					}
+					res.writeHead(200, { "Content-Type": "application/json" });
+					res.end(JSON.stringify({ ok: true }));
+					return;
+				}
+				// GET /api/chat — 채팅 누적 로그(뷰어가 폴링으로 표시).
+				res.writeHead(200, { "Content-Type": "application/json" });
+				res.end(JSON.stringify({ messages: gate.chatLog }));
 				return;
 			}
 			// 정적 자원(SPA). /assets/* → dist 파일, 그 외 → index.html.
@@ -240,6 +274,8 @@ async function getOrCreateGate(opts: {
 		port: 0,
 		lastSeen: 0,
 		currentResolver: null,
+		chatLog: [],
+		pendingChats: [],
 	};
 	const server = createServer(makeGateHandler(gate));
 	gate.server = server;
@@ -269,7 +305,7 @@ export async function closeGate(root: string, feature: string): Promise<void> {
  * 서버는 플랜 전체에서 재사용 → 브라우저는 첫 게이트에서 1회만 오픈.
  * 결정·중단·시간초과 시 결정을 반환하되 서버는 닫지 않는다(완료 시 closeGate).
  */
-export async function runGate(opts: RunGateOptions): Promise<GateDecision> {
+export async function runGate(opts: RunGateOptions): Promise<GateEvent> {
 	const {
 		root,
 		feature,
@@ -292,20 +328,31 @@ export async function runGate(opts: RunGateOptions): Promise<GateDecision> {
 		(browserOpener ?? openBrowser)(gate.url);
 	}
 
-	let resolveDecision: ((d: GateDecision) => void) | null = null;
-	const decided = new Promise<GateDecision>((resolve) => {
-		resolveDecision = resolve;
+	let resolveEvent: ((e: GateEvent) => void) | null = null;
+	const settled = new Promise<GateEvent>((resolve) => {
+		resolveEvent = resolve;
 	});
-	gate.currentResolver = (d) => resolveDecision?.(d);
+	gate.currentResolver = (e) => resolveEvent?.(e);
 
 	await onReady?.(gate.url);
+
+	// 채팅 루프 재진입 보호: runGate 가 chat 로 resolve 된 뒤 에이전트가 응답·재진입하는
+	// 사이에 쌓인 pendingChats 를 즉시 전달(채팅 유실 방지).
+	if (gate.pendingChats.length > 0) {
+		const r = gate.currentResolver;
+		gate.currentResolver = null;
+		r?.({ kind: "chat", messages: gate.pendingChats.splice(0) });
+	}
 
 	const onAbort = () => {
 		// 중단 시 modify 복귀. 서버는 유지 — 인터럽트 복구가 같은 탭을 재사용.
 		gate.currentResolver = null;
-		resolveDecision?.({
-			verdict: "modify",
-			comments: [{ text: "(게이트 중단됨)" }],
+		resolveEvent?.({
+			kind: "decision",
+			decision: {
+				verdict: "modify",
+				comments: [{ text: "(게이트 중단됨)" }],
+			},
 		});
 	};
 	signal?.addEventListener("abort", onAbort, { once: true });
@@ -315,17 +362,36 @@ export async function runGate(opts: RunGateOptions): Promise<GateDecision> {
 		timeoutMs > 0
 			? setTimeout(() => {
 					gate.currentResolver = null;
-					resolveDecision?.({
-						verdict: "modify",
-						comments: [{ text: "(게이트 시간 초과 — 자동 복귀)" }],
+					resolveEvent?.({
+						kind: "decision",
+						decision: {
+							verdict: "modify",
+							comments: [{ text: "(게이트 시간 초과 — 자동 복귀)" }],
+						},
 					});
 				}, timeoutMs)
 			: null;
 
-	const result = await decided;
+	const result = await settled;
 	signal?.removeEventListener("abort", onAbort);
 	if (timer) clearTimeout(timer);
 	return result;
+}
+
+/** 에이전트 답변을 채팅 로그에 추가(뷰어가 GET /api/chat 폴링으로 표시). drivePlan 이 호출. */
+export function appendAgentChat(
+	root: string,
+	feature: string,
+	text: string,
+): void {
+	const gate = gates.get(gateKey(root, feature));
+	if (!gate || !text.trim()) return;
+	gate.chatLog.push({
+		id: crypto.randomUUID(),
+		role: "agent",
+		text,
+		at: Date.now(),
+	});
 }
 
 async function canRead(path: string): Promise<boolean> {

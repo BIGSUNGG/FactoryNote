@@ -8,6 +8,7 @@ import { drivePlan } from "./plan-tool.ts";
 import {
 	initialState,
 	loadState,
+	parseDesignMarkdown,
 	readArtifact,
 	saveState,
 	writeArtifact,
@@ -84,35 +85,39 @@ test("modify keeps stage 2 and bumps loopCount", async () => {
 	expect(st?.loopCount).toBe(1);
 });
 
-test("graph stage: agent submits JSON, user edits+confirm → adopted graph saved + advance", async () => {
-	// Stage 2(모듈·클래스 그래프) 시드.
+test("design stage: agent submits md, user edits+confirm → adopted md saved + advance", async () => {
+	// Stage 2(설계) md 단일진실 시드.
 	await saveState(root, { ...initialState("graphfeat"), stage: 2 });
-	const initialGraph = {
-		sections: [
+	const fence = (sections: unknown) =>
+		"```factorynote-graph\n" + JSON.stringify({ sections }, null, 2) + "\n```";
+	const initialMd =
+		"# 설계\n\n## 구조\n\n" +
+		fence([
 			{
 				id: "fe",
 				title: "프론트",
 				nodes: [{ id: "UI", data: { label: "UI" } }],
 				edges: [],
 			},
-		],
-	};
-	// 사용자가 그래프를 편집(노드 추가 + 엣지 추가)한 결과.
-	const edited = {
-		sections: [
+		]) +
+		"\n\n## 아키텍처 설명\n\n초안 설계.";
+	// 사용자가 그래프를 편집(노드 추가 + 엣지 추가)한 결과 md(구조 펜스만 교체).
+	const editedMd =
+		"# 설계\n\n## 구조\n\n" +
+		fence([
 			{
 				id: "fe",
 				title: "프론트",
 				nodes: [{ id: "UI" }, { id: "API" }],
 				edges: [{ id: "UI->API", source: "UI", target: "API" }],
 			},
-		],
-	};
+		]) +
+		"\n\n## 아키텍처 설명\n\n초안 설계.";
 	const out = await drivePlan({
 		root,
 		viewerDistDir: VIEWER_DIST,
 		feature: "graphfeat",
-		artifactMd: JSON.stringify(initialGraph),
+		artifactMd: initialMd,
 		open: false,
 		onReady: async (url) => {
 			await fetch(`${url}/api/decision`, {
@@ -121,26 +126,19 @@ test("graph stage: agent submits JSON, user edits+confirm → adopted graph save
 				body: JSON.stringify({
 					verdict: "confirm",
 					comments: [],
-					graphSections: edited.sections,
+					artifactMd: editedMd,
 				}),
 			});
 		},
 	});
 	expect(out.gateResult?.verdict).toBe("confirm");
 	expect(out.stage).toBe(3); // 설계(2) → 구현 계획(3)
-	// 편집된(채택된) 그래프가 저장되었는지 — 초기가 아닌 편집 결과.
-	const saved = await readArtifact(root, "graphfeat", "02-design.json");
+	// 편집된(채택된) md 가 저장되었는지 — 초기가 아닌 편집 결과.
+	const saved = await readArtifact(root, "graphfeat", "02-design.md");
 	expect(saved).toBeTruthy();
-	let parsed: {
-		sections: Array<{ nodes: unknown[]; edges: Array<{ id: string }> }>;
-	} = { sections: [] };
-	try {
-		parsed = JSON.parse(saved ?? "{}") as typeof parsed;
-	} catch {
-		/* 저장 포맷 이상 — 기본값 그대로(아래 expect 가 실패로 원인 노출) */
-	}
-	expect(parsed.sections[0]?.nodes).toHaveLength(2);
-	expect(parsed.sections[0]?.edges[0]?.id).toBe("UI->API");
+	const { structure } = parseDesignMarkdown(saved ?? "");
+	expect(structure.sections[0]?.nodes).toHaveLength(2);
+	expect(structure.sections[0]?.edges[0]?.id).toBe("UI->API");
 });
 
 test("#3 gateOpen resume: artifact on disk + gateOpen reopens gate instead of requesting rewrite", async () => {
@@ -204,6 +202,57 @@ test("FR-2 escalation: modify at loop ceiling surfaces conflict + options", asyn
 	// 천장 도달 → 에스컬레이션 메시지(근본 갈등 신호 + 옵션) 로 전환.
 	expect(out.message).toMatch(/FR-2 에스컬레이션|⚠/);
 	expect(out.message).toContain("요구사항이 모호함"); // 잔존 이슈 노출
+});
+
+test("chat round-trip: chat→chatPending; chatResponse+artifactMd re-entry keeps gate; confirm keeps loopCount 0", async () => {
+	// F1: 게이트 열린 동안 실시간 채팅 → 에이전트 답변/수정(그 자리 반영) → 게이트 유지.
+	const feat = "chatfeat";
+	await saveState(root, { ...initialState(feat), stage: 1 });
+
+	// 1) 산출물 제출 → 게이트 오픈 → 사용자 채팅 → chatPending 반환(게이트 유지).
+	const out1 = await drivePlan({
+		root,
+		viewerDistDir: VIEWER_DIST,
+		feature: feat,
+		artifactMd: "# 요구사항\n\n초안.",
+		open: false,
+		onReady: async (url) => {
+			await fetch(`${url}/api/chat`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ text: "2절 더 구체적으로", blockId: "b2" }),
+			});
+		},
+	});
+	expect(out1.chatPending).toBeTruthy();
+	expect((out1.chatPending ?? [])[0]?.text).toBe("2절 더 구체적으로");
+	expect(out1.gateResult).toBeNull();
+	// 게이트 유지 + 산출물 디스크 저장.
+	const st1 = await loadState(root, feat);
+	expect(st1?.gateOpen).toBe(true);
+	expect(
+		await readArtifact(root, feat, "01-understanding-and-scenarios.md"),
+	).toBe("# 요구사항\n\n초안.");
+
+	// 2) 에이전트 답변(chatResponse) + 산출물 수정(artifactMd) 재호출 → 게이트 유지 → confirm.
+	const out2 = await drivePlan({
+		root,
+		viewerDistDir: VIEWER_DIST,
+		feature: feat,
+		artifactMd: "# 요구사항\n\n구체적으로 보강.",
+		chatResponse: "2절을 보강했습니다.",
+		open: false,
+		onReady: postDecision("confirm"),
+	});
+	expect(out2.gateResult?.verdict).toBe("confirm");
+	expect(out2.stage).toBe(2);
+	// 채팅 수정은 modify 루프카운트에 포함되지 않는다.
+	const st2 = await loadState(root, feat);
+	expect(st2?.loopCount).toBe(0);
+	// 수정된 산출물이 그 자리 반영되었는지.
+	expect(
+		await readArtifact(root, feat, "01-understanding-and-scenarios.md"),
+	).toBe("# 요구사항\n\n구체적으로 보강.");
 });
 
 test("teardown", async () => {
