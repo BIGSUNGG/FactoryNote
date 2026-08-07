@@ -13,6 +13,12 @@ vault/.obsidian/workspace-mobile.json
 # Tooling runtime state & local scratch (pi-crew state, ad-hoc analysis artifacts)
 .crew/
 .factorynote/
+# pi goal-loop-audit 상태(자동 갱신, 커밋 대상 아님)
+.pi-glla/
+# pi 서브에이전트 워커 산출물/미션 스크래치
+.pi-subagents/
+# 로컬 스크래치(진단 스크립트·임시 스펙)
+tmp/
 
 # Build artifacts & deps (plannotator-style monorepo)
 node_modules/
