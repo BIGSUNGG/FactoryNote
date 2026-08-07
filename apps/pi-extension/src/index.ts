@@ -1,7 +1,9 @@
 // @factorynote/pi-extension — Pi harness 어댑터(Layer 3). FactoryNote 메인 구현체.
 //  - /factorynote 명령 = plan 모드 토글(모드 ON 시 계획 전용 프롬프트 주입)
 //  - factorynote_plan 도구 = 3단계 게이트 파이프라인 구동(웹 페이지가 게이트)
-//  - Tier 0: 단일 에이전트가 Design/Feedback 역할 인라인 전환(1패스 자기검토)
+//  - Tier 1: Director 에이전트가 Design·Feedback 자식을 subagent 도구로 스폰해
+//    내부 Design↔Feedback 루프를 돌림(core 가 전이·상한·에스컬레이션 통제).
+//    pi 확장 코드는 서브에이전트 동기 스폰이 불가 → 에이전트 매개(ADR 참고).
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { join } from "node:path";
@@ -13,19 +15,18 @@ import { moduleDir } from "./gate-server.ts";
 let planMode = false;
 
 const PLAN_MODE_PROMPT = `
-[FactoryNote PLAN MODE 활성화]
-너는 지금 FactoryNote plan 모드에 있다. 아래 규칙을 엄격히 지킨다.
+[FactoryNote PLAN MODE 활성화 — Tier 1 에이전트 오케스트레이션]
+너는 지금 FactoryNote plan 모드에 있다. 너는 Director(조율자) 역할이다. 아래 규칙을 엄격히 지킨다.
 
 1. 코드를 작성하지 않는다(기존 코드 수정·생성 금지). 오직 '계획'을 만든다.
-2. 사용자의 기능 요청이 들어오면 factorynote_plan 도구로 3단계 게이트 파이프라인을 구동한다.
-3. 파이프라인 절차:
-   a. factorynote_plan({ feature }) 호출 → 현재 단계와 산출물 작성 지시(designPrompt)를 받는다.
-   b. Design 역할: 지시대로 해당 단계 산출물을 마크다운으로 작성한다.
-   c. Feedback 역할(자기검토): feedbackChecklist 로 산출물을 1패스 비판 검토한 뒤 반영한다.
-   d. factorynote_plan({ feature, artifactMd }) 로 산출물을 제출 → 사용자 게이트(웹)가 열리고 결정이 돌아온다.
-   e. verdict=modify → 코멘트 반영해 재작성 후 재제출. verdict=confirm → 다음 단계로. done=true → 종료.
-4. 3단계(요청 이해·시나리오 → 모듈·클래스 설계 → 구현 계획)를 순차 진행한다. 단계를 건너뛰지 않는다.
-5. 사용자가 웹에서 승인하기 전에는 다음 단계로 넘어가지 않는다(5대 원칙).
+2. 사용자의 기능 요청이 들어오면 factorynote_plan({ feature }) 으로 3단계 파이프라인을 구동한다.
+3. 산출물은 '단일 에이전트가 직접 작성'하지 않는다. 항상 Design 자식 → Feedback 자식 루프를 거친다:
+   a. factorynote_plan 반환값의 nextAction 이 spawn-design → 너의 subagent 도구로 Design 자식 에이전트를 스폰한다. 과제는 반환된 spawnTask 이다. Design 이 작성한 산출물 초안을 받아 designArtifact 에 담아 factorynote_plan 을 다시 호출한다.
+   b. nextAction 이 spawn-feedback → subagent 도구로 Feedback 자식 에이전트를 스폰한다(과제=spawnTask=산출물+체크리스트). Feedback 결과(첫 줄 CLEAN 또는 ISSUES)를 feedbackResult 에, 검토 대상 산출물 초안을 designArtifact 에 담아 factorynote_plan 을 다시 호출한다.
+   c. nextAction 이 done → 파이프라인 종료.
+4. Design↔Feedback 루프의 전이·반복 상한·에스컬레이션은 FactoryNote(core) 가 통제한다. 너는 지시문(nextAction·spawnTask) 에 따라 스폰하고 결과를 보고할 뿐, 루프 카운트를 임의로 조작하지 않는다. 상한 도달 시 core 가 에스컬레이션 게이트를 연다.
+5. Feedback 클린 판정(또는 상한 에스컬레이션) 시에만 사용자 게이트(웹)가 열린다. 사용자가 승인하기 전에는 다음 단계로 넘어가지 않는다(5대 원칙). 게이트 결정(confirm/modify/revert) 은 factorynote_plan 이 받아 상태를 전이한다.
+6. 3단계(요청 이해·시나리오 → 모듈·클래스 설계 → 구현 계획)를 순차 진행한다. 단계를 건너뛰지 않는다.
 plan 모드를 끄려면 /factorynote 를 다시 입력한다.
 `.trim();
 
@@ -74,24 +75,31 @@ export default function (pi: ExtensionAPI): void {
 		};
 	});
 
-	// factorynote_plan — 3단계 게이트 파이프라인 구동 도구.
+	// factorynote_plan — 3단계 게이트 파이프라인 구동 도구(Tier 1 오케스트레이션).
 	pi.registerTool({
 		name: "factorynote_plan",
 		label: "FactoryNote Plan",
 		description:
-			"FactoryNote 3단계 human-gated 계획 파이프라인을 1스텝 구동. plan 모드에서 기능 요청을 처리한다. 반환값의 needArtifact/message 에 따라 산출물 작성·재제출·다음 단계 진행을 결정.",
+			"FactoryNote 3단계 human-gated 계획 파이프라인을 1스텝 구동(Tier 1 에이전트 오케스트레이션). plan 모드에서 기능 요청을 처리한다. 반환값의 nextAction/message 에 따라 Design/Feedback 자식 스폰·보고·게이트 진행을 결정.",
 		promptSnippet: "Drive the FactoryNote 3-stage gated plan pipeline",
 		promptGuidelines: [
 			"Use factorynote_plan when in FactoryNote plan mode to produce a human-gated plan instead of writing code.",
+			"When nextAction=spawn-design/spawn-feedback, spawn that child agent with your subagent tool using spawnTask, then report the result back via designArtifact/feedbackResult.",
 		],
 		parameters: Type.Object({
 			feature: Type.String({
 				description: "계획 대상 기능명(kebab-case 권장). 파이프라인 식별자.",
 			}),
-			artifactMd: Type.Optional(
+			designArtifact: Type.Optional(
 				Type.String({
 					description:
-						"현 단계 산출물 마크다운. 생략 시 현재 단계 작성 지시를 반환한다. 작성 후 담아 재호출해 게이트를 연다.",
+						"현 Design 산출물 초안(Design 자식 스폰 결과). Feedback 보고 시에도 검토 대상 초안을 함께 전달한다.",
+				}),
+			),
+			feedbackResult: Type.Optional(
+				Type.String({
+					description:
+						"Feedback 자식 스폰 결과(raw). 첫 줄 CLEAN(이슈 없음) 또는 ISSUES(이후 줄에 이슈). 보고 시에만 전달.",
 				}),
 			),
 		}),
@@ -115,12 +123,15 @@ export default function (pi: ExtensionAPI): void {
 				root,
 				viewerDistDir,
 				feature,
-				...(params.artifactMd !== undefined
-					? { artifactMd: params.artifactMd }
+				...(params.designArtifact !== undefined
+					? { designArtifact: params.designArtifact }
+					: {}),
+				...(params.feedbackResult !== undefined
+					? { feedbackResult: params.feedbackResult }
 					: {}),
 				...(signal ? { signal } : {}),
 			});
-			// #5 파이프라인 완료 시 plan 모드 자동 해제(사용자가 매번 /factorynote 토글하지 않도록).
+			// #5 파이프라인 완료 시 plan 모드 자동 해제.
 			if (out.done) {
 				planMode = false;
 				ctx.ui.notify(
@@ -129,7 +140,7 @@ export default function (pi: ExtensionAPI): void {
 				);
 			} else {
 				ctx.ui.notify(
-					`FactoryNote: Stage ${out.stage} ${out.stageName}`,
+					`FactoryNote: Stage ${out.stage} ${out.stageName} (${out.nextAction})`,
 					"info",
 				);
 			}
@@ -145,7 +156,10 @@ interface AgentOut {
 	done: boolean;
 	stage: number;
 	stageName: string;
-	needArtifact: boolean;
+	nextAction: "spawn-design" | "spawn-feedback" | "done";
+	spawnRole?: "design" | "feedback";
+	spawnTask?: string;
+	dfLoop: number;
 	designPrompt: string;
 	feedbackChecklist: string[];
 	gateResult: { verdict: string; comments: unknown[] } | null;
@@ -155,7 +169,8 @@ interface AgentOut {
 function formatForAgent(feature: string, out: AgentOut): string {
 	const lines: string[] = [];
 	lines.push(
-		`[feature: ${feature}] done=${out.done} stage=${out.stage}(${out.stageName}) needArtifact=${out.needArtifact}`,
+		`[feature: ${feature}] done=${out.done} stage=${out.stage}(${out.stageName}) nextAction=${out.nextAction}` +
+			(out.nextAction !== "done" ? ` loop=${out.dfLoop}` : ""),
 	);
 	if (out.gateResult) {
 		lines.push(
@@ -164,15 +179,10 @@ function formatForAgent(feature: string, out: AgentOut): string {
 	}
 	lines.push("");
 	lines.push(out.message);
-	if (out.needArtifact && out.designPrompt) {
+	if (!out.done && out.spawnTask && out.spawnRole) {
 		lines.push("");
-		lines.push(`## 현 단계 작성 지시(Design)`);
-		lines.push(out.designPrompt);
-		if (out.feedbackChecklist.length) {
-			lines.push("");
-			lines.push(`## 자기검토 체크리스트(Feedback)`);
-			for (const c of out.feedbackChecklist) lines.push(`- ${c}`);
-		}
+		lines.push(`## 자식 스폰 과제(${out.spawnRole})`);
+		lines.push(out.spawnTask);
 	}
 	return lines.join("\n");
 }

@@ -12,6 +12,12 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ### Added
 
+- **Tier 1 에이전트 오케스트레이션 도입 — Tier 0·NFR-7 폐지** ([[ADR-009-tier-1-agent-orchestration]]) — 산출물이 항상 Design 자식 → Feedback 자식 루프를 거쳐 사용자 게이트로 가도록, 단일 에이전트 인라인 자기검토(Tier 0) 경로를 제거하고 오케스트레이션을 유일 경로로.
+  - 코어(`packages/factorynote/src`): `AgentSpawn` 인터페이스 + 순수 전이 `nextDesignFeedbackStep` + 동기 루프 드라이버 `runDesignFeedbackLoop(spawn)`(신규 `orchestration.ts`). 내부 Design↔Feedback 루프 상한(`MAX_DESIGN_FEEDBACK_LOOPS`=3) + FR-2 에스컬레이션(잔존 이슈 노출). `PipelineState`에 `dfPhase`/`dfLoop` 추가(구 state.json 마이그레이션 포함).
+  - Pi 확장(`apps/pi-extension/src`): `factorynote_plan`이 단계 지시문(`spawn-design`/`spawn-feedback`+`spawnTask`) 반환 → Director 에이전트가 `subagent` 도구로 자식 스폰, 결과를 `designArtifact`/`feedbackResult`로 보고(pi는 확장 코드 직접 스폰 불가 → 에이전트 매개). `PLAN_MODE_PROMPT` 를 Tier 1 절차로 재작성.
+  - NFR-7(Tier 0 보장) 폐지 — 이제 서브에이전트 스폰이 가능한 환경이 필요.
+  - 자체체크 65건 green(orchestration 전이 12건 + drivePlan Tier 1 종단간 갱신). `bun run build`/`bun test` 0 종료.
+
 - **MVP 구현(Stage 5)** — FactoryNote 가 pi 하네스에서 실동작. 모든 스텁 진입점을 실구현으로 교체. [[ADR-005-mvp-implementation]].
   - 코어(`packages/factorynote/src`): Stage Registry(6단계) + 순수 상태기계 엔진 + persistence(`.factorynote/<feature>/state.json` atomic r/w + 손상 복구 + 산출물 `NN-stage.md`). harness-agnostic, 런타임 npm 의존 0.
   - Pi 확장(`apps/pi-extension/src`): `/factorynote` plan 모드 토글 + `before_agent_start` 계획 프롬프트 주입 + `factorynote_plan` 도구(6단계 게이트 구동). 웹 페이지가 게이트 — 로컬 HTTP 서버로 뷰어 서빙 + POST `/api/decision` 로 결정 수집. Tier 0 단일 에이전트.

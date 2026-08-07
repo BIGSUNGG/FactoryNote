@@ -80,9 +80,12 @@ function validateState(s: unknown): PipelineState {
 	}
 	// FR-7 마이그레이션: 구 state.json(validThrough 누락·null·NaN 등 비정상) → 0 기본값.
 	// typeof==='number' 는 NaN 을 못 걸름 → Number.isFinite 로 전부 가드.
+	// Tier 1 마이그레이션: 구 state(dfPhase/dfLoop 누락) → 내부 루프 초기값.
 	const withMigration: Record<string, unknown> = {
 		...o,
 		validThrough: Number.isFinite(o.validThrough) ? o.validThrough : 0,
+		dfPhase: o.dfPhase === "feedback" ? "feedback" : "design",
+		dfLoop: Number.isFinite(o.dfLoop) ? o.dfLoop : 0,
 	};
 	return withMigration as unknown as PipelineState;
 }

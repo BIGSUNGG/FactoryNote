@@ -1,10 +1,11 @@
-// drivePlan 종단 간 스모크(계약 #2/#7 근거) — factorynote_plan 도구의 실제 흐름:
-// 산출물 제출 → 게이트(웹) → 결정 → 상태 전이 + 산출물 디스크 저장 을 pi 없이 검증.
+// drivePlan 종단 간 스모크(Tier 1) — factorynote_plan 의 오케스트레이션 흐름:
+// spawn-design → Design 보고 → spawn-feedback → Feedback 보고 → 게이트(웹) → 결정 → 전이.
+// Director 에이전트를 흉내내어 내부 루프를 게이트까지 구동해 계약(#2/#7) 을 검증.
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, expect } from "bun:test";
-import { drivePlan } from "./plan-tool.ts";
+import { drivePlan, type DrivePlanOutput } from "./plan-tool.ts";
 import {
 	initialState,
 	loadState,
@@ -28,64 +29,125 @@ const postDecision =
 		});
 	};
 
+/** Director 에이전트 흉내: 오케스트레이션을 게이트(또는 done)까지 구동. */
+async function driveUntilGate(opts: {
+	feature: string;
+	/** 매 내부 루프 라운드의 Design 초안·Feedback 결과. null 이면 종료. */
+	rounds: () => { draft: string; feedback: string } | null;
+	decision?: (url: string) => void | Promise<void>;
+}): Promise<DrivePlanOutput> {
+	const common = {
+		root,
+		viewerDistDir: VIEWER_DIST,
+		feature: opts.feature,
+		open: false,
+	} as const;
+	// 진입 → spawn-design.
+	let out = await drivePlan(common);
+	for (;;) {
+		if (out.done || out.gateResult !== null) return out;
+		if (out.nextAction !== "spawn-design") return out;
+		const r = opts.rounds();
+		if (!r) throw new Error("driveUntilGate: rounds 소진(게이트 미도달)");
+		// design 보고 → spawn-feedback.
+		out = await drivePlan({ ...common, designArtifact: r.draft });
+		if (out.nextAction !== "spawn-feedback") return out;
+		// feedback 보고 → 게이트 오픈(클린/상한) 또는 루프.
+		out = await drivePlan({
+			...common,
+			designArtifact: r.draft,
+			feedbackResult: r.feedback,
+			...(opts.decision ? { onReady: opts.decision } : {}),
+		});
+	}
+}
+
 test("setup", async () => {
 	root = await mkdtemp(join(tmpdir(), "factorynote-driver-"));
 });
 
-test("first call requests artifact for stage 1", async () => {
+test("Tier 1: 진입 → spawn-design 지시문(designPrompt 과제)", async () => {
 	const out = await drivePlan({
 		root,
 		viewerDistDir: VIEWER_DIST,
-		feature: "smoke",
+		feature: "firstcall",
 		open: false,
 	});
 	expect(out.stage).toBe(1);
-	expect(out.needArtifact).toBe(true);
-	expect(out.designPrompt).toBeTruthy();
+	expect(out.nextAction).toBe("spawn-design");
+	expect(out.spawnRole).toBe("design");
+	expect(out.spawnTask).toBeTruthy(); // designPrompt
 });
 
-test("submit artifact + confirm advances to stage 2 and persists", async () => {
+test("Tier 1: clean 루프 → confirm → stage 2 진행 + 산출물 저장", async () => {
 	const md = "# 요구사항 명세\n\n데모 기능의 요구사항.";
-	const out = await drivePlan({
-		root,
-		viewerDistDir: VIEWER_DIST,
+	const out = await driveUntilGate({
 		feature: "smoke",
-		artifactMd: md,
-		open: false,
-		onReady: postDecision("confirm"),
+		rounds: () => ({ draft: md, feedback: "CLEAN" }),
+		decision: postDecision("confirm"),
 	});
 	expect(out.gateResult?.verdict).toBe("confirm");
 	expect(out.stage).toBe(2);
-	// 산출물 디스크 저장.
-	const onDisk = await readArtifact(
-		root,
-		"smoke",
-		"01-understanding-and-scenarios.md",
-	);
-	expect(onDisk).toBe(md);
-	// 상태 영속화(stage 2).
-	const st = await loadState(root, "smoke");
-	expect(st?.stage).toBe(2);
+	// 산출물 디스크 저장(Design 초안 = 클린 판정본).
+	expect(
+		await readArtifact(root, "smoke", "01-understanding-and-scenarios.md"),
+	).toBe(md);
+	expect((await loadState(root, "smoke"))?.stage).toBe(2);
 });
 
-test("modify keeps stage 2 and bumps loopCount", async () => {
-	const out = await drivePlan({
-		root,
-		viewerDistDir: VIEWER_DIST,
-		feature: "smoke",
-		artifactMd: "# 시나리오\n\nhappy path.",
-		open: false,
-		onReady: postDecision("modify", [{ text: "더 구체적으로" }]),
+test("Tier 1: 게이트 modify → stage 유지 + loopCount 증가(내부 루프는 리셋)", async () => {
+	const out = await driveUntilGate({
+		feature: "modfeat",
+		rounds: () => ({ draft: "# 시나리오\n\nhappy path.", feedback: "CLEAN" }),
+		decision: postDecision("modify", [{ text: "더 구체적으로" }]),
 	});
-	// stage 2 산출물 제출 후 modify → stage 2 유지.
 	expect(out.gateResult?.verdict).toBe("modify");
-	expect(out.stage).toBe(2);
-	const st = await loadState(root, "smoke");
+	expect(out.stage).toBe(1);
+	const st = await loadState(root, "modfeat");
 	expect(st?.loopCount).toBe(1);
+	expect(st?.dfLoop).toBe(0); // modify 가 내부 루프 재시작 → 0
 });
 
-test("graph stage: agent submits JSON, user edits+confirm → adopted graph saved + advance", async () => {
-	// Stage 2(모듈·클래스 그래프) 시드.
+test("Tier 1: 내부 루프 — Feedback 이슈 1회 후 클린 → design·feedback 2회씩", async () => {
+	let round = 0;
+	const drafts = ["# v1", "# v2-개선"];
+	const out = await driveUntilGate({
+		feature: "loopfeat",
+		rounds: () => {
+			const i = round++;
+			if (i >= 2) return null;
+			return {
+				draft: drafts[i]!,
+				feedback: i === 0 ? "ISSUES\n- 빠진 요구사항" : "CLEAN",
+			};
+		},
+		decision: postDecision("confirm"),
+	});
+	expect(out.gateResult?.verdict).toBe("confirm");
+	// 두 번째 초안(개선판)이 클린 판정본으로 저장.
+	expect(
+		await readArtifact(root, "loopfeat", "01-understanding-and-scenarios.md"),
+	).toBe(drafts[1]);
+});
+
+test("Tier 1: 내부 루프 상한 → 에스컬레이션 게이트(잔존 이슈 노출)", async () => {
+	let round = 0;
+	const out = await driveUntilGate({
+		feature: "ceilfeat",
+		rounds: () => {
+			const i = round++;
+			if (i >= 4) return null;
+			return { draft: `# v${i + 1}`, feedback: `ISSUES\n- 잔존이슈${i + 1}` };
+		},
+		decision: postDecision("modify"),
+	});
+	expect(out.gateResult).not.toBeNull();
+	// 상한 도달 → 내부 에스컬레이션 프레이밍.
+	expect(out.message).toMatch(/내부 Design↔Feedback 루프 상한|⚠/);
+	expect(out.message).toContain("잔존이슈"); // 마지막 잔존 이슈 노출
+});
+
+test("Tier 1 graph: Design JSON → Feedback clean → 사용자 편집 그래프 채택 + stage 3", async () => {
 	await saveState(root, { ...initialState("graphfeat"), stage: 2 });
 	const initialGraph = {
 		sections: [
@@ -97,7 +159,6 @@ test("graph stage: agent submits JSON, user edits+confirm → adopted graph save
 			},
 		],
 	};
-	// 사용자가 그래프를 편집(노드 추가 + 엣지 추가)한 결과.
 	const edited = {
 		sections: [
 			{
@@ -108,13 +169,10 @@ test("graph stage: agent submits JSON, user edits+confirm → adopted graph save
 			},
 		],
 	};
-	const out = await drivePlan({
-		root,
-		viewerDistDir: VIEWER_DIST,
+	const out = await driveUntilGate({
 		feature: "graphfeat",
-		artifactMd: JSON.stringify(initialGraph),
-		open: false,
-		onReady: async (url) => {
+		rounds: () => ({ draft: JSON.stringify(initialGraph), feedback: "CLEAN" }),
+		decision: async (url) => {
 			await fetch(`${url}/api/decision`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -127,32 +185,21 @@ test("graph stage: agent submits JSON, user edits+confirm → adopted graph save
 		},
 	});
 	expect(out.gateResult?.verdict).toBe("confirm");
-	expect(out.stage).toBe(3); // 설계(2) → 구현 계획(3)
-	// 편집된(채택된) 그래프가 저장되었는지 — 초기가 아닌 편집 결과.
+	expect(out.stage).toBe(3);
 	const saved = await readArtifact(root, "graphfeat", "02-design.json");
 	expect(saved).toBeTruthy();
-	let parsed: {
+	const parsed = JSON.parse(saved ?? "{}") as {
 		sections: Array<{ nodes: unknown[]; edges: Array<{ id: string }> }>;
-	} = { sections: [] };
-	try {
-		parsed = JSON.parse(saved ?? "{}") as typeof parsed;
-	} catch {
-		/* 저장 포맷 이상 — 기본값 그대로(아래 expect 가 실패로 원인 노출) */
-	}
+	};
 	expect(parsed.sections[0]?.nodes).toHaveLength(2);
 	expect(parsed.sections[0]?.edges[0]?.id).toBe("UI->API");
 });
 
-test("#3 gateOpen resume: artifact on disk + gateOpen reopens gate instead of requesting rewrite", async () => {
-	// 인터럽트 복구 상태: gateOpen=true 로 남은 채 재시작, 산출물은 이미 디스크에 존재.
+test("#3 gateOpen resume: 게이트 열린 채 재시작 → 산출물 보존 + 재오픈", async () => {
 	const feat = "resumefeat";
 	const md = "# 요구사항(이미 저장됨)\n\n데모.";
 	await writeArtifact(root, feat, "01-understanding-and-scenarios.md", md);
-	await saveState(root, {
-		...initialState(feat),
-		stage: 1,
-		gateOpen: true,
-	});
+	await saveState(root, { ...initialState(feat), stage: 1, gateOpen: true });
 	let posted = false;
 	const out = await drivePlan({
 		root,
@@ -168,42 +215,14 @@ test("#3 gateOpen resume: artifact on disk + gateOpen reopens gate instead of re
 			});
 		},
 	});
-	// 게이트가 즉시 재오픈되어 결정을 받았다(게이트 통과).
 	expect(posted).toBe(true);
 	expect(out.gateResult?.verdict).toBe("confirm");
 	expect(out.message).toContain("게이트 재오픈(인터럽트 복구)");
-	// confirm → stage 2 로 전이(stage 2 도 산출물 단계이므로 needArtifact=true 는 정상).
 	expect(out.stage).toBe(2);
-	const st = await loadState(root, feat);
-	expect(st?.stage).toBe(2);
-	// 인터럽트 복구는 산출물 재작성을 요구하지 않는다 — 원본 산출물이 그대로 보존됨.
+	// 원본 산출물 보존.
 	expect(
 		await readArtifact(root, feat, "01-understanding-and-scenarios.md"),
 	).toBe(md);
-});
-
-test("FR-2 escalation: modify at loop ceiling surfaces conflict + options", async () => {
-	const feat = "ceildemo";
-	const md = "# Req\n\n데모.";
-	await writeArtifact(root, feat, "01-understanding-and-scenarios.md", md);
-	await saveState(root, {
-		...initialState(feat),
-		stage: 1,
-		gateOpen: true,
-		loopCount: 3, // 반복 상한 도달 상태에서 재개
-	});
-	const out = await drivePlan({
-		root,
-		viewerDistDir: VIEWER_DIST,
-		feature: feat,
-		open: false,
-		// artifactMd 생략 → gateOpen + 산출물 존재 → 게이트 재오픈(resume)
-		onReady: postDecision("modify", [{ text: "요구사항이 모호함" }]),
-	});
-	expect(out.gateResult?.verdict).toBe("modify");
-	// 천장 도달 → 에스컬레이션 메시지(근본 갈등 신호 + 옵션) 로 전환.
-	expect(out.message).toMatch(/FR-2 에스컬레이션|⚠/);
-	expect(out.message).toContain("요구사항이 모호함"); // 잔존 이슈 노출
 });
 
 test("teardown", async () => {

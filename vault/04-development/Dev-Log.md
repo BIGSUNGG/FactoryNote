@@ -1,11 +1,41 @@
 ---
-updated: 2026-08-06
+updated: 2026-08-07
 tags: [development, dev-log]
 ---
 
 # Dev-Log
 
 날짜별 작업 기록. 무엇을 했는지, 왜, 무엇이 남았는지. [[Changelog]]는 외부용 단위, 본 파일은 일일 흐름.
+
+## 2026-08-07
+
+### Tier 1 에이전트 오케스트레이션 구현 (Tier 0·NFR-7 폐지)
+
+#### 배경
+
+- 사용자 요구: "단일 에이전트가 계획하도록 하지 말고 FactoryNote 자체 기능으로 에이전트 오케스트레이션이 동작". vault([[multi-agent-pipeline]]·M4)는 Director/Design/Feedback 모델을 정의하나, MVP([[ADR-005-mvp-implementation]])는 Tier 0(단일 에이전트 인라인 자기검토)로 출하 — 자기검토는 독립 검토가 아니다.
+
+#### 핵심 제약 발견
+
+- pi SDK 조사(`ExtensionAPI`/`ExtensionContext` — execute 의 ctx): 스폰/서브에이전트 API 없음. `subagent` 도구는 에이전트 전용 → 확장 코드가 동기 스폰 불가. 그러므로 Tier 1 은 **에이전트 매개**로 실현(`factorynote_plan` 이 단계 지시문 반환 → Director 가 `subagent` 도구로 스폰·보고). 이 제약이 설계를 강제했고, 사용자가 확정한 목표("Director 에이전트가 스폰")와 정합.
+
+#### 한 일
+
+- 코어 `orchestration.ts`(신규): `AgentSpawn` 계약 + 순수 전이 `nextDesignFeedbackStep` + 동기 루프 `runDesignFeedbackLoop(spawn)`. 내부 루프 상한(`MAX_DESIGN_FEEDBACK_LOOPS`=3) + FR-2 에스컬레이션(잔존 이슈 노출). `types.ts`/`engine.ts`/`persistence.ts`: `dfPhase`/`dfLoop` 추가 + 구 state.json 마이그레이션.
+- 어댑터 `plan-tool.ts`: `drivePlan` 을 오케스트레이션 단계 드라이버로 재작성(spawn-design/spawn-feedback/gate 지시문 relay). `index.ts`: `PLAN_MODE_PROMPT` Tier 1 절차 재작성 + 파라미터 `designArtifact`/`feedbackResult`.
+- 검증: orchestration 전이 12건(목 AgentSpawn 으로 spawn→루프→상한→에스컬레이션→게이트) + drivePlan Tier 1 종단간 갱신 → **65건 green, build 0**.
+- 문서: [[ADR-009-tier-1-agent-orchestration]] 신규, [[ADR-005-mvp-implementation]] 결정 #4·NFR-7 폐기 표시, Changelog, `packages/factorynote/orchestrator/README.md` Tier 1 runbook.
+
+#### 왜 / 트레이드오프
+
+- **신뢰성은 코드**(Hybrid): 루프 전이·상한·에스컬레이션을 결정론적 코드에 두어 목 단위테스트로 게이트. pi 경로도 같은 `nextDesignFeedbackStep` 공유 → 테스트가 실동작을 게이트(비결정론적 라이브 스폰 없이 증명).
+- NFR-7 폐지: 서브에이전트 스폰 불가 환경에선 동작 안 함(ADR-009 트레이드오프).
+- Stage 당 `factorynote_plan` 호출 수 증가(스폰·보고 단계마다) — plan 모드 다중턴 특성상 수용.
+
+#### 남음
+
+- 라이브 end-to-end 런 증거(트랜스크립트 캡처) — 본 ADR 범위 밖(목 테스트가 하드 게이트).
+- Codex/Claude 어댑터(동기 스폰 가능 시 `runDesignFeedbackLoop` 에 `AgentSpawn` 구현 직접 주입).
 
 ## 2026-08-06
 

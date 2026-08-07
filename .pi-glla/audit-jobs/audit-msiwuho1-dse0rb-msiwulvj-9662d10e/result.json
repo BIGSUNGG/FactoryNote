@@ -1,0 +1,1 @@
+{"protocolVersion":1,"attemptId":"audit-msiwuho1-dse0rb-msiwulvj-9662d10e","requestHash":"5a1ad95815260988c3f99e86657cec87b599edb5deabebd21c38a7921b461134","ok":false,"output":"","model":"zai/glm-5.2","thinkingLevel":"high","toolCalls":[],"error":"pi launch failed: spawn pi ENOENT"}
