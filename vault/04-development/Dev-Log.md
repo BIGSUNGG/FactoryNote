@@ -1,11 +1,47 @@
 ---
-updated: 2026-08-06
+updated: 2026-08-07
 tags: [development, dev-log]
 ---
 
 # Dev-Log
 
 날짜별 작업 기록. 무엇을 했는지, 왜, 무엇이 남았는지. [[Changelog]]는 외부용 단위, 본 파일은 일일 흐름.
+
+## 2026-08-07
+
+### 3단계 산출물·렌더링 통일 — md + 내장 그래프
+
+#### 현상
+
+- Stage 2(설계)에서는 그래프가 정상 출력되지만 **그래프를 제외한 나머지 텍스트가 Stage 1·3과 다르게** 출력됨. 원인: Stage 2만 `format:"nodes-edges"` 로 `.json` 산출물을 `GraphStage.jsx` 가 단독 렌더(그래프 섹션만 있고 md 서사 없음), 1·3은 `PlanPage.jsx`(`mdToBlocks`) 로 렌더 — **두 개의 다른 렌더링 경로**.
+
+#### 한 일
+
+- 산출물 모델 통일: 3단계 모두 단일 `.md`. 그래프는 md 내 ` ```factorynote-graph ` 펜스로 `{sections:[...]}` JSON 내장.
+  - `packages/factorynote/src/stages.ts`: 3단계 모두 `format:"markdown"`, Stage 2 `artifactFile` `02-design.json`→`02-design.md`. Stage 2 designPrompt 재작성(모듈 관계도 + 클래스 구조도 펜스 **적극** 내장, 필수); Stage 1·3은 펜스 사용법 안내(선택).
+  - `types.ts`: `ArtifactFormat` → `"markdown"` 단일; `GateDecision` 의 `graphSections` 제거 → `md?: string` 추가(사용자 편집 전체 md 채택).
+- 뷰어 단일 렌더링 경로:
+  - `App.jsx`: `isGraph = state.stage === 2` 하드코딩 라우팅 제거 → 항상 `PlanPage`.
+  - `GraphStage.jsx` → `GraphEditor.jsx` 추출·재명명: 페이지 크롬(Topbar/Stepper/GateBar)·게이트 제출·내부 코멘트 시스템 제거, 캔버스+다중섹션+CRUD+상세패넄만 남김. `sections` 변경 시 `onChange(serializedSections)` 로 상위 통지(최초 마운트 정규화는 제외 — 사용자 편집만 dirty).
+  - `PlanPage.jsx` + `Document.jsx` + `Block.jsx`: `type:"graph"` 블록을 `<GraphEditor>` 인라인 렌더. 그래프 편집은 `graphEdits` 맵에 저장, 제출 시 `replaceGraphFence` 로 해당 펜스만 갱신한 전체 md 를 `decision.md` 로 POST. 캔버스 조작은 `stopPropagation`(상위 블록 코멘트 핸들러와 분리), 헤더 영역만 블록 코멘트 활성화(텍스트 블록과 동일 방식).
+- 왕복 직렬화(`mdToBlocks.js`): `factorynote-graph` 펜스 → `{type:"graph", fenceIndex, sections}` 블록; 신규 `replaceGraphFence(md, fenceIndex, json)` — N번째 펜스 내용만 교체, 나머지 md 바이트 불변.
+- 게이트/도구 md 단일화: `gate-server.ts`(그래프 `.json`→`graphSections` 서빙 분기 제거, md 만 서빙, `decision.md` passthrough), `plan-tool.ts`(`graphStage`/`nextGraph` 분기·`graphSections` 채택 제거 → `decision.md` 채택 저장, 메시지 md 통일).
+- 테스트: 구 그래프 JSON 테스트(engine invalidate의 `02-design.json`, gate-server graphSections serving, plan-tool graph adoption) md 모델로 갱신; 신규 `mdToBlocks.test.js`(펜스 인식 + 왕복 idempotent 5건). 총 57건 green.
+
+#### 왜
+
+- 사용자 요구: (1) 1·2·3 단계가 같은 방식으로 문자·그래프를 출력, (2) 모든 단계가 기존처럼 md 를 내면서 2단계처럼 클래스·모듈 그래프도 출력 가능, (3) 2단계는 적극적으로 모듈·클래스 그래프를 내장. 두 렌더링 경로를 하나로 통합하고 산출물 포맷을 md 하나로 좁혀 세 요구를 한 번에 해결. 그래프는 문서의 일부(펜스)가 되어 서사와 함께 같은 경로로 렌더.
+
+#### 결정·근거
+
+- 저장 구조 선택(그릴 때 사용자 확인): **단일 md 에 그래프 내장**(별도 `.json` 사이드카 대신). 파일 1개, 서사·그래프가 한 문서 흐름. 왕복은 펜스 내용만 교체해 md 바이트를 보존 → 서사 포맷 손상 없음.
+- 그래프 범위: **Stage 2 필수 / 1·3 선택**(사용자 확인).
+- 범위 밖: 기존 `02-design.json` 레거시 산출물 마이그레이션(신규 실행 기준), react-flow 그래프 렌더링 자체 동작 변경, 엔진 규칙(회귀/에스컬레이션/타임아웃) 변경 — 없음.
+
+#### 남은 것
+
+- 그래프 블록의 코멘트는 현재 블록 단위(그래프 전체). 노드/엣지 단위 코멘트는 `GraphEditor` 추출 시 제거됨 — 필요시 블록 코멘트 인용(quote)으로 보완 가능.
+- 사용자가 그래프를 편집한 뒤 modify 시 에이전트가 md 를 재작성하는데, 이때 편집된 그래프 펜스를 보존하도록 메시지로 안내 중(정책) — 정합성 강제는 추후 과제.
 
 ## 2026-08-06
 

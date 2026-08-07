@@ -6,7 +6,7 @@ import Toc from "./Toc";
 import Document from "./Document";
 import SidePanel from "./SidePanel";
 import GateBar from "./GateBar";
-import { mdToBlocks } from "../lib/mdToBlocks";
+import { mdToBlocks, replaceGraphFence } from "../lib/mdToBlocks";
 
 // plan 스타일 페이지 — 마크다운 문서 + 블록/영역 코멘트. Stage 1·3 이 공유.
 const STAGE_DEFS = [
@@ -28,7 +28,12 @@ const feedbackIssues = [
 
 const stripHtml = (html) => html.replace(/<[^>]+>/g, "").trim();
 
-export default function PlanPage({ mdSource, stage, onGate, stageLabels = {} }) {
+export default function PlanPage({
+	mdSource,
+	stage,
+	onGate,
+	stageLabels = {},
+}) {
 	const label = STAGE_DEFS[stage - 1].label;
 	const blocks = useMemo(() => mdToBlocks(mdSource), [mdSource]);
 	const toc = useMemo(() => {
@@ -42,6 +47,11 @@ export default function PlanPage({ mdSource, stage, onGate, stageLabels = {} }) 
 	const [activeTargetId, setActiveTargetId] = useState(null);
 	const [activeRange, setActiveRange] = useState(null);
 	const [rangeDraft, setRangeDraft] = useState("");
+	// 그래프 편집: { [fenceIndex]: sections }. 사용자가 인라인 에디터에서 편집한
+	// 그래프만 이 맵에 들어가고, 제출 시 해당 factorynote-graph 펜스에만 직렬화된다.
+	const [graphEdits, setGraphEdits] = useState({});
+	const onGraphChange = (fenceIndex, sections) =>
+		setGraphEdits((g) => ({ ...g, [fenceIndex]: sections }));
 
 	const addComment = (targetId, text, quote = null) => {
 		setComments((c) => [
@@ -86,18 +96,36 @@ export default function PlanPage({ mdSource, stage, onGate, stageLabels = {} }) 
 
 	const pendingCount = comments.filter((c) => !c.applied).length;
 
-	// 게이트 결정 전송 — pi 에이전트로 verdict+comments 를 POST.
+	// 게이트 결정 전송 — pi 에이전트로 verdict+comments(+편집된 md) 를 POST.
 	const toGateComment = (c) => {
 		const o = { blockId: c.targetId, text: c.text };
 		if (c.quote) o.quote = c.quote;
 		return o;
 	};
-	const sendConfirm = () => onGate({ verdict: "confirm", comments: [] });
+	// 그래프 편집이 있으면 md 소스의 해당 펜스들만 갱신해 전체 md 를 만든다(나머지 불변).
+	const buildEditedMd = () => {
+		const fis = Object.keys(graphEdits);
+		if (fis.length === 0) return null;
+		let md = mdSource;
+		for (const fi of fis) {
+			md = replaceGraphFence(
+				md,
+				Number(fi),
+				JSON.stringify({ sections: graphEdits[fi] }),
+			);
+		}
+		return md;
+	};
+	const sendConfirm = () => {
+		const md = buildEditedMd();
+		onGate({ verdict: "confirm", comments: [], ...(md ? { md } : {}) });
+	};
 	const sendRevert = (target) =>
 		onGate({ verdict: "revert", comments: [], revertTo: target });
 	const sendModify = () => {
 		const pending = comments.filter((c) => !c.applied).map(toGateComment);
-		onGate({ verdict: "modify", comments: pending });
+		const md = buildEditedMd();
+		onGate({ verdict: "modify", comments: pending, ...(md ? { md } : {}) });
 	};
 
 	const rangePopover = activeRange
@@ -148,6 +176,8 @@ export default function PlanPage({ mdSource, stage, onGate, stageLabels = {} }) 
 					onActivate={activate}
 					onRangeComment={onRangeComment}
 					activeTargetId={activeTargetId}
+					onGraphChange={onGraphChange}
+					graphEdits={graphEdits}
 				/>
 				<SidePanel loop={loop} issues={feedbackIssues} comments={comments} />
 			</div>

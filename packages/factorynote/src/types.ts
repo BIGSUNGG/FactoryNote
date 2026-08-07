@@ -6,8 +6,8 @@ export type StageId = 1 | 2 | 3;
 /** FR-7: 0..3. validThrough = 해당 단계까지 산출물이 승인됨(0=아직 승인된 산출물 없음). */
 export type ValidThrough = 0 | StageId;
 
-/** 산출물 포맷(ADR-003). */
-export type ArtifactFormat = "markdown" | "nodes-edges";
+/** 산출물 포맷. 3단계 모두 마크다운(.md) — 그래프는 md 내 factorynote-graph 펜스로 내장. */
+export type ArtifactFormat = "markdown";
 
 /** 사용자 게이트 판정. confirm=다음 단계, modify=현 단계 재작성, revert=이전 단계 회귀. */
 export type GateVerdict = "confirm" | "modify" | "revert";
@@ -44,8 +44,8 @@ export interface GraphArtifact {
 export interface GateDecision {
 	verdict: GateVerdict;
 	comments: Comment[];
-	/** 그래프 단계(Stage 3/4)에서 사용자가 편집한 그래프. 직접 편집 → 에이전트가 채택해 산출물로 저장. */
-	graphSections?: GraphSection[];
+	/** 사용자가 뷰어에서 편집한 전체 md 소스(그래프 펜스 편집 반영). 직접 편집 → 에이전트가 채택해 산출물로 저장. */
+	md?: string;
 	/** FR-7: 회귀 대상 단계(1..3). 생략 시 종래대로 1단계 회귀. 현재 단계보다 앞으로만(엔진이 clamp). */
 	revertTo?: StageId;
 }

@@ -69,28 +69,17 @@ test("gate server serves viewer, state, and accepts decision", async () => {
 	expect(decision.verdict).toBe("confirm");
 });
 
-test("gate /api/state returns graphSections for graph artifact", async () => {
-	// 그래프 산물(02-design.json) + stage 2 시드.
-	await writeArtifact(
-		root,
-		"graphdemo",
-		"02-design.json",
-		JSON.stringify({
-			sections: [
-				{ id: "fe", title: "프론트", nodes: [{ id: "UI" }], edges: [] },
-			],
-		}),
-	);
+test("gate /api/state serves md with embedded graph fence for design stage", async () => {
+	// Stage 2 산물은 이제 .md 이며 그래프는 factorynote-graph 펜스로 내장된다.
+	const fenceBody = JSON.stringify({
+		sections: [{ id: "fe", title: "프론트", nodes: [{ id: "UI" }], edges: [] }],
+	});
+	const md = `# 설계\n\n## 모듈 관계도\n\n\`\`\`factorynote-graph\n${fenceBody}\n\`\`\`\n`;
+	await writeArtifact(root, "graphdemo", "02-design.md", md);
 	await saveState(root, { ...initialState("graphdemo"), stage: 2 });
 
-	type StateResp = {
-		artifacts: Array<{
-			file: string;
-			format: string;
-			graphSections?: unknown[];
-		}>;
-	};
-	const captured: { graphSections?: unknown[] } = {};
+	type StateResp = { artifacts: Array<{ file: string; md?: string }> };
+	const captured: { md?: string } = {};
 
 	await runGate({
 		root,
@@ -100,8 +89,8 @@ test("gate /api/state returns graphSections for graph artifact", async () => {
 		onReady: async (url) => {
 			const res = await fetch(`${url}/api/state`);
 			const st = (await res.json()) as StateResp;
-			const art = st.artifacts.find((a) => a.file === "02-design.json");
-			if (art?.graphSections) captured.graphSections = art.graphSections;
+			const art = st.artifacts.find((a) => a.file === "02-design.md");
+			if (art?.md) captured.md = art.md;
 			await fetch(`${url}/api/decision`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -110,8 +99,9 @@ test("gate /api/state returns graphSections for graph artifact", async () => {
 		},
 	});
 
-	expect(captured.graphSections).toBeTruthy();
-	expect(captured.graphSections as unknown[]).toHaveLength(1);
+	expect(captured.md).toBeTruthy();
+	expect(captured.md).toContain("factorynote-graph");
+	expect(captured.md).toContain('"프론트"');
 });
 
 test("gate /api/state hides artifacts past current stage on revert", async () => {
@@ -125,10 +115,8 @@ test("gate /api/state hides artifacts past current stage on revert", async () =>
 	await writeArtifact(
 		root,
 		"regress",
-		"02-design.json",
-		JSON.stringify({
-			sections: [{ id: "s", title: "t", nodes: [{ id: "n" }], edges: [] }],
-		}),
+		"02-design.md",
+		"# 설계\n\n그래프가 내장된 마크다운.",
 	);
 	await writeArtifact(root, "regress", "03-implementation-plan.md", "# Plan");
 	await saveState(root, { ...initialState("regress"), stage: 2 });
@@ -178,7 +166,7 @@ test("gate /api/decision forwards revertTo to the engine (FR-7)", async () => {
 		"01-understanding-and-scenarios.md",
 		"# Req",
 	);
-	await writeArtifact(root, "revtgt", "02-design.json", "{}");
+	await writeArtifact(root, "revtgt", "02-design.md", "# 설계\n\n데모.");
 	await saveState(root, { ...initialState("revtgt"), stage: 3 });
 	const decision = await runGate({
 		root,

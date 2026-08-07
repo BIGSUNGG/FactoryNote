@@ -84,10 +84,10 @@ test("modify keeps stage 2 and bumps loopCount", async () => {
 	expect(st?.loopCount).toBe(1);
 });
 
-test("graph stage: agent submits JSON, user edits+confirm → adopted graph saved + advance", async () => {
-	// Stage 2(모듈·클래스 그래프) 시드.
+test("design stage: agent submits md with graph fence, user edits graph+confirm → adopted md saved + advance", async () => {
+	// Stage 2(설계) 시드 — 산출물은 md 이고 그래프는 factorynote-graph 펜스로 내장.
 	await saveState(root, { ...initialState("graphfeat"), stage: 2 });
-	const initialGraph = {
+	const initialFence = JSON.stringify({
 		sections: [
 			{
 				id: "fe",
@@ -96,9 +96,10 @@ test("graph stage: agent submits JSON, user edits+confirm → adopted graph save
 				edges: [],
 			},
 		],
-	};
-	// 사용자가 그래프를 편집(노드 추가 + 엣지 추가)한 결과.
-	const edited = {
+	});
+	const initialMd = `# 설계\n\n## 모듈 관계도\n\n\`\`\`factorynote-graph\n${initialFence}\n\`\`\`\n`;
+	// 사용자가 뷰어에서 그래프를 편집(노드 추가 + 엣지 추가) — 해당 펜스만 갱신된 전체 md.
+	const editedFence = JSON.stringify({
 		sections: [
 			{
 				id: "fe",
@@ -107,12 +108,13 @@ test("graph stage: agent submits JSON, user edits+confirm → adopted graph save
 				edges: [{ id: "UI->API", source: "UI", target: "API" }],
 			},
 		],
-	};
+	});
+	const editedMd = `# 설계\n\n## 모듈 관계도\n\n\`\`\`factorynote-graph\n${editedFence}\n\`\`\`\n`;
 	const out = await drivePlan({
 		root,
 		viewerDistDir: VIEWER_DIST,
 		feature: "graphfeat",
-		artifactMd: JSON.stringify(initialGraph),
+		artifactMd: initialMd,
 		open: false,
 		onReady: async (url) => {
 			await fetch(`${url}/api/decision`, {
@@ -121,26 +123,17 @@ test("graph stage: agent submits JSON, user edits+confirm → adopted graph save
 				body: JSON.stringify({
 					verdict: "confirm",
 					comments: [],
-					graphSections: edited.sections,
+					md: editedMd,
 				}),
 			});
 		},
 	});
 	expect(out.gateResult?.verdict).toBe("confirm");
 	expect(out.stage).toBe(3); // 설계(2) → 구현 계획(3)
-	// 편집된(채택된) 그래프가 저장되었는지 — 초기가 아닌 편집 결과.
-	const saved = await readArtifact(root, "graphfeat", "02-design.json");
-	expect(saved).toBeTruthy();
-	let parsed: {
-		sections: Array<{ nodes: unknown[]; edges: Array<{ id: string }> }>;
-	} = { sections: [] };
-	try {
-		parsed = JSON.parse(saved ?? "{}") as typeof parsed;
-	} catch {
-		/* 저장 포맷 이상 — 기본값 그대로(아래 expect 가 실패로 원인 노출) */
-	}
-	expect(parsed.sections[0]?.nodes).toHaveLength(2);
-	expect(parsed.sections[0]?.edges[0]?.id).toBe("UI->API");
+	// 편집된(채택된) md 가 저장되었는지 — 초기가 아닌 편집 결과(그래프 펜스 포함).
+	const saved = await readArtifact(root, "graphfeat", "02-design.md");
+	expect(saved).toBe(editedMd);
+	expect(saved).toContain("UI->API");
 });
 
 test("#3 gateOpen resume: artifact on disk + gateOpen reopens gate instead of requesting rewrite", async () => {

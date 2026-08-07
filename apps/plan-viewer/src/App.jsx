@@ -6,7 +6,6 @@
 // 게이트 결정은 /api/decision 로 POST → pi 에이전트로 전달. 서버는 플랜 완료 시 닫힌다.
 import { useState, useEffect, useRef } from "react";
 import PlanPage from "./components/PlanPage";
-import GraphStage from "./components/GraphStage";
 
 const HEARTBEAT_MS = 2000; // /api/state 폴링 주기 = 탭 생존 하트비트(서버 재오픈 판정에 사용).
 
@@ -84,25 +83,11 @@ export default function App() {
 		);
 	if (!state) return <Center>게이트 로딩 중…</Center>;
 
-	// reviewing: 현재 단계 산출물 렌더.
-	const isGraph = state.stage === 2;
-	const cur = (state.artifacts || []).find((a) => a.stage === state.stage);
+	// reviewing: 현재 단계 산출물 렌더. 3단계 모두 동일한 통일 페이지로
+	// 마크다운 텍스트 + (있으면) 인라인 그래프 에디터를 같은 경로로 렌더한다.
 	const stageLabels = {};
 	for (const a of state.artifacts || []) stageLabels[a.stage] = a.name;
 	stageLabels[state.stage] = state.stageName;
-
-	if (isGraph) {
-		return (
-			<GraphStage
-				stage={state.stage}
-				stageName={state.stageName}
-				feature={state.feature}
-				sections={cur?.graphSections || []}
-				stageLabels={stageLabels}
-				onGate={onGate}
-			/>
-		);
-	}
 
 	return (
 		<PlanPage
@@ -116,7 +101,7 @@ export default function App() {
 	);
 }
 
-// 마크다운 단계(Stage 1·3)의 산출물 텍스트를 반환.
+// 마크다운 단계(3단계 모두 .md) 산출물 텍스트를 반환. 그래프는 md 내 펜스로 내장된다.
 function pickMarkdown(state) {
 	const arts = state.artifacts || [];
 	const cur = arts.find((a) => a.stage === state.stage);

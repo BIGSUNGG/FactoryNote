@@ -1,8 +1,8 @@
-// 다중 섹션 인터랙티브 그래프 에디터 — Stage 3(모듈) · Stage 4(클래스) 공용.
-// /api/state 의 graphSections 로 렌더(데이터 주동), 섹션 추가·이름·삭제,
-// 노드/엣지 CRUD(우클릭 메뉴), 상세 패널 편집, 코멘트. 게이트 제출 시 편집된
-// 그래프 전체(sections)를 onGate 로 전달 → 에이전트 채택(직접 편집 → 채택).
-import { useCallback, useEffect, useState } from "react";
+// 인터랙티브 그래프 에디터 — md 내 factorynote-graph 펜스 하나의 내용({sections})을
+// 렌더·편집. 페이지 크롬(Topbar/Stepper/GateBar)·게이트 제출은 없고 캔버스 + 다중 섹션 +
+// 노드/엣지 CRUD + 상세 패널만 담당. sections 가 바뀔 때마다 onChange(serializedSections) 로
+// 상위(통일 페이지)에 전달 → 상위가 md 펜스에 직렬화해 게이트로 제출한다.
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import ReactFlow, {
 	Background,
@@ -16,25 +16,13 @@ import ReactFlow, {
 	NodeResizer,
 } from "reactflow";
 import "reactflow/dist/style.css";
-import Topbar from "./Topbar";
-import Stepper from "./Stepper";
-import GateBar from "./GateBar";
-import { gridPos, normalizeSections, sectionIsClass } from "../lib/graphNormalize";
+import {
+	gridPos,
+	normalizeSections,
+	sectionIsClass,
+} from "../lib/graphNormalize";
 
 const LAYERS = ["API", "Service", "Repository", "Util", "External"];
-const STAGE_DEFS = [
-	{ n: 1, label: "요청 이해·시나리오" },
-	{ n: 2, label: "모듈·클래스 설계" },
-	{ n: 3, label: "구현 계획" },
-];
-const stagesFor = (cur) =>
-	STAGE_DEFS.map((s) => ({
-		...s,
-		state: s.n === cur ? "current" : s.n < cur ? "done" : "locked",
-	}));
-
-// 정규화 로직(에이전트 JSON → react-flow 호환)은 lib/graphNormalize.js 로 분리 —
-// 순수 함수라 테스트(graphNormalize.test.js) 가 회귀를 가드한다.
 
 // --- 노드 렌더 컴포넌트 ---
 function ModuleNode({ data }) {
@@ -102,30 +90,40 @@ function ClassNode({ data }) {
 		</div>
 	);
 }
-const NODE_TYPES_3 = { module: ModuleNode, external: ExternalNode };
-const NODE_TYPES_4 = { modGroup: ModGroup, cls: ClassNode };
+const NODE_TYPES_MODULE = { module: ModuleNode, external: ExternalNode };
+const NODE_TYPES_CLASS = { modGroup: ModGroup, cls: ClassNode };
 
-export default function GraphStage({
-	stage,
-	stageName,
-	sections: initialSections,
-	feature,
-	onGate,
-	stageLabels = {},
-}) {
+// 순수 섹션(envelope 호환)으로 직렬화 — react-flow 내부 필드(position/type/data)는 그대로.
+const strip = (s) => ({
+	id: s.id,
+	title: s.title,
+	nodes: s.nodes,
+	edges: s.edges,
+});
+
+export default function GraphEditor({ sections: initialSections, onChange }) {
 	const [sections, setSections] = useState(() =>
 		normalizeSections(initialSections),
 	);
 	const [activeId, setActiveId] = useState(() => sections[0]?.id ?? null);
-	const active = sections.find((s) => s.id === activeId) ?? sections[0] ?? null;
-	// 종류는 스테이지가 아닌 활성 섹션의 노드 타입으로 판별(병합 페이지는 모듈 섹션과
-	// 클래스 섹션이 공존). 빈 섹션은 모듈로 간주(모듈→클래스 흐름의 기본).
-	const isClass = active ? sectionIsClass(active) : false;
 	const [selected, setSelected] = useState({ type: "node", id: null });
-	// 코멘트: { `${secId}::${targetId}`: string[] }
-	const [comments, setComments] = useState({});
-	const [draft, setDraft] = useState("");
 	const [menu, setMenu] = useState(null); // {x,y,type,id?}
+
+	// 상위로 변경 통지. 최초 마운트(정규화)에는 통지하지 않는다 — 사용자 편집만 dirty 로.
+	const onChangeRef = useRef(onChange);
+	onChangeRef.current = onChange;
+	const firstRun = useRef(true);
+	useEffect(() => {
+		if (firstRun.current) {
+			firstRun.current = false;
+			return;
+		}
+		onChangeRef.current?.(sections.map(strip));
+	}, [sections]);
+
+	const active = sections.find((s) => s.id === activeId) ?? sections[0] ?? null;
+	// 종류는 활성 섹션의 노드 타입으로 판별(병합 페이지는 모듈·클래스 섹션이 공존).
+	const isClass = active ? sectionIsClass(active) : false;
 
 	// 섹션이 하나도 없으면 하나 생성(편의).
 	useEffect(() => {
@@ -322,40 +320,7 @@ export default function GraphStage({
 		};
 	}, [menu]);
 
-	// --- 코멘트 ---
-	const ckey = (targetId) => `${active?.id}::${targetId}`;
-	const pendingTotal = Object.values(comments).reduce(
-		(a, b) => a + b.length,
-		0,
-	);
-	const addComment = () => {
-		if (!draft.trim() || !selected.id) return;
-		const k = ckey(selected.id);
-		setComments((c) => ({ ...c, [k]: [...(c[k] || []), draft.trim()] }));
-		setDraft("");
-	};
-
-	// --- 게이트 제출: 편집된 그래프 전체 + 코멘트 ---
-	const serialized = () =>
-		sections.map((s) => ({
-			id: s.id,
-			title: s.title,
-			nodes: s.nodes,
-			edges: s.edges,
-		}));
-	const submit = (verdict, withComments, revertTo) =>
-		onGate({
-			verdict,
-			comments: withComments
-				? Object.entries(comments).flatMap(([k, arr]) =>
-						arr.map((text) => ({ blockId: k, text })),
-					)
-				: [],
-			graphSections: serialized(),
-			...(revertTo ? { revertTo } : {}),
-		});
-
-	const nodeTypes = isClass ? NODE_TYPES_4 : NODE_TYPES_3;
+	const nodeTypes = isClass ? NODE_TYPES_CLASS : NODE_TYPES_MODULE;
 	const selectedNode =
 		selected.type === "node"
 			? active?.nodes.find((n) => n.id === selected.id)
@@ -364,7 +329,6 @@ export default function GraphStage({
 		selected.type === "edge"
 			? active?.edges.find((e) => e.id === selected.id)
 			: null;
-	const commentList = selected.id ? comments[ckey(selected.id)] || [] : [];
 
 	const menuEl = menu
 		? createPortal(
@@ -428,20 +392,7 @@ export default function GraphStage({
 		: null;
 
 	return (
-		<>
-			<Topbar stage={stage} total={3} />
-			<Stepper stages={stagesFor(stage)} />
-			<div className="meta">
-				<span className="stage-tag">Stage {stage} / 3 · {stageName}</span>
-				<span>
-					<b>섹션:</b> {sections.length} · <b>노드:</b>{" "}
-					{active?.nodes.length ?? 0} · <b>관계:</b> {active?.edges.length ?? 0}
-				</span>
-				<span>
-					<b>기능:</b> {feature}
-				</span>
-			</div>
-
+		<div className="graph-editor">
 			{/* 다중 섹션 선택 + 관리 */}
 			<div className="section-bar">
 				{sections.map((s) => (
@@ -548,10 +499,6 @@ export default function GraphStage({
 									(n) => n.type === "modGroup",
 								)}
 								labelOf={labelOf}
-								comments={commentList}
-								draft={draft}
-								setDraft={setDraft}
-								onAdd={addComment}
 								onUpdate={updateNode}
 								onMove={moveClass}
 								onSelectEdge={(k) => setSelected({ type: "edge", id: k })}
@@ -561,10 +508,6 @@ export default function GraphStage({
 								node={selectedNode}
 								edges={active?.edges ?? []}
 								labelOf={labelOf}
-								comments={commentList}
-								draft={draft}
-								setDraft={setDraft}
-								onAdd={addComment}
 								onUpdate={updateNode}
 								onSelectEdge={(k) => setSelected({ type: "edge", id: k })}
 							/>
@@ -573,32 +516,15 @@ export default function GraphStage({
 						<EdgePanel
 							edge={selectedEdge}
 							labelOf={labelOf}
-							comments={commentList}
-							draft={draft}
-							setDraft={setDraft}
-							onAdd={addComment}
 							onDesc={updateEdgeDesc}
 						/>
 					) : (
-						<div className="empty">
-							노드/엣지를 클릭해 상세·편집. 노드·관계에 코멘트 후 하단 수정
-							지시.
-						</div>
+						<div className="empty">노드/엣지를 클릭해 상세·편집.</div>
 					)}
 				</aside>
 			</div>
-
-			<GateBar
-				stage={stage}
-				label={stageName}
-				pendingCount={pendingTotal}
-				stageLabels={stageLabels}
-				onConfirm={() => submit("confirm", false)}
-				onModify={() => submit("modify", true)}
-				onRevert={(t) => submit("revert", false, t)}
-			/>
 			{menuEl}
-		</>
+		</div>
 	);
 }
 
@@ -632,17 +558,7 @@ function DepRows({ edges, nodeId, labelOf, onSelectEdge, dir }) {
 	);
 }
 
-function ModulePanel({
-	node,
-	edges,
-	labelOf,
-	comments,
-	draft,
-	setDraft,
-	onAdd,
-	onUpdate,
-	onSelectEdge,
-}) {
+function ModulePanel({ node, edges, labelOf, onUpdate, onSelectEdge }) {
 	return (
 		<>
 			<h4 className="card-title">모듈 상세 · 편집</h4>
@@ -687,13 +603,6 @@ function ModulePanel({
 				onSelectEdge={onSelectEdge}
 				dir="in"
 			/>
-			<CommentBox
-				comments={comments}
-				draft={draft}
-				setDraft={setDraft}
-				onAdd={onAdd}
-				placeholder={`${node.data.label ?? node.id} 에 코멘트…`}
-			/>
 		</>
 	);
 }
@@ -703,17 +612,10 @@ function ClassPanel({
 	edges,
 	groups,
 	labelOf,
-	comments,
-	draft,
-	setDraft,
-	onAdd,
 	onUpdate,
 	onMove,
 	onSelectEdge,
 }) {
-	const move = (gid) => {
-		onMove(node.id, gid); // parent handler reparents
-	};
 	return (
 		<>
 			<h4 className="card-title">클래스 상세 · 편집</h4>
@@ -727,7 +629,7 @@ function ClassPanel({
 			<select
 				className="edge-desc-input"
 				value={node.parentNode ?? ""}
-				onChange={(e) => move(e.target.value)}
+				onChange={(e) => onMove(node.id, e.target.value)}
 			>
 				{groups.map((g) => (
 					<option key={g.id} value={g.id}>
@@ -770,26 +672,11 @@ function ClassPanel({
 				onSelectEdge={onSelectEdge}
 				dir="in"
 			/>
-			<CommentBox
-				comments={comments}
-				draft={draft}
-				setDraft={setDraft}
-				onAdd={onAdd}
-				placeholder={`${node.data.name ?? node.id} 에 코멘트…`}
-			/>
 		</>
 	);
 }
 
-function EdgePanel({
-	edge,
-	labelOf,
-	comments,
-	draft,
-	setDraft,
-	onAdd,
-	onDesc,
-}) {
+function EdgePanel({ edge, labelOf, onDesc }) {
 	const [from, to] = edge.id.split("->");
 	return (
 		<>
@@ -808,39 +695,6 @@ function EdgePanel({
 			<div className="empty" style={{ marginTop: "var(--s2)" }}>
 				엣지 우클릭으로 방향 반전·제거
 			</div>
-			<CommentBox
-				comments={comments}
-				draft={draft}
-				setDraft={setDraft}
-				onAdd={onAdd}
-				placeholder={`${labelOf(from)} → ${labelOf(to)} 관계에 코멘트…`}
-			/>
 		</>
-	);
-}
-
-function CommentBox({ comments, draft, setDraft, onAdd, placeholder }) {
-	return (
-		<div className="mod-comments" style={{ marginTop: "var(--s4)" }}>
-			<h4 className="card-title">코멘트 ({comments.length})</h4>
-			{comments.length ? (
-				comments.map((t, i) => (
-					<div key={i} className="comment-item">
-						💬 {t}
-					</div>
-				))
-			) : (
-				<div className="empty">아직 없음</div>
-			)}
-			<div className="comment-input-row">
-				<input
-					value={draft}
-					placeholder={placeholder}
-					onChange={(e) => setDraft(e.target.value)}
-					onKeyDown={(e) => e.key === "Enter" && onAdd()}
-				/>
-				<button onClick={onAdd}>추가</button>
-			</div>
-		</div>
 	);
 }

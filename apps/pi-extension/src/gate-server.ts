@@ -8,11 +8,8 @@ import { fileURLToPath } from "node:url";
 import {
 	STAGES,
 	loadState,
-	parseGraphArtifact,
 	readArtifact,
-	type ArtifactFormat,
 	type GateDecision,
-	type GraphSection,
 } from "@factorynote/core";
 
 export interface ViewerState {
@@ -29,9 +26,7 @@ export interface ViewerState {
 		stage: number;
 		name: string;
 		file: string;
-		format: ArtifactFormat;
-		md?: string;
-		graphSections?: GraphSection[];
+		md: string;
 	}[];
 }
 
@@ -50,26 +45,14 @@ async function buildViewerState(
 		if (state && s.id > state.stage) continue;
 		const raw = await readArtifact(root, feature, s.artifactFile);
 		if (raw === undefined) continue;
-		if (s.format === "nodes-edges") {
-			const ga = parseGraphArtifact(raw);
-			if (ga) {
-				artifacts.push({
-					stage: s.id,
-					name: s.name,
-					file: s.artifactFile,
-					format: s.format,
-					graphSections: ga.sections,
-				});
-			}
-		} else {
-			artifacts.push({
-				stage: s.id,
-				name: s.name,
-				file: s.artifactFile,
-				format: s.format,
-				md: raw,
-			});
-		}
+		// 3단계 모두 .md 산출물 — 그래프는 md 내 factorynote-graph 펜스로 내장되어
+		// 뷰어가 파싱·렌더한다. 게이트 서버는 md 본문만 전달한다.
+		artifacts.push({
+			stage: s.id,
+			name: s.name,
+			file: s.artifactFile,
+			md: raw,
+		});
 	}
 	return {
 		feature,
@@ -181,9 +164,8 @@ function makeGateHandler(gate: PersistentGate) {
 				const decision: GateDecision = {
 					verdict: parsed.verdict,
 					comments: Array.isArray(parsed.comments) ? parsed.comments : [],
-					...(Array.isArray(parsed.graphSections)
-						? { graphSections: parsed.graphSections }
-						: {}),
+					// 사용자가 뷰어에서 편집한 전체 md(그래프 펜스 편집 반영) → 에이전트가 채택.
+					...(typeof parsed.md === "string" ? { md: parsed.md } : {}),
 					// FR-7: 회귀 대상 단계(revertTo) 뷰어→엔진으로 전달.
 					...(typeof parsed.revertTo === "number"
 						? { revertTo: parsed.revertTo }

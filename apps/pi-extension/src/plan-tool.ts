@@ -68,10 +68,8 @@ export async function drivePlan(
 	}
 
 	const def = stageById(state.stage);
-	const graphStage = def.format === "nodes-edges";
-	const artifactKind = graphStage
-		? "그래프 JSON({sections:[{id,title,nodes,edges}]})"
-		: "마크다운";
+	// 3단계 모두 마크다운(.md) 산출물 — 그래프는 md 내 factorynote-graph 펜스로 내장.
+	const artifactKind = "마크다운";
 
 	// #3 인터럽트 복구: 게이트가 열린(gateOpen) 채 끊겼고 산출물이 이미 디스크에 있으면,
 	// 산출물 재작성을 요구하지 않고 곧바로 게이트를 재오픈한다.
@@ -105,7 +103,7 @@ export async function drivePlan(
 /**
  * 게이트 오픈 → 결정 → 결정 적용·저장 → 다음 안내 반환.
  * resume=true 이면 인터럽트 복구로 게이트 재오픈임을 message 에 표시한다.
- * 게이트 결정 이후 흐름(graphSections 채택, applyVerdict, 저장)은 기존과 동일.
+ * 게이트 결정 이후 흐름(md 채택, applyVerdict, 저장)은 기존과 동일.
  */
 async function runOpenGate(
 	input: DrivePlanInput,
@@ -134,15 +132,10 @@ async function runOpenGate(
 		...(input.onReady ? { onReady: input.onReady } : {}),
 	});
 
-	// 그래프 단계(Stage 2)에서 사용자가 직접 편집한 그래프를 산출물로 채택(저장).
+	// 사용자가 뷰어에서 직접 편집한 md(그래프 펜스 편집 포함)를 산출물로 채택(저장).
 	// 직접 편집 → 에이전트 채택: 사용자의 편집 결과가 곧 산출물(5대 원칙 — 게이트 거쳐 채택).
-	if (decision.graphSections && def.artifactFile?.endsWith(".json")) {
-		await writeArtifact(
-			root,
-			feature,
-			def.artifactFile,
-			JSON.stringify({ sections: decision.graphSections }),
-		);
+	if (decision.md !== undefined && def.artifactFile) {
+		await writeArtifact(root, feature, def.artifactFile, decision.md);
 	}
 
 	// 결정 적용·저장.
@@ -161,21 +154,17 @@ async function runOpenGate(
 	// 다음에 에이전트가 해야 할 일 안내.
 	const nextDef = stageById(state.stage);
 	const needNext = requiresArtifact(state.stage);
-	const nextGraph = nextDef.format === "nodes-edges";
 	const commentsBlock = `\n코멘트:\n${formatComments(decision.comments)}`;
+	// 사용자가 뷰어에서 직접 편집(그래프 펜스 포함)했으면 md 가 채택 저장되었다.
+	const edited = decision.md !== undefined;
 	// FR-2: modify 가 반복 상한에 도달한 경우 단순 재작성 안내 대신 명시적 에스컬레이션
 	// (잔존 이슈 노출 + 근본 갈등 신호 + 회귀/재협의 옵션) 로 전환.
 	const escalated = decision.verdict === "modify" && atLoopCeiling(state);
 	const base = escalated
 		? `⚠ FR-2 에스컬레이션: Stage ${state.stage}(${nextDef.name}) 가 ${state.loopCount}회 수정되었으나 아래 이슈가 잔존한다. 이는 근본적 설계 갈등의 신호일 수 있으니 같은 방식의 단순 재작성 반복은 피하라. 선택: (a) 코멘트를 근본적으로 반영해 재작성 (b) 이전 단계로 회귀해 설계 전제 재검토 (c) 범위·제약 조건을 사용자와 재협의. 잔존 이슈:${commentsBlock}`
 		: decision.verdict === "modify"
-			? nextGraph
-				? `사용자가 Stage ${state.stage}(${nextDef.name}) 그래프를 직접 편집했다(채택 저장됨). 코멘트를 반영해 그래프 JSON을 수정하거나, 코멘트가 없으면 현재 그래프를 그대로 artifactMd 에 담아 재제출해 게이트를 다시 열어라.${commentsBlock}`
-				: `사용자가 Stage ${state.stage}(${nextDef.name}) 산출물의 수정을 요청했다. 코멘트를 반영해 산출물을 재작성 후 artifactMd 와 함께 다시 제출하라.${commentsBlock}`
-			: `Stage ${state.stage}(${nextDef.name}) 승인. 다음 단계로 진행. ` +
-				(nextGraph
-					? "그래프 JSON 산출물을 작성해 artifactMd 와 함께 제출하라."
-					: "산출물을 작성해 artifactMd 와 함께 제출하라.");
+			? `사용자가 Stage ${state.stage}(${nextDef.name}) 산출물의 수정을 요청했다.${edited ? " 사용자가 뷰어에서 직접 편집한 내용(그래프 펜스 포함)은 채택 저장되었다 — 재작성 시 이를 존중하라." : ""} 코멘트를 반영해 마크다운 산출물을 재작성 후 artifactMd 와 함께 다시 제출하라.${commentsBlock}`
+			: `Stage ${state.stage}(${nextDef.name}) 승인. 다음 단계로 진행. 마크다운 산출물을 작성해 artifactMd 와 함께 제출하라.`;
 	const message = (resume ? "[게이트 재오픈(인터럽트 복구)] " : "") + base;
 
 	return {

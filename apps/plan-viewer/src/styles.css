@@ -1486,3 +1486,29 @@ button.btn:disabled {
 	font-size: 13px;
 	line-height: 1.5;
 }
+
+/* --- 인라인 그래프 블록(md 내 factorynote-graph 펜스) --- */
+.block-graph {
+	margin: var(--s3) 0;
+}
+.block-graph-head {
+	font-size: 12px;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--muted);
+	font-weight: 600;
+	padding: var(--s2) var(--s3);
+	border: 1px dashed var(--border);
+	border-radius: var(--radius);
+	margin-bottom: var(--s3);
+	cursor: pointer;
+	background: var(--surface);
+}
+.block-graph-head:hover {
+	color: var(--text);
+	border-color: var(--border-strong);
+}
+.block-graph-canvas .workspace {
+	padding: 0;
+	max-width: none;
+}

@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-06
+updated: 2026-08-07
 tags: [development, changelog]
 ---
 
@@ -37,6 +37,14 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 - **모노레포 스캐폴드** — [plannotator](https://github.com/backnotprop/plannotator) 폴더 패턴(`apps/`+`packages/`+`docs/`+`bin/`+`scripts/`+`tests/`, bun workspaces) 채택. `apps/{pi-extension,claude-code,codex}`(Layer 3 어댑터) + `packages/factorynote`(Layer 1-2 코어: `protocol/stages`·`protocol/templates`·`orchestrator` 마크다운 + `src/` 배럴). 3계층↔폴더 1:1 매핑. 현재 **폴더 골조 + 설정만**(`src/` M3 persistence·M4 인터페이스·타입 스텁은 Stage 5 구현 시 추가). `vault/`·`.pi/`는 배포 제외 참고. [[ADR-004-monorepo-structure]]. `bun install` + `tsc -b` typecheck 통과.
 
 ### Changed
+
+- **3단계 산출물·렌더링 통일(md + 내장 그래프)** — Stage 2만 별도 `.json` 그래프 단독 렌더링이던 모델을, **3단계 모두 단일 `.md`(서사 + 선택적 내장 그래프)** 로 통일. Stage 2에서 그래프는 정상이나 나머지 텍스트가 1·3과 다르게 출력되는 문제 해결.
+  - 산출물 모델: 그래프는 md 내 ` ```factorynote-graph ` 펜스에 `{sections:[{id,title,nodes,edges}]}` JSON 으로 내장. `ArtifactFormat` → `"markdown"` 단일(Stage 2 `02-design.json` → `02-design.md`). `GateDecision.graphSections` 제거 → `md`(사용자 편집 전체 md) 채택으로 교체.
+  - 코어(`stages.ts`·`types.ts`): 3단계 모두 `format:"markdown"`. Stage 2 designPrompt 가 모듈 관계도 + 클래스 구조도를 **적극적으로** 펜스로 내장하도록 재작성(필수); Stage 1·3은 도움될 때만(선택).
+  - 뷰어(`App.jsx`): `state.stage === 2` 하드코딩 라우팅(`isGraph`) 제거 → 모든 단계가 하나의 `PlanPage` 에서 md 텍스트 블록 + 인라인 그래프 에디터를 같은 경로로 렌더. `GraphStage.jsx` → `GraphEditor.jsx`(페이지 크롬·게이트 제출 제거, `sections` 변경 시 `onChange` 로 직렬화)로 추출·재명명.
+  - 왕복 직렬화: `mdToBlocks.js` 가 `factorynote-graph` 펜스를 `{type:"graph", fenceIndex, sections}` 블록으로 파싱; 신규 `replaceGraphFence(md, fenceIndex, json)` 가 해당 펜스만 갱신(나머지 md 바이트 불변). 그래프 편집 → `decision.md` 로 제출 → `plan-tool` 이 산출물로 채택.
+  - `gate-server.ts`·`plan-tool.ts`: 그래프 `.json` 개별 산출물·`graphSections` 채택 분기 제거 → md 단일 산출물. `decision.md` 채택 저장.
+  - 자체체크 57건(`mdToBlocks` 펜스 인식 + md↔그래프 왕복 idempotent 5건 추가, 구 그래프 JSON 테스트 md 모델로 갱신) green. `bun run build`/`bun test` 0 종료. `vite build`(뷰어) 0 종료.
 
 - **영속 게이트 서버 + 단계별 탭 유지** — 단계마다 새 서버/포트/탭을 여는 대신 **기능별 하나의 영속 게이트 서버(안정 포트)** 로 전환. 같은 브라우저 탭이 단계 전환을 따라간다.
   - `gate-server.ts`: `runGate` 가 단계마다 `createServer`→`listen(0)`→`openBrowser`→`close` 하던 것을 `getOrCreateGate(root, feature)` 가 기능별 서버를 Map 캐싱해 재사용. `POST /api/decision` 후 서버를 닫지 않음. 신규 `closeGate(root, feature)`(플랜 완료 시 종료, 멱등). 브라우저 오픈은 **탭이 없을 때만** — 뷰어 `/api/state` 2s 폴링이 `gate.lastSeen` 갱신(하트비트); 탭 살아있으면 재오픈 안 함(다중 탭 방지), 닫혔거나 최초면 다음 게이트 시작 시 재오픈. `signal` 중단·`timeoutMs` 만료 시 modify 복귀하되 서버 유지(인터럽트 복구가 같은 탭 재사용).
