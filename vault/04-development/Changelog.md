@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-06
+updated: 2026-08-07
 tags: [development, changelog]
 ---
 
@@ -11,6 +11,8 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 ## [Unreleased]
 
 ### Added
+
+- **auto-advance 모드(게이트 자동 승인)** — `/factorynote auto [on|off]` 서브커맨드로 3단계 게이트를 자동 승인한다. 기본 OFF. ON 시 `drivePlan` 이 매 단계 게이트의 사용자 결정 블로킹 대기를 하지 않고 즉시 `confirm` 반환하되, **관찰용**으로 게이트 서버+브라우저는 열어 3단계 산출물 진행을 실시간 관찰 가능하게 한다(새 `observeGate` 헬퍼, `runGate` 와 별개 export). 개발/데모/빠른 프로토타입용 탈출구(escape hatch) — 5대 원칙을 의도적 우회하므로 프로덕션 계획에는 비권장. `planMode` 와 동일한 세션 메모리, 파이프라인 완료 시 자동 해제(#5). 계층: pi-adapter(`index.ts`·`plan-tool.ts`·`gate-server.ts`)에 한정, `@factorynote/core` 미변경. 자체체크 53건 green(`bun run build`·`bun test` 0 종료).
 
 - **MVP 구현(Stage 5)** — FactoryNote 가 pi 하네스에서 실동작. 모든 스텁 진입점을 실구현으로 교체. [[ADR-005-mvp-implementation]].
   - 코어(`packages/factorynote/src`): Stage Registry(6단계) + 순수 상태기계 엔진 + persistence(`.factorynote/<feature>/state.json` atomic r/w + 손상 복구 + 산출물 `NN-stage.md`). harness-agnostic, 런타임 npm 의존 0.

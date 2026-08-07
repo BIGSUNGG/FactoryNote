@@ -328,6 +328,42 @@ export async function runGate(opts: RunGateOptions): Promise<GateDecision> {
 	return result;
 }
 
+export interface ObserveGateOptions {
+	root: string;
+	feature: string;
+	viewerDistDir: string;
+	open?: boolean;
+	onReady?: (url: string) => void | Promise<void>;
+	browserOpener?: (url: string) => void;
+	reopenAfterMs?: number;
+}
+
+/**
+ * 관찰용 오픈(auto-advance 모드): 영속 게이트 서버를 확보하고 브라우저를(필요 시)
+ * 열되, 사용자 결정을 기다리지 않고 즉시 반환한다. 뷰어는 /api/state 폴링으로
+ * 산출물·단계 진행을 실시간 관찰한다. 결정은 호출측이 confirm 으로 자동 적용.
+ * runGate 와 별개 — 게이트 결정 대기(블로킹)를 하지 않는다.
+ */
+export async function observeGate(opts: ObserveGateOptions): Promise<void> {
+	const {
+		root,
+		feature,
+		viewerDistDir,
+		open = true,
+		onReady,
+		browserOpener,
+		reopenAfterMs,
+	} = opts;
+	const gate = await getOrCreateGate({ root, feature, viewerDistDir });
+	if (
+		open &&
+		Date.now() - gate.lastSeen > (reopenAfterMs ?? BROWSER_REOPEN_AFTER_MS)
+	) {
+		(browserOpener ?? openBrowser)(gate.url);
+	}
+	await onReady?.(gate.url);
+}
+
 async function canRead(path: string): Promise<boolean> {
 	try {
 		await readFile(path);

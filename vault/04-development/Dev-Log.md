@@ -1,11 +1,36 @@
 ---
-updated: 2026-08-06
+updated: 2026-08-07
 tags: [development, dev-log]
 ---
 
 # Dev-Log
 
 날짜별 작업 기록. 무엇을 했는지, 왜, 무엇이 남았는지. [[Changelog]]는 외부용 단위, 본 파일은 일일 흐름.
+
+## 2026-08-07
+
+### auto-advance 모드 — 게이트 자동 승인 명령 추가
+
+#### 현상
+
+- 3단계 게이트가 매 단계 사용자의 수동 승인을 요구. 빠른 프로토타입/데모/개발 시 매번 클릭하는 게 번거로움. 사용자 요구: “사용자 확인 없이 자동으로 다음 단계로”.
+
+#### 한 일
+
+- `gate-server.ts`: 신규 `observeGate(opts)` export — 영속 게이트 서버 확보 + 브라우저 오픈(필요 시)만 하고 결정을 기다리지 않는 관찰용 오픈. `runGate` 의 오픈 로직(getOrCreateGate + 하트비트 기반 브라우저 오픈)과 동일 조건이되 블로킹 `decided` 대기 없음.
+- `plan-tool.ts`: `DrivePlanInput.autoAdvance?: boolean` 추가. `runOpenGate` 에서 auto 면 `observeGate` 호출 후 `{ verdict: "confirm", comments: [] }` 즉시 적용, 아니면 기존 `runGate` 블로킹 대기. resume 경로 포함 모든 단계에 동일 적용.
+- `index.ts`: `let autoAdvance = false`(planMode 와 동일 세션 메모리). `/factorynote auto [on|off]` 서브커맨드 파싱(공백 split). `autoLine()` 경고 notify(ON 시 ⚠ 게이트 우회 안내). `factorynote_plan` execute 에 `autoAdvance` 전달. `done` 시 `autoAdvance=false` 자동 해제(#5, planMode 와 함께).
+- 테스트: `plan-tool.test.ts` “auto-advance bypasses gate” — `onReady` 가 결정을 POST 하지 않음에도 `drivePlan`이 43ms 만에 `confirm` 으로 stage 1→2 전이 + 산출물 저장(블로킹 없음 증명). 총 53건 green.
+- 문서: [[Changelog]] Added, [[usage-guide]] auto 탈출구 한 줄.
+
+#### 왜
+
+- “게이트를 건너뛰되 진행은 보고 싶다” — 순수 자동(브라우저도 안 옴)이 아닌 **우회 + 브라우저 관찰** 선택. 산출물이 이상하면 에이전트 중단으로 개입 가능. 5대 원칙을 의도적 우회하는 탈출구이므로 기본 OFF + 경고 notify로 안전장치.
+
+#### 남은 것
+
+- auto 를 영구 기능으로 다룰지(ADR)는 후속 — 현재는 개발/데모용 탈출구로 명시.
+- 영속 저장(세션 간 유지)은 범위 외 — planMode 와 동일 세션 메모리.
 
 ## 2026-08-06
 

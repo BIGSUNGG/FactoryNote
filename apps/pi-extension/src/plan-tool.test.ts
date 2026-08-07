@@ -206,6 +206,35 @@ test("FR-2 escalation: modify at loop ceiling surfaces conflict + options", asyn
 	expect(out.message).toContain("요구사항이 모호함"); // 잔존 이슈 노출
 });
 
+test("auto-advance bypasses gate: confirm immediately, no blocking on a decision", async () => {
+	const feat = "autofeat";
+	const md = "# 요구사항(자동)\n\n데모.";
+	let onReadyCalled = false;
+	const out = await drivePlan({
+		root,
+		viewerDistDir: VIEWER_DIST,
+		feature: feat,
+		artifactMd: md,
+		autoAdvance: true,
+		open: false,
+		onReady: async () => {
+			onReadyCalled = true;
+			// 결정을 POST 하지 않는다 — auto 면 대기 없이 confirm 으로 넘어가야 한다.
+		},
+	});
+	// 관찰용 오픈은 일어났다(서버 준비 콜백).
+	expect(onReadyCalled).toBe(true);
+	// 게이트 결정 대기 없이 즉시 confirm.
+	expect(out.gateResult?.verdict).toBe("confirm");
+	// stage 1 → 2 전이 + 산출물 디스크 저장.
+	expect(out.stage).toBe(2);
+	expect(
+		await readArtifact(root, feat, "01-understanding-and-scenarios.md"),
+	).toBe(md);
+	const st = await loadState(root, feat);
+	expect(st?.stage).toBe(2);
+});
+
 test("teardown", async () => {
 	await rm(root, { recursive: true, force: true });
 });

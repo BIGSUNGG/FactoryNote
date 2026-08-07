@@ -18,7 +18,7 @@ import {
 	type GateDecision,
 	type PipelineState,
 } from "@factorynote/core";
-import { runGate, closeGate } from "./gate-server.ts";
+import { runGate, observeGate, closeGate } from "./gate-server.ts";
 
 /** #4 게이트 자동 만료(ms) — 사용자 이탈 시 좀비 게이트 방지. 30분. */
 const GATE_TIMEOUT_MS = 30 * 60 * 1000;
@@ -33,6 +33,8 @@ export interface DrivePlanInput {
 	signal?: AbortSignal;
 	/** false 면 브라우저 자동 오픈 생략(테스트용). */
 	open?: boolean;
+	/** true 면 게이트 결정을 기다리지 않고 즉시 confirm(auto-advance). 관찰용 브라우저는 옴. */
+	autoAdvance?: boolean;
 	/** 게이트 서버 준비 시 URL 통보(테스트/디버그용). async 면 완료를 기다린다. */
 	onReady?: (url: string) => void | Promise<void>;
 }
@@ -124,15 +126,28 @@ async function runOpenGate(
 	// 게이트 오픈 → 웹에서 결정 대기(블로킹).
 	state = markArtifactReady(state);
 	await saveState(root, state);
-	const decision = await runGate({
-		root,
-		feature,
-		viewerDistDir,
-		timeoutMs: GATE_TIMEOUT_MS,
-		...(signal ? { signal } : {}),
-		...(input.open !== undefined ? { open: input.open } : {}),
-		...(input.onReady ? { onReady: input.onReady } : {}),
-	});
+	// 게이트: auto-advance 면 결정 대기 없이 즉시 confirm(관찰용 서버+브라우저는 옴).
+	let decision: GateDecision;
+	if (input.autoAdvance) {
+		await observeGate({
+			root,
+			feature,
+			viewerDistDir,
+			...(input.open !== undefined ? { open: input.open } : {}),
+			...(input.onReady ? { onReady: input.onReady } : {}),
+		});
+		decision = { verdict: "confirm", comments: [] };
+	} else {
+		decision = await runGate({
+			root,
+			feature,
+			viewerDistDir,
+			timeoutMs: GATE_TIMEOUT_MS,
+			...(signal ? { signal } : {}),
+			...(input.open !== undefined ? { open: input.open } : {}),
+			...(input.onReady ? { onReady: input.onReady } : {}),
+		});
+	}
 
 	// 그래프 단계(Stage 2)에서 사용자가 직접 편집한 그래프를 산출물로 채택(저장).
 	// 직접 편집 → 에이전트 채택: 사용자의 편집 결과가 곧 산출물(5대 원칙 — 게이트 거쳐 채택).
