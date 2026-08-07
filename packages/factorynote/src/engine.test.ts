@@ -221,14 +221,14 @@ test("atLoopCeiling true at/above MAX_LOOPS, false below", () => {
 test("invalidateArtifactsAfter deletes artifacts after stage (FR-7)", async () => {
 	const r = await mkdtemp(join(tmpdir(), "fn-inv-"));
 	await writeArtifact(r, "f", "01-understanding-and-scenarios.md", "s1");
-	await writeArtifact(r, "f", "02-design.json", "s2");
+	await writeArtifact(r, "f", "02-design.md", "s2");
 	await writeArtifact(r, "f", "03-implementation-plan.md", "s3");
 	// afterStage=1 → delete id>1 (stages 2,3)
 	await invalidateArtifactsAfter(r, "f", 1);
 	expect(
 		await readArtifact(r, "f", "01-understanding-and-scenarios.md"),
 	).toBe("s1");
-	expect(await readArtifact(r, "f", "02-design.json")).toBeUndefined();
+	expect(await readArtifact(r, "f", "02-design.md")).toBeUndefined();
 	expect(await readArtifact(r, "f", "03-implementation-plan.md"))
 		.toBeUndefined();
 	await rm(r, { recursive: true, force: true });

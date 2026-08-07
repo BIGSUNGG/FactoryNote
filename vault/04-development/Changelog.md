@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-06
+updated: 2026-08-07
 tags: [development, changelog]
 ---
 
@@ -10,7 +10,20 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ## [Unreleased]
 
+### Fixed
+
+- **에이전트 채팅 미동작(Bug 1)** — `apps/pi-extension/src/index.ts` 의 `factorynote_plan` 도구가 채팅 프로토콜과 미연결이었던 것 수정. `chatResponse` 파라미터 추가·`execute`→`drivePlan` 전달·`chatPending` 노출(`formatForAgent`)·`PLAN_MODE_PROMPT` 채팅 처리 지시. 이제 게이트 열린 동안 우측 채팅이 에이전트에 전달돼 답변/그 자리 수정이 동작.
+- **Stage 2 그래프 안 보임(Bug 2)** — `apps/plan-viewer/src/lib/designMd.js` 파서가 에이전트 출력 편차에 취약했던 것 강화: 후행쉼표/`//` 주석 무경화(`sanitizeJson`), 비 `factorynote-graph` 펜스 fallback, **bare 섹션 객체**(sections 래퍼 누락) 수용. 구조 미검색 시 `DesignStage.jsx` 가 원인 특정 진단 배너(mermaid/```json/no-fence 분류) + 산출물 미리보기 표시.
+
+### Changed
+
+- **`bun run build` = 빌드+배포 자동화** — `tsc -b` + viewer 빌드 + `install.sh` 배포를 한 번에 실행. 소스 수정이 설치 확장(`~/.pi/agent/extensions/factorynote`)에 누락돼 사용자가 구버전을 쓰던 **근본 원인(미배포) 재발 차단**. 순수 타입체크는 `bun run typecheck`. AGENTS.md 빌드 설명 동기화.
+
 ### Added
+
+- **실시간 에이전트 채팅 사이드바(Feature 1)** — 게이트가 열린 동안 계획 페이지 우측에서 에이전트와 실시간 채팅. 질문/수정 요청 → `drivePlan` 으로 에이전트에 전달 → 답변 또는 현 산출물 그 자리 반영(뷰어 실시간 갱신, 게이트 유지). 부분 코멘트는 기존 `blockId` 단위. 채팅 수정은 `MAX_LOOPS` modify 루프카운트 미포함. `runGate` 가 `GateEvent({kind:decision|chat})` 로 resolve, `drivePlan` 이 `chatPending` 반환 후 에이전트 재호출로 게이트 재진입. 신규 `ChatSidebar.jsx` + `/api/chat`(POST/GET) + `appendAgentChat`. [[ADR-009-realtime-chat-loop]].
+- **Stage 2 설계 md 단일진실(Feature 2)** — Stage 2 산출물을 그래프 JSON(`02-design.json`)에서 마크다운(`02-design.md`)으로 전환. md 의 ```factorynote-graph 펜스(JSON `{sections}`)에서 그래프 파생 + 하단 `## 아키텍처 설명` prose. 그래프 편집은 md 구조 블록으로 역동기화(`parseDesignMarkdown`/`serializeDesignMarkdown`/`applyStructureToMarkdown`). `ArtifactFormat` 을 `"markdown"` 단일로 좁히고 `GateDecision.graphSections`→`artifactMd` 로 채택 일반화. `GraphStage.jsx`→`DesignStage.jsx` 교체. [[ADR-010-md-design-stage]].
+- **단계별 프롬프트 품질(Feature 3)** — Stage 1 designPrompt/체크리스트에 미래 확장 포인트·확장성/유지보수성 관점 추가; Stage 2 에 객체지향 적합성·확장성/유지보수성·불필요 관계·모듈·클래스 검증 추가.
 
 - **MVP 구현(Stage 5)** — FactoryNote 가 pi 하네스에서 실동작. 모든 스텁 진입점을 실구현으로 교체. [[ADR-005-mvp-implementation]].
   - 코어(`packages/factorynote/src`): Stage Registry(6단계) + 순수 상태기계 엔진 + persistence(`.factorynote/<feature>/state.json` atomic r/w + 손상 복구 + 산출물 `NN-stage.md`). harness-agnostic, 런타임 npm 의존 0.

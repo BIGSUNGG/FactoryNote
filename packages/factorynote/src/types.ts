@@ -6,8 +6,8 @@ export type StageId = 1 | 2 | 3;
 /** FR-7: 0..3. validThrough = 해당 단계까지 산출물이 승인됨(0=아직 승인된 산출물 없음). */
 export type ValidThrough = 0 | StageId;
 
-/** 산출물 포맷(ADR-003). */
-export type ArtifactFormat = "markdown" | "nodes-edges";
+/** 산출물 포맷(ADR-003). Stage 2 도 마크다운 단일진실로 통일(F2). */
+export type ArtifactFormat = "markdown";
 
 /** 사용자 게이트 판정. confirm=다음 단계, modify=현 단계 재작성, revert=이전 단계 회귀. */
 export type GateVerdict = "confirm" | "modify" | "revert";
@@ -18,6 +18,16 @@ export interface Comment {
 	/** 드래그 영역 코멘트의 인용 텍스트. */
 	quote?: string;
 	text: string;
+}
+
+/** 게이트 열린 동안의 실시간 에이전트 채팅 메시지. 사용자 질문/수정요청 ↔ 에이전트 답변. */
+export interface ChatMessage {
+	id: string;
+	role: "user" | "agent";
+	text: string;
+	/** 부분 코멘트: 대상 블록(미지정 시 전체 산출물에 대한 질문). */
+	blockId?: string;
+	at: number;
 }
 
 // --- 그래프 에디터(Stage 2 모듈·클래스) 데이터 모델 ---
@@ -35,7 +45,7 @@ export interface GraphSection {
 	edges: GraphEdge[];
 }
 
-/** 그래프 산출물 전체(=.json 파일 내용). Stage 2 산출물 포맷. */
+/** 그래프 산출물 전체. F2 부터 Stage 2 md 의 ```factorynote-graph 펜스 안 JSON 으로 직렬화된다. */
 export interface GraphArtifact {
 	sections: GraphSection[];
 }
@@ -44,8 +54,8 @@ export interface GraphArtifact {
 export interface GateDecision {
 	verdict: GateVerdict;
 	comments: Comment[];
-	/** 그래프 단계(Stage 3/4)에서 사용자가 편집한 그래프. 직접 편집 → 에이전트가 채택해 산출물로 저장. */
-	graphSections?: GraphSection[];
+	/** Stage 2(설계)에서 사용자가 직접 편집한 마크다운 산출물. 직접 편집 → 에이전트가 채택해 저장(5대 원칙 — 게이트 거쳐 채택). */
+	artifactMd?: string;
 	/** FR-7: 회귀 대상 단계(1..3). 생략 시 종래대로 1단계 회귀. 현재 단계보다 앞으로만(엔진이 clamp). */
 	revertTo?: StageId;
 }

@@ -1,6 +1,6 @@
 ---
 status: accepted
-updated: 2026-08-01
+updated: 2026-08-06
 tags: [adr, graph-editor, viewer, stage-3, stage-4, data-model]
 ---
 
@@ -8,7 +8,7 @@ tags: [adr, graph-editor, viewer, stage-3, stage-4, data-model]
 
 ## 상태
 
-accepted
+accepted (데이터 모델은 [[ADR-010-md-design-stage]] 가 보강 — Stage 2 저장 포맷 JSON→md 임베드. 그래프 에디터 UX·채택 원칙은 본 ADR 유지)
 
 ## 날짜
 

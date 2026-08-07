@@ -28,7 +28,13 @@ const feedbackIssues = [
 
 const stripHtml = (html) => html.replace(/<[^>]+>/g, "").trim();
 
-export default function PlanPage({ mdSource, stage, onGate, stageLabels = {} }) {
+export default function PlanPage({
+	mdSource,
+	stage,
+	onGate,
+	stageLabels = {},
+	onActiveBlock,
+}) {
 	const label = STAGE_DEFS[stage - 1].label;
 	const blocks = useMemo(() => mdToBlocks(mdSource), [mdSource]);
 	const toc = useMemo(() => {
@@ -60,8 +66,14 @@ export default function PlanPage({ mdSource, stage, onGate, stageLabels = {} }) 
 		setActiveTargetId(null);
 		setActiveRange(null);
 	};
-	const activate = (id) =>
-		setActiveTargetId((prev) => (prev === id ? null : id));
+	const activate = (id) => {
+		setActiveTargetId((prev) => {
+			const next = prev === id ? null : id;
+			// F1: 채팅 부분 코멘트를 위해 현재 선택 블록을 App 으로 끌어올린다.
+			onActiveBlock?.(next);
+			return next;
+		});
+	};
 
 	const onRangeComment = (blockId, sel, quote) => {
 		const rect = sel.getRangeAt(0).getBoundingClientRect();
