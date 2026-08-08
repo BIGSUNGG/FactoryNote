@@ -14,6 +14,7 @@ FactoryNote 개발 문서의 중앙 인덱스(MOC)다. 모든 영역과 주요 �
 | `00-vision/` | 정체성 · 목표 · 5대 원칙 · 용어집 | [[project-identity]] |
 | `01-architecture/` | 3단계 파이프라인 · 에이전트 역할 · 구현 아키텍처 | [[multi-agent-pipeline]] · [[implementation-architecture]] |
 | `02-decisions/` | ADR (정해진 사항) | [[ADR-001-documentation-system]] · [[ADR-002-hybrid-harness-and-graph-git]] · [[ADR-003-viewer-architecture]] · [[ADR-004-monorepo-structure]] · [[ADR-005-mvp-implementation]] · [[ADR-006-graph-editor]] · [[ADR-007-pipeline-hardening]] · [[ADR-008-3-stage-pipeline]] · [[ADR-009-realtime-chat-loop]] · [[ADR-010-md-design-stage]] · [[ADR-011-comment-to-chat-consolidation]] |
+| `02-decisions/` | ADR (정해진 사항) | [[ADR-001-documentation-system]] · [[ADR-002-hybrid-harness-and-graph-git]] · [[ADR-003-viewer-architecture]] · [[ADR-004-monorepo-structure]] · [[ADR-005-mvp-implementation]] · [[ADR-006-graph-editor]] · [[ADR-007-pipeline-hardening]] · [[ADR-008-3-stage-pipeline]] · [[ADR-009-tier-1-agent-orchestration]] · [[ADR-010-context-overflow-file-protocol]] |
 | `03-design/` | 기능별 설계 산출물 | [[03-design/plan-page/core-features | plan-page]] · [[03-design/module-design/features | 모듈 설계]] · [[03-design/classes/features | 클래스]] · [[03-design/plan-viewer/ui-mapping | UI 매핑]] · [[03-design/workflow-core/06-viewer-ui | 뷰어 사양]] |
 | `04-development/` | Changelog · Dev-Log (수정 사항) | [[Changelog]] · [[Dev-Log]] |
 | `05-problems/` | 이슈 · 블로커 · 포스트모템 | [[parallel-worktree-seam-defects]] |
@@ -28,12 +29,14 @@ FactoryNote 개발 문서의 중앙 인덱스(MOC)다. 모든 영역과 주요 �
 - [[Doc-Conventions]] — 문서 작성 규칙 (이름, 링크, 태그, frontmatter)
 - [[How-To-Update-Docs]] — 결정/구현/문제 발생 시 무엇을 기록할지
 - [[ADR-004-monorepo-structure]] — 코드 레포 폴더 구조(plannotator 모노레포 패턴 채택)
-- [[ADR-005-mvp-implementation]] — MVP 구현 결정(plan 모드 토글·웹-as-게이트·통합 런타임 디렉터리·Tier 0)
+- [[ADR-005-mvp-implementation]] — MVP 구현 결정(plan 모드 토글·웹-as-게이트·통합 런타임 디렉터리·Tier 0; 결정 #4·NFR-7 은 ADR-009 로 폐지)
 - [[ADR-006-graph-editor]] — Stage 3/4 다중 섹션 그래프 에디터(직접 편집→에이전트 채택)
 - [[ADR-007-pipeline-hardening]] — 파이프라인 경화(다단계 회귀·FR-2 경성 에스컬레이션·게이트 타임아웃·resume·plan 모드 자동 해제)
 - [[ADR-009-realtime-chat-loop]] — 게이트 오픈 중 실시간 에이전트 채팅 루프(runGate 이벤트 유니온·chatPending·루프카운트 미포함)
 - [[ADR-010-md-design-stage]] — Stage 2 설계 md 단일진실(그래프 파생/역동기화, ADR-006 데이터 모델 보강)
 - [[ADR-011-comment-to-chat-consolidation]] — 코멘트를 실시간 채팅으로 통합(SidePanel 검토 큐·"수정 지시" 버튼 폐지, 레이아웃 [문서|채팅] 2단)
+- [[ADR-009-tier-1-agent-orchestration]] — Tier 1 에이전트 오케스트레이션 도입(Tier 0·NFR-7 폐지; Design↔Feedback 자식 스폰 루프)
+- [[ADR-010-context-overflow-file-protocol]] — Director 컨텍스트 누적 차단(파일 경로 산출물 교환 + 자식 스폰 컨텍스트 제약; 1261 해소)
 - [[parallel-worktree-seam-defects]] — 병렬 워크트리 seam 결함 + gate-server `revertTo` drop 포스트모템
 - [[usage-guide]] · [[development-guide]] — 설치/사용법 · 빌드/테스트/확장 가이드
 - [[ADR-001-documentation-system]] — 이 볼트 구조와 도구를 왜 이렇게 정했는가

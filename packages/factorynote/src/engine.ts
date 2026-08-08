@@ -1,6 +1,7 @@
 // Engine — 파이프라인 상태기계(순수 함수). 판정의 통제 흐름 + 게이트 전이.
 // 산출물 '내용' 판단은 LLM(Design/Feedback 역할)이 담당하고, 여기는 제어·전이만.
-// Tier 0: Design↔Feedback 내부 루프는 1패스 자기검토로 단순화(MVP).
+// Tier 1: 내부 Design↔Feedback 루프 전이·상한·에스컬레이션은 orchestration.ts 가
+// 담당(순수 로직). 여기는 사용자 게이트 판정 적용 + 단계 전이만.
 import type {
 	GateDecision,
 	GateVerdict,
@@ -27,6 +28,9 @@ export function initialState(feature: string, now = Date.now()): PipelineState {
 		stage: 1,
 		gateOpen: false,
 		loopCount: 0,
+		// Tier 1: 매 단계 진입 시 내부 Design↔Feedback 루프는 설계 단계에서 0회 시작.
+		dfPhase: "design",
+		dfLoop: 0,
 		validThrough: 0,
 		done: false,
 		history: [],
@@ -80,10 +84,13 @@ export function applyVerdict(
 	const withHistory = record(state, verdict, now);
 
 	if (verdict === "modify") {
+		// 사용자 modify → 현 단계 재작성. 내부 Design↔Feedback 루프도 재시작.
 		return {
 			...withHistory,
 			gateOpen: false,
 			loopCount: state.loopCount + 1,
+			dfPhase: "design",
+			dfLoop: 0,
 			updatedAt: now,
 		};
 	}
@@ -100,6 +107,8 @@ export function applyVerdict(
 			stage: target,
 			gateOpen: false,
 			loopCount: 0,
+			dfPhase: "design",
+			dfLoop: 0,
 			validThrough: (target - 1) as ValidThrough,
 			updatedAt: now,
 		};
@@ -117,6 +126,8 @@ export function applyVerdict(
 			gateOpen: false,
 			done: true,
 			validThrough: confirmedValid,
+			dfPhase: "design",
+			dfLoop: 0,
 			updatedAt: now,
 		};
 	}
@@ -126,6 +137,8 @@ export function applyVerdict(
 		stage: next,
 		gateOpen: false,
 		loopCount: 0,
+		dfPhase: "design",
+		dfLoop: 0,
 		validThrough: confirmedValid,
 		updatedAt: now,
 	};

@@ -120,6 +120,65 @@ tags: [development, dev-log]
 
 - auto 를 영구 기능으로 다룰지(ADR)는 후속 — 현재는 개발/데모용 탈출구로 명시.
 - 영속 저장(세션 간 유지)은 범위 외 — planMode 와 동일 세션 메모리.
+### 오케스트레이션 컨텍스트 한도(1261) 해소 — 파일 경로 프로토콜 + 자식 스폰 제약
+
+#### 배경
+
+- 오케스트레이션 도중 `Error: 400: {"code":"1261","message":"Prompt exceeds max length"}`. `PI_MODEL=glm-5.2`(Z.AI/Zhipu, 기본 202K; 1M 은 `glm-5.2[1m]` opt-in). 1261 = "Prompt too long".
+- 누적 원천 추적: (1) Director(영구) 가 designPrompt/draft/feedback 본문을 인라인으로 매 루프 누적 — **주벅**, (2) 자식 도구/스킬 고정 세금(~50–75KB), (3) fork 상속, (4) 자식 vault 문서 읽기. Director 가 루프 내내 살아있어 (1) 레버리지 최대.
+
+#### 결정(사용자 확정)
+
+- 시행: **구조화** — core 지시문이 스폰 옵션을 전달(soft 프롬프트 아님).
+- 범위: ⑤⑥ **풀버전** — designPrompt(불변)·Feedback 상세리뷰까지 파일화.
+- 검증: 코어 단위테스트 + build/test green(에러가 간헐적이라 '절대 안 남' 직접 증명 대신 구조 증명).
+
+#### 한 일
+
+- 코어 `types.ts`: `SpawnOptions`·`ArtifactPaths` 타입; spawn 지시문에 `spawnOptions` 필드(필수).
+- 코어 `orchestration.ts`: `CHILD_SPAWN_OPTIONS` 상수; `nextDesignFeedbackStep(..., paths?)` 옵셔널 paths — pi 경로는 파일 프로토콜(task 가 파일 경로 참조·본문 無), 동기 목 루프는 inline(기존 호환). `designTask`/`feedbackTask`/`designRevisionTask` 가 paths 분기. 게이트 artifact 는 paths 모드에서 draft 경로(어댑터가 resolve).
+- 어댑터 `plan-tool.ts`: `resolvePaths(root,feature,def)` 로 designPrompt/draft/feedback 경로 계산; designPrompt(불변) 파일 기록; `nextDesignFeedbackStep` 에 paths 주입; 게이트 직전 `readArtifact(draftFile)` 로 경로→내용 resolve. `DrivePlanOutput`·`AgentOut` 에 `spawnOptions`·`draftPath`·`feedbackPath`.
+- 어댑터 `index.ts`: `PLAN_MODE_PROMPT` 를 파일 프로토콜로 재작성(Director 가 스폰 옵션 필수 적용·자식은 파일에 쓰고 경로/판정만 보고·본문 전달 금지).
+- 검증: **71건 green**(orchestration paths·spawnOptions 5건 + drivePlan 파일 프로토콜 종단간). `bun run build`(tsc -b)/`bun test` 0 종료. lens 진단 에러 0.
+
+#### 왜 / 트레이드오프
+
+- 영구 에이전트(Director) 를 직격 — 파일 경로화로 인라인 본문 순환을 끊어 컨텍스트 평탄화. (2)·(3) 은 같은 `subagent` 옵션 1줄로 가성비 잡힘.
+- core 정책 소유 → `orchestration.test.ts` 가 role 별 옵션·경로 참조를 결정론적 검증("신뢰성은 코드"). core harness-agnostic 유지(파일 I/O 無, 경로는 데이터 주입).
+- 한계: LLM 비준수 시 Director 가 여전히 본문 흘릴 수 있음(프롬프트 강제이나 하드 보장 아님) — 후속 과제.
+
+#### 남음
+
+- 라이브 e2e 런 증거(1261 재현 안 됨 확인) — 목 테스트는 구조 증명이지 라이브 GLM 한도 증명 아님.
+- LLM 비준수 방어(자식 반환에 본문 섞이면 Director 가 거부) 옵션.
+
+### Tier 1 에이전트 오케스트레이션 구현 (Tier 0·NFR-7 폐지)
+
+#### 배경
+
+- 사용자 요구: "단일 에이전트가 계획하도록 하지 말고 FactoryNote 자체 기능으로 에이전트 오케스트레이션이 동작". vault([[multi-agent-pipeline]]·M4)는 Director/Design/Feedback 모델을 정의하나, MVP([[ADR-005-mvp-implementation]])는 Tier 0(단일 에이전트 인라인 자기검토)로 출하 — 자기검토는 독립 검토가 아니다.
+
+#### 핵심 제약 발견
+
+- pi SDK 조사(`ExtensionAPI`/`ExtensionContext` — execute 의 ctx): 스폰/서브에이전트 API 없음. `subagent` 도구는 에이전트 전용 → 확장 코드가 동기 스폰 불가. 그러므로 Tier 1 은 **에이전트 매개**로 실현(`factorynote_plan` 이 단계 지시문 반환 → Director 가 `subagent` 도구로 스폰·보고). 이 제약이 설계를 강제했고, 사용자가 확정한 목표("Director 에이전트가 스폰")와 정합.
+
+#### 한 일
+
+- 코어 `orchestration.ts`(신규): `AgentSpawn` 계약 + 순수 전이 `nextDesignFeedbackStep` + 동기 루프 `runDesignFeedbackLoop(spawn)`. 내부 루프 상한(`MAX_DESIGN_FEEDBACK_LOOPS`=3) + FR-2 에스컬레이션(잔존 이슈 노출). `types.ts`/`engine.ts`/`persistence.ts`: `dfPhase`/`dfLoop` 추가 + 구 state.json 마이그레이션.
+- 어댑터 `plan-tool.ts`: `drivePlan` 을 오케스트레이션 단계 드라이버로 재작성(spawn-design/spawn-feedback/gate 지시문 relay). `index.ts`: `PLAN_MODE_PROMPT` Tier 1 절차 재작성 + 파라미터 `designArtifact`/`feedbackResult`.
+- 검증: orchestration 전이 12건(목 AgentSpawn 으로 spawn→루프→상한→에스컬레이션→게이트) + drivePlan Tier 1 종단간 갱신 → **65건 green, build 0**.
+- 문서: [[ADR-009-tier-1-agent-orchestration]] 신규, [[ADR-005-mvp-implementation]] 결정 #4·NFR-7 폐기 표시, Changelog, `packages/factorynote/orchestrator/README.md` Tier 1 runbook.
+
+#### 왜 / 트레이드오프
+
+- **신뢰성은 코드**(Hybrid): 루프 전이·상한·에스컬레이션을 결정론적 코드에 두어 목 단위테스트로 게이트. pi 경로도 같은 `nextDesignFeedbackStep` 공유 → 테스트가 실동작을 게이트(비결정론적 라이브 스폰 없이 증명).
+- NFR-7 폐지: 서브에이전트 스폰 불가 환경에선 동작 안 함(ADR-009 트레이드오프).
+- Stage 당 `factorynote_plan` 호출 수 증가(스폰·보고 단계마다) — plan 모드 다중턴 특성상 수용.
+
+#### 남음
+
+- 라이브 end-to-end 런 증거(트랜스크립트 캡처) — 본 ADR 범위 밖(목 테스트가 하드 게이트).
+- Codex/Claude 어댑터(동기 스폰 가능 시 `runDesignFeedbackLoop` 에 `AgentSpawn` 구현 직접 주입).
 
 ## 2026-08-06
 

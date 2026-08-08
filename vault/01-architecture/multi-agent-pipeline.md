@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-06
+updated: 2026-08-07
 tags: [architecture, agents, pipeline]
 ---
 
@@ -136,6 +136,10 @@ Feedback Agent가 검토 ──► 이슈 발견 ──► Design에게 피드�
 - **harness 적응** — Pi/Codex/Claude Code 각 환경의 에이전트 스폰 방식에 맞춰 구현체만 교체한다.
 
 > 에이전트 추가 시 이 문서의 "에이전트 역할" 절과 [[project-identity]] 용어집을 함께 갱신한다.
+
+## 구현 상태
+
+본 모델은 **Tier 1** 로 구현되었다([[ADR-009-tier-1-agent-orchestration]]). 산출물은 향상 Design 자식 → Feedback 자식 루프(상한 `MAX_DESIGN_FEEDBACK_LOOPS` + FR-2 에스컬레이션)를 거쳐 사용자 게이트로 간다(Tier 0 단일 에이전트 인라인 자기검토·NFR-7 은 폐지). pi 확장 코드는 서브에이전트 동기 스폰이 불가하므로 **Director 에이전트가 `subagent` 도구로 자식을 스폰·보고**한다(에이전트 매개). 실행 규칙은 `packages/factorynote/orchestrator/README.md`(runbook), 전이 로직은 `packages/factorynote/src/orchestration.ts`.
 
 ## 참고
 

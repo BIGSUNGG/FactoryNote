@@ -12,7 +12,7 @@ export interface StageDefinition {
 	producesArtifact: boolean;
 	/** Design 역할에게 주어지는 작성 지시(에이전트 프롬프트에 주입). */
 	designPrompt: string;
-	/** Feedback 역할(자기검토) 체크리스트. */
+	/** Feedback 역할(검토) 체크리스트. */
 	feedbackChecklist: string[];
 }
 

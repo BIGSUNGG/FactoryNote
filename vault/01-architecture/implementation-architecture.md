@@ -77,9 +77,9 @@ sequenceDiagram
     Note over Pi: before_agent_start:<br/>계획 프롬프트 주입
     U->>Pi: "기능 X 계획해줘"
     Pi->>T: factorynote_plan({ feature:"X" })
-    T-->>Pi: needArtifact (Stage 1 designPrompt)
-    Note over Pi: Design: 산출물 작성<br/>Feedback: checklist 자기검토
-    Pi->>T: factorynote_plan({ feature, artifactMd })
+    T-->>Pi: nextAction=spawn-design (Stage 1 designPrompt·spawnTask)
+    Note over Pi: Director: subagent 도구로 Design 자식 스폰→산출물<br/>→ Feedback 자식 스폰→검토(에이전트 매개, 루프·상한·에스컬레이션은 core 통제)
+    Pi->>T: factorynote_plan({ feature, designArtifact, feedbackResult:"CLEAN" })
     T->>T: 산출물 저장(.factorynote/X/01-*.md)<br/>state.gateOpen=true 저장
     T->>S: runGate() — 영속 서버 재사용(첫 게이트만 생성+브라우저 오픈)
     S->>W: 첫 게이트만 브라우저 오픈(http://127.0.0.1:포트)<br/>이후 단계는 같은 탭이 폴링으로 갱신
@@ -197,7 +197,7 @@ factorynote/
 | plan 모드 진입 | `/factorynote` 토글 + 프롬프트 주입 | 사용자 시드(모드), FR-8(직접 시작) 아님 |
 | 게이트 UI | **웹 페이지**(로컬 HTTP 서버) | ADR-003 은 옵션이나 시드가 명시 → 주경로 격상 |
 | 산출물/상태 위치 | `.factorynote/<feature>/` 통합 | 시드 부합 + gitignore 1건 |
-| 에이전트 티어 | Tier 0(단일 에이전트 역할 전환) | NFR-7, pi-crew(Tier 1)는 연기 |
+| 에이전트 티어 | **Tier 1**(Design↔Feedback 자식 스폰 루프, 유일 경로) | [[ADR-009-tier-1-agent-orchestration]]; Tier 0·NFR-7 폐지 |
 | 제어 vs 판단 | 제어·영속=코드, 산출물=LLM | 하이브리드 원칙(NFR-4) |
 | 단계별 렌더 | 1/3=마크다운(PlanPage), 2=다중 섹션 그래프(GraphStage) | [[ADR-006-graph-editor]] · [[ADR-008-3-stage-pipeline]] |
 | 그래프 편집 | 직접 편집 → 에이전트 채택(graphSections) | 목업 UX + 5대 원칙(게이트 거쳐 채택) |

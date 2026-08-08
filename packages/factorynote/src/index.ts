@@ -2,8 +2,14 @@
 // M3 Persistence · M1 Stage Registry · Engine(상태기계). harness-agnostic(Layer 1-2).
 export type {
 	ArtifactFormat,
+	AgentRole,
+	AgentSpawn,
+	ArtifactPaths,
 	ChatMessage,
 	Comment,
+	DesignFeedbackDirective,
+	DesignFeedbackPhase,
+	FeedbackOutcome,
 	GateDecision,
 	GateVerdict,
 	GraphArtifact,
@@ -12,6 +18,7 @@ export type {
 	GraphSection,
 	HistoryEntry,
 	PipelineState,
+	SpawnOptions,
 	StageId,
 	ValidThrough,
 } from "./types.ts";
@@ -46,3 +53,16 @@ export {
 	serializeDesignMarkdown,
 } from "./graph.ts";
 export type { DesignMarkdown } from "./graph.ts";
+export {
+	CHILD_SPAWN_OPTIONS,
+	MAX_DESIGN_FEEDBACK_LOOPS,
+	designTask,
+	feedbackTask,
+	nextDesignFeedbackStep,
+	parseFeedback,
+	runDesignFeedbackLoop,
+} from "./orchestration.ts";
+export type {
+	DesignFeedbackReport,
+	DesignFeedbackTransition,
+} from "./orchestration.ts";
