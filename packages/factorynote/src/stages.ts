@@ -82,4 +82,3 @@ export function stageById(id: StageId): StageDefinition {
 export function currentStageDef(stage: StageId): StageDefinition {
 	return stageById(stage);
 }
-

@@ -34,7 +34,12 @@ import type {
 	DesignFeedbackReport,
 } from "@factorynote/core";
 import { join } from "node:path";
-import { appendAgentChat, closeGate, observeGate, runGate } from "./gate-server.ts";
+import {
+	appendAgentChat,
+	closeGate,
+	observeGate,
+	runGate,
+} from "./gate-server.ts";
 
 /** #4 게이트 자동 만료(ms) — 사용자 이탈 시 좀비 게이트 방지. 30분. */
 const GATE_TIMEOUT_MS = 30 * 60 * 1000;

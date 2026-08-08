@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-07
+updated: 2026-08-08
 tags: [development, changelog]
 ---
 
@@ -12,6 +12,8 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ### Changed
 
+- **`install.sh` → `install.mjs`(순수 Node)** — 배포 스크립트를 bash 에서 순수 Node(`scripts/install.mjs`)로 이식. Windows 에서 `bun run build` 의 마지막 단계 `bash scripts/install.sh` 가 WRL bash 로 해석돼 `execvpe(/bin/bash) failed`(WSL 배포판 없음)로 즉는 빌드 실패 수정. `package.json` build/deploy 가 `bun scripts/install.mjs` 로 전환. `node:fs`/`node:os` 만 사용해 Windows/macOS/Linux 동일 동작, bash/WSL/Git Bash 의존 제거(`bin/factorynote.mjs` 와 동일한 순수 Node ESM 컨벤션). 구 `install.sh` 삭제(단일 진실, 드리프트 방지).
+
 - **코멘트 → 실시간 채팅 통합** — 블록/셀/영역 코멘트(`PlanPage`)와 그래프 코멘트(`DesignStage`)를 로컬 큐 적재가 아닌 즉시 `POST /api/chat`(blockId/node 스코프)로 전송. 코멘트가 채팅 메시지(`role:"user"`)로 표시되며 기존 `chatPending` 루프로 에이전트에 즉시 전달(게이트 유지). [[ADR-011-comment-to-chat-consolidation]].
 
 ### Removed
@@ -22,6 +24,7 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ### Fixed
 
+- **`GraphEditor.jsx` 머지 유실 복구** — `develop` 트리에서 `apps/plan-viewer/src/components/GraphEditor.jsx` 가 빠져 `bun run build` 가 `Could not resolve "./GraphEditor" from Block.jsx` 로 즉는 현상. 이 파일은 `1bc204c`(graph 통합)에서 `GraphStage.jsx → GraphEditor.jsx` rename 으로 생성됐으나 이후 머지(`490fdb0 Merge feature/graph`) 과정에서 트리에서 떨어짐. `git checkout 1bc204c -- apps/plan-viewer/src/components/GraphEditor.jsx` 로 복구. 이 파일은 Stage 2 설계 md 의 ```factorynote-graph 펜스를 인터랙티브 에디터로 렌더하는 핵심 컴포넌트(없으면 설계 산출물이 게이트에서 빈 칸)이므로 import 제거가 아닌 복구가 정답.
 - **코멘트→채팅 즉시 갱신 + 폴링 0.5초** — 블록/셀/영역/그래프 코멘트 전송 시 `fn-chat-update` 윈도우 이벤트로 `ChatSidebar` 를 즉시 갱신(POST 완료 후 발화)해 내 코멘트가 지체 없이 채팅에 표시. `ChatSidebar` 폴링 2초→0.5초(에이전트 회신 등 안전망).
 - **여러 블록에 걸친 범위 코멘트** — 두 제약 해소. (1) **하이라이트**: 한 번에 감싸는 기법(멀티 노드 범위에서 에러로 스킵)을 텍스트 노드 순회·각각 `<mark>` 감싸기(`highlightRange`)로 교체 → 여러 블록 드래그도 하이라이트. (2) **스코프**: `Document.jsx` 가 `range.intersectsNode` 로 선택이 걸친 모든 블록 수집 → `PlanPage` 가 `blockId` 쉼표 결합(`b2,b3,b4`)으로 전송(이전엔 시작 블록 하나만). 팝오버 헤더에도 전체 범위 표시.
 - **범위 코멘트 인용(quote) 누락** — 채팅 통합 시 드래그 영역 코멘트의 선택 텍스트(`quote`)가 `POST /api/chat` body에서 빠져, 에이전트가 어느 블록인지는 알아도 정확히 어떤 범위인지 몰랐던 것 수정. `ChatMessage.quote` 타입 추가 → `gate-server` `/api/chat` 파싱·저정 → `plan-tool` `formatChat` 이 `(인용: "…")` 로 렌더 → `ChatSidebar` 말풍선에 인용 표시. gate-server 테스트에 quote 왕복 검증 추가.

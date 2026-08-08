@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-06
+updated: 2026-08-08
 tags: [architecture, implementation, code-map, data-flow]
 ---
 
@@ -173,7 +173,7 @@ sequenceDiagram
 
 ## 설치 레이아웃 — `~/.pi/agent/extensions/factorynote/`
 
-`scripts/install.sh` 가 아래 구조로 배치. pi 가 `~/.pi/agent/extensions/*/index.ts` 를 자동 발견한다.
+`scripts/install.mjs` 가 아래 구조로 배치. pi 가 `~/.pi/agent/extensions/*/index.ts` 를 자동 발견한다.
 
 ```
 factorynote/

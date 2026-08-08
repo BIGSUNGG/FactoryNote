@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-07
+updated: 2026-08-08
 tags: [meta, usage, manual, how-to]
 ---
 
@@ -19,12 +19,12 @@ FactoryNote MVP를 pi 하네스에서 **설치하고 직접 사용하는 방법*
 리포 루트에서:
 
 ```bash
-bash scripts/install.sh
+bun scripts/install.mjs
 ```
 
-이 스크립트는:
+이 스크립트는(순수 Node — Windows/macOS/Linux 공통, bash/WSL 의존 없음):
 
-1. 뷰어가 빌드되어 있지 않으면 `apps/plan-viewer` 에서 `npm install && npm run build`.
+1. 뷰어가 빌드되어 있지 않으면 `apps/plan-viewer` 에서 `bun run build`.
 2. 확장을 `~/.pi/agent/extensions/factorynote/` 에 배치(확장 TS + `@factorynote/core` 로컬 패키지 + 뷰어 `dist/`).
 
 > 설치 후 **새 pi 세션**에서 pi 가 확장을 자동 발견한다.(`/reload` 불필요 — 새 세션 시작 시 로드)

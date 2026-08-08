@@ -229,7 +229,9 @@ function formatForAgent(feature: string, out: AgentOut): string {
 		for (const c of out.chatPending) {
 			lines.push(`- ${c.blockId ? `[블록 ${c.blockId}] ` : ""}${c.text}`);
 		}
-		lines.push(`→ 위 채팅에 답한다: 질문이면 chatResponse 로 답변. 산물 수정이 필요하면 Design 자식 재스폰으로 designArtifact(경로)와 답변 chatResponse 를 함께 담아 factorynote_plan 을 다시 호출하라(게이트 유지). 최종 확정은 사용자가 게이트 바로 한다.`);
+		lines.push(
+			`→ 위 채팅에 답한다: 질문이면 chatResponse 로 답변. 산물 수정이 필요하면 Design 자식 재스폰으로 designArtifact(경로)와 답변 chatResponse 를 함께 담아 factorynote_plan 을 다시 호출하라(게이트 유지). 최종 확정은 사용자가 게이트 바로 한다.`,
+		);
 	}
 	if (!out.done && out.spawnTask && out.spawnRole) {
 		lines.push("");

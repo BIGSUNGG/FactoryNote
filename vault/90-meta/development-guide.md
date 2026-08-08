@@ -17,7 +17,7 @@ factorynote/
 │   └── src/{index,plan-tool,gate-server}.ts
 ├── apps/plan-viewer/ # 뷰어(React+Vite, 별도 node_modules)
 ├── bin/factorynote.mjs          # CLI(순수 Node ESM)
-├── scripts/install.sh           # 로컬 pi 설치
+├── scripts/install.mjs          # 로컬 pi 설치(순수 Node)
 └── vault/                       # 문서(Obsidian, 배포 제외)
 ```
 
@@ -84,7 +84,7 @@ npm run dev          # 개발 서버(단독 미리보기, 게이트 연동 없�
 
 ### 뷰어 수정
 
-`apps/plan-viewer/src/` 편집 → `npm run build` → `bash scripts/install.sh` 로 재배포.
+`apps/plan-viewer/src/` 편집 → `bun run build` → `bun scripts/install.mjs` 로 재배포.
 게이트 계약(`/api/state`·`/api/decision` 셰이프)은 [[implementation-architecture#데이터 계약 Contracts]] 참조. 뷰어는 이 계약만 지키면 된다.
 
 ### 새 harness 어댑터 추가(Codex / Claude Code)

@@ -106,7 +106,7 @@ test("gate /api/state returns Stage 2 design as markdown", async () => {
 			}
 			await fetch(`${url}/api/decision`, {
 				method: "POST",
-			headers: { "Content-Type": "application/json" },
+				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ verdict: "confirm", comments: [] }),
 			});
 		},

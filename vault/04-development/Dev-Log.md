@@ -1,11 +1,38 @@
 ---
-updated: 2026-08-07
+updated: 2026-08-08
 tags: [development, dev-log]
 ---
 
 # Dev-Log
 
 날짜별 작업 기록. 무엇을 했는지, 왜, 무엇이 남았는지. [[Changelog]]는 외부용 단위, 본 파일은 일일 흐름.
+
+## 2026-08-08
+
+### Windows 빌드 수정 — install 순수 Node 이식 + GraphEditor 복구
+
+#### 현상
+
+- `bun run build` 가 마지막 단계 `bash scripts/install.sh` 에서 즉음: `WSL (31003 - Relay) ERROR: execvpe(/bin/bash) failed: No such file or directory`. Windows 환경에서 `bash` 가 WRL bash 로 해석되는데 WSL 배포판이 없어 `/bin/bash` 를 못 찾는 문제. (에이전트의 bash 툴 PATH=Git Bash 라 통과했지만 사용자 환경에선 WRL.)
+- 그 이전 단계에서는 별개 에러: `Could not resolve "./GraphEditor" from src/components/Block.jsx` — viewer 빌드가 `GraphEditor.jsx` 부재로 즉음.
+
+#### 원인
+
+- **GraphEditor 부재**: `Block.jsx` 가 `./GraphEditor` 임포트하지만 파일이 작업 트리에 없었다. `1bc204c`(graph 통합)에서 `GraphStage.jsx → GraphEditor.jsx` rename 으로 생성됐으나, 이후 `490fdb0 Merge feature/graph` 과정에서 트리에서 떨어져 나감(`1bc204c` 는 HEAD 의 조상이지만 HEAD 트리엔 파일 없음). 이 파일은 Stage 2 설계 md 의 ```factorynote-graph 펜스를 인터랙티브 에디터로 렌더하는 핵심 — 없으면 설계 산출물이 게이트에서 빈 칸이 되므로 import 제거가 아닌 복구가 정답.
+- **install WSL 에러**: `scripts/install.sh` 가 bash 스크립트인데, 저장소가 이미 `bun` 런타임 + 순수 Node ESM(`bin/factorynote.mjs`) 컨벤션이므로 bash 의존 자체가 불필요.
+
+#### 조치
+
+- `git checkout 1bc204c -- apps/plan-viewer/src/components/GraphEditor.jsx` 로 700행 파일 복구(700행).
+- `scripts/install.sh` → `scripts/install.mjs` 이식(`node:fs`/`node:os`/`node:child_process` 만 사용). `rmSync`/`mkdirSync`/`cpSync`/`copyFileSync`/`writeFileSync` 로 install.sh 의 rm/mkdir/cp/cat 작업 1:1 대응. 뷰어 빌드 보장 스텝은 `execSync("bun run build")` + try/catch(실패 시 명확한 에러).
+- `package.json` build/deploy: `bash scripts/install.sh` → `bun scripts/install.mjs`.
+- 구 `install.sh` 삭제(단일 진실, 드리프트 방지).
+
+#### 검증 / 남음
+
+- `bun run build` 0 종료: tsc -b + viewer 빌드(287 modules) + install.mjs → `C:\Users\DAESUNG\.pi\agent\extensions\factorynote` 정상 배포. Windows/macOS/Linux 공통 동작 확보.
+- 문서 동기화: `AGENTS.md`·`scripts/README.md`·`vault/90-meta/{usage-guide,development-guide}.md`·`vault/01-architecture/implementation-architecture.md` 의 `install.sh` 참조 → `install.mjs`로 갱신. 본 Changelog/Dev-Log 항목 추가.
+- 남음: 복구한 `GraphEditor.jsx` 와 신규 `install.mjs` 는 아직 커밋 안 됨(`git status` 추적). `develop` 에 커밋해 머지 재유실을 영구 차단해야 함.
 
 ## 2026-08-07
 
@@ -65,6 +92,7 @@ tags: [development, dev-log]
 - `bun test` 68 pass / 0 fail(신규 designMd 8). `bun run build` 0 종료(빌드=배포). 설치 확장 = 소스 동기화 확정.
 - 런타임 증명: designPrompt 그대로의 bare 노드 md 가 `parse→normalize` 를 거쳐 react-flow 렌더 가능 노드로 정규화됨(dmtest2 진단).
 - **남음(사용자 경험적 1회 확인)**: pi 세션 재시작 후 `/factorynote` → Stage 1 채팅 동작·Stage 2 그래프(또는 진단 배너) 확인.
+
 ### 3단계 산출물·렌더링 통일 — md + 내장 그래프
 
 #### 현상
@@ -98,6 +126,7 @@ tags: [development, dev-log]
 
 - 그래프 블록의 코멘트는 현재 블록 단위(그래프 전체). 노드/엣지 단위 코멘트는 `GraphEditor` 추출 시 제거됨 — 필요시 블록 코멘트 인용(quote)으로 보완 가능.
 - 사용자가 그래프를 편집한 뒤 modify 시 에이전트가 md 를 재작성하는데, 이때 편집된 그래프 펜스를 보존하도록 메시지로 안내 중(정책) — 정합성 강제는 추후 과제.
+
 ### auto-advance 모드 — 게이트 자동 승인 명령 추가
 
 #### 현상
@@ -120,6 +149,7 @@ tags: [development, dev-log]
 
 - auto 를 영구 기능으로 다룰지(ADR)는 후속 — 현재는 개발/데모용 탈출구로 명시.
 - 영속 저장(세션 간 유지)은 범위 외 — planMode 와 동일 세션 메모리.
+
 ### 오케스트레이션 컨텍스트 한도(1261) 해소 — 파일 경로 프로토콜 + 자식 스폰 제약
 
 #### 배경

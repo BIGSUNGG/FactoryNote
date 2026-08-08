@@ -22,7 +22,7 @@ packages/factorynote/    # Layer 1-2 코어(harness-agnostic) — engine · pers
 apps/pi-extension/       # Layer 3 Pi 어덂터(메인) — /factorynote · factorynote_plan · 웹 게이트
 apps/plan-viewer/  # 뷰어(React) — 빌드 dist 가 게이트로 서빙
 bin/factorynote.mjs      # CLI(순수 Node, 상태 조회)
-scripts/install.sh       # 로컬 pi 설치
+scripts/install.mjs     # 로컬 pi 설치(순수 Node) — bash/WSL 의존 없음
 vault/                   # 문서(Obsidian) — 기획·설계·ADR·아키텍처·가이드
 .pi/skills/doc-workflow  # 문서 갱신 규칙(스킬)
 ```
@@ -31,7 +31,7 @@ vault/                   # 문서(Obsidian) — 기획·설계·ADR·아키텍�
 
 ## 이 리포에서 작업할 때
 
-- **빌드/배포/테스트**: `bun run build`(= `tsc -b` 타입체크 + viewer 빌드 + `install.sh` 배포 → **빌드=배포**, 설치 확장이 항상 최신) · `bun test`(67 자체체크). 코드 바꾸면 이 둘이 0 종료여야. 순수 타입체크만 원하면 `bun run typecheck`.
+- **빌드/배포/테스트**: `bun run build`(= `tsc -b` 타입체크 + viewer 빌드 + `install.mjs` 배포 → **빌드=배포**, 설치 확장이 항상 최신) · `bun test`(67 자체체크). 코드 바꾸면 이 둘이 0 종료여야. 순수 타입체크만 원하면 `bun run typecheck`.
 - **문서는 코드와 함께**: 결정→`vault/02-decisions/ADR-NNN-*.md`, 변경→`vault/04-development/Changelog.md`+`Dev-Log.md`, 신규 문서→`vault/Home.md` 링크. 전체 규칙은 `.pi/skills/doc-workflow` 스킬.
 - **plan 모드**(본 도구): pi 에서 `/factorynote` 로 토글. ON 이면 계획만产出(코드 금지), `factorynote_plan` 도구로 3단계 구동, 웹 페이지가 게이트.
 
