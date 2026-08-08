@@ -11,6 +11,8 @@ import { moduleDir } from "./gate-server.ts";
 
 // plan 모드 상태(세션 내 메모리). /factorynote 로 토글.
 let planMode = false;
+// auto-advance(게이트 자동 승인) 상태(세션 내 메모리). /factorynote auto 로 토글.
+let autoAdvance = false;
 
 const PLAN_MODE_PROMPT = `
 [FactoryNote PLAN MODE 활성화]
@@ -54,12 +56,33 @@ function modeLine(): string {
 	return `FactoryNote plan 모드: ${planMode ? "ON ✅" : "OFF"}`;
 }
 
+function autoLine(): string {
+	return autoAdvance
+		? "FactoryNote auto-advance: ON ⚠ (게이트 자동 승인 — 관찰용 브라우저만 옴)"
+		: "FactoryNote auto-advance: OFF";
+}
+
 export default function (pi: ExtensionAPI): void {
 	// /factorynote — plan 모드 토글(/factorynote on|off 로 명시적 설정).
 	pi.registerCommand("factorynote", {
-		description: "FactoryNote plan 모드 토글 (on|off)",
+		description:
+			"FactoryNote plan 모드 토글 (on|off) · auto [on|off] = 게이트 자동 승인",
 		handler: async (args, ctx) => {
-			const a = (args ?? "").trim().toLowerCase();
+			const parts = (args ?? "")
+				.trim()
+				.toLowerCase()
+				.split(/\s+/)
+				.filter(Boolean);
+			// auto 서브커맨드 — auto-advance(게이트 우회) 토글·설정.
+			if (parts[0] === "auto") {
+				const sub = parts[1];
+				if (sub === "on") autoAdvance = true;
+				else if (sub === "off") autoAdvance = false;
+				else autoAdvance = !autoAdvance;
+				ctx.ui.notify(autoLine(), "info");
+				return;
+			}
+			const a = parts.join(" ");
 			if (a === "on") planMode = true;
 			else if (a === "off") planMode = false;
 			else planMode = !planMode;
@@ -128,8 +151,10 @@ export default function (pi: ExtensionAPI): void {
 				...(params.chatResponse !== undefined
 					? { chatResponse: params.chatResponse }
 					: {}),
+				...(autoAdvance ? { autoAdvance: true } : {}),
 				...(signal ? { signal } : {}),
 			});
+			autoAdvance = false; // 1회 적용 후 자동 해제(재사용 시 재토글).
 			// #5 파이프라인 완료 시 plan 모드 자동 해제(사용자가 매번 /factorynote 토글하지 않도록).
 			if (out.done) {
 				planMode = false;

@@ -19,7 +19,7 @@ import {
 	type GateDecision,
 	type PipelineState,
 } from "@factorynote/core";
-import { appendAgentChat, closeGate, runGate } from "./gate-server.ts";
+import { appendAgentChat, closeGate, observeGate, runGate } from "./gate-server.ts";
 
 /** #4 게이트 자동 만료(ms) — 사용자 이탈 시 좀비 게이트 방지. 30분. */
 const GATE_TIMEOUT_MS = 30 * 60 * 1000;
@@ -33,6 +33,8 @@ export interface DrivePlanInput {
 	artifactMd?: string;
 	/** 이전 게이트에서 받은 채팅에 대한 에이전트 답변(게이트 유지 채팅 루프). 미사용 시 무시. */
 	chatResponse?: string;
+	/** true 면 게이트 결정을 기다리지 않고 즉시 confirm(auto-advance). 관찰용 브라우저는 옴. */
+	autoAdvance?: boolean;
 	signal?: AbortSignal;
 	/** false 면 브라우저 자동 오픈 생략(테스트용). */
 	open?: boolean;
@@ -129,7 +131,20 @@ async function runOpenGate(
 	// 게이트 오픈 → 웹에서 결정 또는 실시간 채팅 대기(블로킹).
 	state = markArtifactReady(state);
 	await saveState(root, state);
-	const event = await runGate({
+
+	let decision: GateDecision;
+	if (input.autoAdvance) {
+		// auto-advance: 게이트 서버 오픈(관찰용) 후 결정 대기 없이 즉시 confirm.
+		await observeGate({
+			root,
+			feature,
+			viewerDistDir,
+			...(input.open !== undefined ? { open: input.open } : {}),
+			...(input.onReady ? { onReady: input.onReady } : {}),
+		});
+		decision = { verdict: "confirm", comments: [] };
+	} else {
+		const event = await runGate({
 		root,
 		feature,
 		viewerDistDir,
@@ -160,13 +175,14 @@ async function runOpenGate(
 		};
 	}
 
-	const decision = event.decision;
+	decision = event.decision;
 
 	// Stage 2(설계)에서 사용자가 직접 편집한 마크다운을 산출물로 채택(저장).
 	// 직접 편집 → 에이전트 채택: 사용자의 편집 결과가 곧 산출물(5대 원칙 — 게이트 거쳐 채택).
 	// Stage 1/3 은 에이전트 전용(뷰어가 artifactMd 를 보내지 않음)이라 여기엔 도달하지 않는다.
 	if (decision.artifactMd !== undefined && def.artifactFile) {
 		await writeArtifact(root, feature, def.artifactFile, decision.artifactMd);
+	}
 	}
 
 	// 결정 적용·저장.

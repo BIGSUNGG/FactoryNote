@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-06
+updated: 2026-08-07
 tags: [meta, usage, manual, how-to]
 ---
 
@@ -49,6 +49,8 @@ pi 대화형 세션에서:
 
 → "FactoryNote plan 모드: ON ✅" 알림. 이후 매 턴 계획 전용 프롬프트가 주입된다.
 (`/factorynote off` 로 끄거나, `/factorynote` 재입력으로 토글)
+
+> **auto-advance(개발/데모용 탈출구)**: `/factorynote auto` (또는 `auto on`/`auto off`) 로 3단계 게이트를 자동 승인한다. ON 이면 각 단계를 사용자 클릭 없이 자동 통과하되, **게이트 브라우저는 열어 진행을 관찰**할 수 있다(이상하면 에이전트 중단으로 개입). 5대 원칙을 의도적 우회하는 탈출구이므로 **프로덱션 계획에는 비권장**. 파이프라인 완료 시 자동 해제.
 
 ### 2. 기능 요청하기
 
