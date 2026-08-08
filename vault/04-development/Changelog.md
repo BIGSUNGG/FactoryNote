@@ -12,6 +12,8 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ### Changed
 
+- **자식 도구 allowlist 전환(`toolBudget.block` 폐지)** — 오케스트레이션 자식 스폰의 `1261 Prompt exceeds max length` 원인 분석 결과, [[ADR-010-context-overflow-file-protocol]] 의 `toolBudgetBlock` 가 시스템 프롬프트에서 도구를 제거하지 못함(런타임 카운트 게이트일 뿐, `hard` 누락으로 무효)이 확인되어 도구 제거 수단을 교체. `apps/pi-extension/agents/factorynote-{design,feedback}.md` 명명 에이전트를 `tools:` 엄격 allowlist(`read, write, edit, bash`)로 도입 + `package.json` `pi-subagents.agents` 매니페스트 선언 → 자식 시스템 프롬프트에서 heavy 도구 스키마(context-mode·pi-lens·subagent·mcp·`factorynote_plan`) 물리 제거. `SpawnOptions` 를 `agentName` + `toolBudget{hard,soft}` + `turnBudget{maxTurns}` 로 재설계(`CHILD_SPAWN_OPTIONS` 역할별 맵). `clampReportInput` 가드로 자식 보고 과대 입력(>4000자) 절단(Director 누적 방어, ADR-010 후속 이행). [[ADR-012-child-tool-allowlist-spawn]].
+
 - **`install.sh` → `install.mjs`(순수 Node)** — 배포 스크립트를 bash 에서 순수 Node(`scripts/install.mjs`)로 이식. Windows 에서 `bun run build` 의 마지막 단계 `bash scripts/install.sh` 가 WRL bash 로 해석돼 `execvpe(/bin/bash) failed`(WSL 배포판 없음)로 즉는 빌드 실패 수정. `package.json` build/deploy 가 `bun scripts/install.mjs` 로 전환. `node:fs`/`node:os` 만 사용해 Windows/macOS/Linux 동일 동작, bash/WSL/Git Bash 의존 제거(`bin/factorynote.mjs` 와 동일한 순수 Node ESM 컨벤션). 구 `install.sh` 삭제(단일 진실, 드리프트 방지).
 
 - **코멘트 → 실시간 채팅 통합** — 블록/셀/영역 코멘트(`PlanPage`)와 그래프 코멘트(`DesignStage`)를 로컬 큐 적재가 아닌 즉시 `POST /api/chat`(blockId/node 스코프)로 전송. 코멘트가 채팅 메시지(`role:"user"`)로 표시되며 기존 `chatPending` 루프로 에이전트에 즉시 전달(게이트 유지). [[ADR-011-comment-to-chat-consolidation]].

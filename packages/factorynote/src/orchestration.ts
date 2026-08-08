@@ -11,6 +11,7 @@
 //  - runDesignFeedbackLoop: 동기 스폰 가능 harness(CLI 하네스·테스트·Codex/Claude
 //    구현체 등)가 직접 호출하는 루프 드라이버. nextDesignFeedbackStep 을 합성.
 import type {
+	AgentRole,
 	AgentSpawn,
 	ArtifactPaths,
 	DesignFeedbackDirective,
@@ -25,35 +26,51 @@ export const MAX_DESIGN_FEEDBACK_LOOPS = 3;
 
 /**
  * 자식(Design/Feedback) 스폰 고정 옵션 — 컨텍스트 한도 관리 정책(core 소유).
- * pi 어댑터가 subagent 호출의 skill/context/toolBudget 로 매핑해 Director 에 전달.
- * 자식은 read/write/edit(+ 산출물 파일) 정도면 족하다; heavy 비필수 도구 차단으로
- * 시스템 프롬프트 고정 세금(도구 스키마)을 줄인다.
+ * pi 어댑터가 subagent 호출의 agent/skill/context/toolBudget/turnBudget 로 매핑.
+ *
+ * 도구 제거(시스템 프롬프트 고정 세금 절감)는 여기가 아니라 **명명 에이전트 정의의
+ * `tools:` allowlist**(factorynote-design.md / factorynote-feedback.md)가 담당한다.
+ * 이전 toolBudgetBlock 은 프롬프트에서 도구를 빼지 못해(런타임 카운트 게이트일 뿐,
+ * hard 누락으로 무효) 1261 방어에 실패했다 — 도구 allowlist 로 대체(ADR-012).
+ * SpawnOptions 는 (a) 스폰할 에이전트, (b) 호출/턴 카운트 상한만 소유한다.
  */
-export const CHILD_SPAWN_OPTIONS: SpawnOptions = Object.freeze({
-	skill: false,
-	context: "fresh",
-	toolBudgetBlock: [
-		"web_search",
-		"fetch_content",
-		"get_search_content",
-		"source_check",
-		"subagent",
-		"factorynote_plan",
-		"mcp",
-		"mcpScript",
-		"ctx_fetch_and_index",
-		"ctx_index",
-		"ctx_batch_execute",
-		"lsp_diagnostics",
-		"lens_diagnostics",
-		"symbol_search",
-		"read_symbol",
-		"project_report",
-		"module_report",
-		"commitme",
-		"todo",
-	],
-});
+export const CHILD_SPAWN_OPTIONS: Readonly<Record<AgentRole, SpawnOptions>> =
+	Object.freeze({
+		design: {
+			skill: false,
+			context: "fresh",
+			agentName: "factorynote-design",
+			toolBudget: { hard: 20, soft: 14 },
+			turnBudget: { maxTurns: 15, graceTurns: 2 },
+		},
+		feedback: {
+			skill: false,
+			context: "fresh",
+			agentName: "factorynote-feedback",
+			toolBudget: { hard: 15, soft: 10 },
+			turnBudget: { maxTurns: 10, graceTurns: 2 },
+		},
+	});
+
+/**
+ * 방향 3b: 자식 보고 입력(designArtifact 경로 / feedbackResult 판정)이 과도히 길면
+ * 절단해 Director(영구 에이전트) 컨텍스트 누적(1261 원인)을 막는다. 자식은 파일에 상세를
+ * 쓰고 보고는 경로/판정만 반환하도록 규약되어 있으므로, 규약 위반(과대 본문) 시 첫 줄
+ * (판정/경로)은 보존하고 잘라낸다. 어댑터가 deriveReport 에서 호출.
+ */
+export const MAX_REPORT_INPUT_CHARS = 4000;
+export function clampReportInput(
+	raw: string,
+	maxLen: number = MAX_REPORT_INPUT_CHARS,
+): string {
+	if (raw.length <= maxLen) return raw;
+	const nl = raw.indexOf("\n");
+	const head = nl === -1 ? raw : raw.slice(0, nl);
+	return (
+		head.slice(0, Math.min(head.length, maxLen)) +
+		`\n[입력이 ${raw.length}자로 과대 — ${maxLen}자 한도로 절단(방향 3b). 상세는 산출물 파일 참조.]`
+	);
+}
 
 /** Feedback 에이전트가 보고하는 구조화 결과(코어는 raw 텍스트를 이렇게 파싱). */
 export type DesignFeedbackReport =
@@ -167,7 +184,7 @@ export function nextDesignFeedbackStep(
 				action: "spawn-design",
 				task: designTask(def, paths),
 				loop: dfLoop,
-				spawnOptions: CHILD_SPAWN_OPTIONS,
+				spawnOptions: CHILD_SPAWN_OPTIONS.design,
 			},
 			dfPhase: "design",
 			dfLoop,
@@ -180,7 +197,7 @@ export function nextDesignFeedbackStep(
 			directive: {
 				action: "spawn-feedback",
 				task: feedbackTask(def, report.draft, paths),
-				spawnOptions: CHILD_SPAWN_OPTIONS,
+				spawnOptions: CHILD_SPAWN_OPTIONS.feedback,
 			},
 			dfPhase: "feedback",
 			dfLoop,
@@ -211,7 +228,7 @@ export function nextDesignFeedbackStep(
 					action: "spawn-design",
 					task: designRevisionTask(def, report.outcome.issues, paths),
 					loop: dfLoop + 1,
-					spawnOptions: CHILD_SPAWN_OPTIONS,
+					spawnOptions: CHILD_SPAWN_OPTIONS.design,
 				},
 				dfPhase: "design",
 				dfLoop: dfLoop + 1,
@@ -236,7 +253,7 @@ export function nextDesignFeedbackStep(
 			directive: {
 				action: "spawn-feedback",
 				task: feedbackTask(def, draft, paths),
-				spawnOptions: CHILD_SPAWN_OPTIONS,
+				spawnOptions: CHILD_SPAWN_OPTIONS.feedback,
 			},
 			dfPhase: "feedback",
 			dfLoop,
@@ -249,7 +266,7 @@ export function nextDesignFeedbackStep(
 			action: "spawn-design",
 			task: designTask(def, paths),
 			loop: dfLoop,
-			spawnOptions: CHILD_SPAWN_OPTIONS,
+			spawnOptions: CHILD_SPAWN_OPTIONS.design,
 		},
 		dfPhase: "design",
 		dfLoop,

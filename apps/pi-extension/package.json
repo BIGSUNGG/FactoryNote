@@ -5,6 +5,9 @@
   "description": "Pi harness adapter — M4 Tier 1 (pi-crew spawn) + M5 (/factorynote command). Layer 3.",
   "type": "module",
   "main": "src/index.ts",
+  "pi-subagents": {
+    "agents": ["./agents"]
+  },
   "dependencies": {
     "@factorynote/core": "workspace:*"
   },

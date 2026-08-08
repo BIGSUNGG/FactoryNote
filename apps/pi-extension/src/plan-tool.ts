@@ -10,6 +10,7 @@ import {
 	STAGES,
 	applyVerdict,
 	atLoopCeiling,
+	clampReportInput,
 	designTask,
 	initialState,
 	invalidateArtifactsAfter,
@@ -123,10 +124,13 @@ function deriveReport(
 	state: PipelineState,
 ): DesignFeedbackReport | undefined {
 	if (input.feedbackResult !== undefined) {
-		return { role: "feedback", outcome: parseFeedback(input.feedbackResult) };
+		return {
+			role: "feedback",
+			outcome: parseFeedback(clampReportInput(input.feedbackResult)),
+		};
 	}
 	if (input.designArtifact !== undefined && state.dfPhase === "design") {
-		return { role: "design", draft: input.designArtifact };
+		return { role: "design", draft: clampReportInput(input.designArtifact) };
 	}
 	return undefined;
 }
@@ -211,7 +215,7 @@ export async function drivePlan(
 			action: "spawn-design",
 			task: designTask(def, fallbackPaths),
 			loop: state.dfLoop,
-			spawnOptions: CHILD_SPAWN_OPTIONS,
+			spawnOptions: CHILD_SPAWN_OPTIONS.design,
 		},
 		fallbackPaths,
 	);
@@ -238,7 +242,7 @@ function spawnDirective(
 			? `Design 자식은 산출물을 파일(${paths.draft})에 쓰고 반환은 그 경로만 한다(본문 금지). designArtifact 에는 경로만 담아 factorynote_plan 을 다시 호출하라.`
 			: `Feedback 자식은 상세 리뷰를 파일(${paths.feedback})에 쓰고 반환은 판정(CLEAN/ISSUES)만 한다. feedbackResult 에 판정을, designArtifact 에 ${paths.draft} 경로를 담아 factorynote_plan 을 다시 호출하라.`;
 	const opts = d.spawnOptions;
-	const optLine = `스폰 옵션(필수 적용): skill=${opts.skill}, context="${opts.context}", toolBudget.block=[${opts.toolBudgetBlock.join(", ")}]`;
+	const optLine = `스폰 옵션(필수 적용): agent="${opts.agentName}", skill=${opts.skill}, context="${opts.context}", toolBudget={hard:${opts.toolBudget.hard}}, turnBudget={maxTurns:${opts.turnBudget.maxTurns}}`;
 	const loopNote =
 		d.action === "spawn-design"
 			? ` (내부 Design↔Feedback 루프 ${d.loop + 1}회차)`
@@ -386,7 +390,7 @@ async function runOpenGate(
 		stageName: nextDef.name,
 		nextAction: "spawn-design",
 		spawnRole: "design",
-		spawnOptions: CHILD_SPAWN_OPTIONS,
+		spawnOptions: CHILD_SPAWN_OPTIONS.design,
 		draftPath: nextPaths.draft,
 		feedbackPath: nextPaths.feedback,
 		dfLoop: state.dfLoop,

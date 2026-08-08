@@ -80,17 +80,40 @@ export type AgentRole = "design" | "feedback";
 /** 내부 Design↔Feedback 루프 위치(게이트 전). */
 export type DesignFeedbackPhase = "design" | "feedback";
 
+/** 자식 스폰 툴 호출 카운트 예산 — pi-subagents toolBudget(hard 필수, hard≥1) 에 매핑.
+ *  hard 초과 후 남은 도구(기본 read/grep/find/ls) 차단 → 자식 종료 유도.
+ *  주: 이것은 호출 '횟수' 상한이지, 시스템 프롬프트에서 도구를 빼는 기능이 아니다(ADR-012). */
+export interface ChildToolBudget {
+	readonly hard: number;
+	readonly soft?: number;
+}
+
+/** 자식 스폰 턴 상한 — pi-subagents turnBudget 에 매핑. maxTurns 도달 시 wrap-up, graceTurns 후 중단. */
+export interface ChildTurnBudget {
+	readonly maxTurns: number;
+	readonly graceTurns?: number;
+}
+
 /**
- * 자식 스폰 컨텍스트 제약(GLM-5.2 기본 202K 한도 관리) — core 가 정책 소유.
- * pi 어댑터가 이 값을 subagent 도구의 skill/context/toolBudget 파라미터로 매핑해
- * Director 에게 전달한다. 자식은 (a)고정 세금(도구/스킬 정의) (b)부모 누적 상속을
- * 피해 fresh 최소 컨텍스트로 스폰된다.
+ * 자식 스폰 컨텍스트 제약(GLM-5.2 한도·1261 관리) — core 가 정책 소유.
+ * pi 어댑터가 이 값을 subagent 도구의 agent/skill/context/toolBudget/turnBudget 파라미터로
+ * 매핑해 Director 에게 전달한다.
+ *
+ * 도구 제거(시스템 프롬프트 고정 세금 절감)는 SpawnOptions 가 아니라 **명명 에이전트의
+ * `tools:` allowlist**(에이전트 정의 파일)가 담당한다. 이전 toolBudgetBlock 은 프롬프트에서
+ * 도구를 빼지 못해(런타임 카운트 게이트일 뿐, hard 누락으로 무효) 1261 방어에 실패했다 —
+ * 도구 allowlist 로 대체(ADR-012). SpawnOptions 는 (a) 스폰할 명명 에이전트,
+ * (b) 호출/턴 카운트 상한만 정책 소유한다.
  */
 export interface SpawnOptions {
 	readonly skill: false;
 	readonly context: "fresh";
-	/** 차단할 도구(어댑터가 toolBudget.block 으로 매핑). 자식은 read/write/edit 정도면 족하다. */
-	readonly toolBudgetBlock: readonly string[];
+	/** 스폰할 명명 에이전트(tools allowlist·context·skill 은 에이전트 정의에 고정). */
+	readonly agentName: string;
+	/** 툴 호출 카운트 상한(hard 필수, hard≥1). */
+	readonly toolBudget: ChildToolBudget;
+	/** 어시스턴트 턴 상한. 과도 reasoning/파일 읽기로 컨텍스트 팽창 시 강제 종료. */
+	readonly turnBudget: ChildTurnBudget;
 }
 
 /**

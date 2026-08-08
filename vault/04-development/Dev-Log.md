@@ -9,6 +9,32 @@ tags: [development, dev-log]
 
 ## 2026-08-08
 
+### 자식 스폰 1261 원인 분석 + 도구 allowlist 전환(방향 1·2·3)
+
+#### 현상
+
+- develop 에 오케스트레이션 머지 후 `factorynote` 사용 시 `Error: 400: {"code":"1261","message":"Prompt exceeds max length"}` (GLM-5.2/zai). 머지 전엔 발생 안 함.
+
+#### 원인(분석)
+
+- **모델 = GLM-5.2(zai)**. `1261` = Zhipu API "Prompt too long".
+- **`toolBudget.block` 가 도구를 프롬프트에서 빼지 못함** (핵심). `pi-subagents` `tool-budget.ts` 의 `shouldBlockToolForBudget` 은 `nextToolCount > hard` 일 때만 차단하는 **런타임 카운트 게이트** — 도구 스키마는 자식 시스템 프롬프트에 잔류. 게다가 `CHILD_SPAWN_OPTIONS` 가 `block` 만 주고 필수 `hard` 를 주지 않아 예산 자체 무효(검증 실패 → 예산 0 + 도구 전부 보존). [[ADR-010-context-overflow-file-protocol]] 결정 2 의 "고정 세금 절감" 주장과 상충.
+- 자식이 context-mode·pi-lens·subagent(스키마 ~120KB README 기반)·mcp·`factorynote_plan` 등 풀 도구 세금을 그대로 지고 스폰 → 1261.
+
+#### 조치(방향 1·2·3 구현; 방향 4=모델 격리는 범위 밖)
+
+- **방향 1(핵심)**: `apps/pi-extension/agents/factorynote-{design,feedback}.md` 명명 에이전트 도입 — `tools: read, write, edit, bash`(design)/`read, write, bash`(feedback) 엄격 allowlist + `systemPromptMode: replace` + `package.json` `pi-subagents.agents` 매니페스트 선언. allowlist 에 없는 도구가 자식 프롬프트에서 물리 제거(진짜 세금 절감). `SpawnOptions` 를 `toolBudgetBlock` → `agentName` + `toolBudget{hard,soft}` + `turnBudget{maxTurns}` 로 재설계(역할별 맵).
+- **방향 2**: `toolBudget.hard`(design 20 / feedback 15) + `turnBudget.maxTurns` 부여 → 카운트 상한 실제 발동(과도 호출/턴으로 자식 컨텍스트 팽창 시 종료 유도).
+- **방향 3(a+b)**: (a) spawnTask 경로 참조(designPrompt 본문 인라인 無)는 기존 paths 모드 동작 유지 + 회귀 단위테스트. (b) `clampReportInput` 가드 — 자식 보고(경로/판정) 가 >4000자면 첫 줄 보존 후 절단(Director 누적 방어, ADR-010 "후속: LLM 비준수 방어" 이행).
+- **단위테스트 3종 추가**(정책 / 3b 가드 / 3a+allowlist). 기존 `toolBudgetBlock` 참조 테스트 3곳 갱신. `bun run typecheck`·`bun test`(93 pass / 0 fail) 그린.
+- [[ADR-012-child-tool-allowlist-spawn]] 작성(ADR-010 결정 2 정정).
+
+#### 남은 것
+
+- **라이브 1261 비재현 증명**: 목 단위테스트는 "스폰 정책이 정확"을 증명하지, 실제 GLM-5.2 한도에서 1261 이 안 나는 것을 직접 증명하진 않음(비결정적). 사용자 스모크 필요.
+- **방향 4(자식 모델 격리)**: allowlist 로 베이스를 줄인 뒤 남는 마진이 빡빡하면 별도 세팅으로 검토.
+- **중복 ADR 번호**(ADR-009·010 각 2건) 정리 별도 과제.
+
 ### Windows 빌드 수정 — install 순수 Node 이식 + GraphEditor 복구
 
 #### 현상

@@ -6,6 +6,8 @@ export type {
 	AgentSpawn,
 	ArtifactPaths,
 	ChatMessage,
+	ChildToolBudget,
+	ChildTurnBudget,
 	Comment,
 	DesignFeedbackDirective,
 	DesignFeedbackPhase,
@@ -56,6 +58,8 @@ export type { DesignMarkdown } from "./graph.ts";
 export {
 	CHILD_SPAWN_OPTIONS,
 	MAX_DESIGN_FEEDBACK_LOOPS,
+	MAX_REPORT_INPUT_CHARS,
+	clampReportInput,
 	designTask,
 	feedbackTask,
 	nextDesignFeedbackStep,

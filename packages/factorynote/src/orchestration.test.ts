@@ -6,6 +6,7 @@ import { STAGES } from "./stages.ts";
 import {
 	CHILD_SPAWN_OPTIONS,
 	MAX_DESIGN_FEEDBACK_LOOPS,
+	clampReportInput,
 	nextDesignFeedbackStep,
 	parseFeedback,
 	runDesignFeedbackLoop,
@@ -200,10 +201,27 @@ const paths: ArtifactPaths = {
 	feedback: ".factorynote/feat/feedback.md",
 };
 
-test("CHILD_SPAWN_OPTIONS: 자식 fresh 최소 컨텍스트 정책(skill/toolBudget)", () => {
-	expect(CHILD_SPAWN_OPTIONS.skill).toBe(false);
-	expect(CHILD_SPAWN_OPTIONS.context).toBe("fresh");
-	expect(CHILD_SPAWN_OPTIONS.toolBudgetBlock.length).toBeGreaterThan(0);
+test("CHILD_SPAWN_OPTIONS(방향1+2): 역할별 명명 에이전트 + hard≥1 toolBudget + turnBudget", () => {
+	for (const role of ["design", "feedback"] as const) {
+		const opts = CHILD_SPAWN_OPTIONS[role];
+		expect(opts.skill).toBe(false);
+		expect(opts.context).toBe("fresh");
+		expect(opts.agentName).toBe(`factorynote-${role}`);
+		expect(opts.toolBudget.hard).toBeGreaterThanOrEqual(1);
+		expect(opts.turnBudget.maxTurns).toBeGreaterThanOrEqual(1);
+	}
+});
+
+test("clampReportInput(방향3b): 과대 보고 입력 절단 — 첫 줄(판정/경로) 보존", () => {
+	expect(clampReportInput("CLEAN")).toBe("CLEAN");
+	expect(clampReportInput(".factorynote/x/draft.md")).toBe(
+		".factorynote/x/draft.md",
+	);
+	const huge = `ISSUES\n${"a".repeat(5000)}`;
+	const clamped = clampReportInput(huge);
+	expect(clamped.length).toBeLessThan(huge.length);
+	expect(clamped.startsWith("ISSUES")).toBe(true); // 판정 줄 보존
+	expect(clamped).toContain("절단");
 });
 
 test("paths 모드: 진입 spawn-design 가 spawnOptions + designPrompt 파일 경로 참조(본문 無)", () => {
@@ -218,7 +236,11 @@ test("paths 모드: 진입 spawn-design 가 spawnOptions + designPrompt 파일 �
 	if (t.directive.action === "spawn-design") {
 		expect(t.directive.spawnOptions.skill).toBe(false);
 		expect(t.directive.spawnOptions.context).toBe("fresh");
-		expect(t.directive.spawnOptions.toolBudgetBlock.length).toBeGreaterThan(0);
+		expect(t.directive.spawnOptions.agentName).toBe("factorynote-design");
+		expect(t.directive.spawnOptions.toolBudget.hard).toBeGreaterThanOrEqual(1);
+		expect(t.directive.spawnOptions.turnBudget.maxTurns).toBeGreaterThanOrEqual(
+			1,
+		);
 		expect(t.directive.task).toContain(paths.designPrompt);
 		expect(t.directive.task).toContain(paths.draft);
 		expect(t.directive.task).not.toContain("사용자의 자연어"); // designPrompt 본문 미주입

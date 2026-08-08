@@ -2,6 +2,7 @@
 // spawn-design → Design 보고 → spawn-feedback → Feedback 보고 → 게이트(웹) → 결정 → 전이.
 // Director 에이전트를 흉내내어 내부 루프를 게이트까지 구동해 계약(#2/#7) 을 검증.
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, expect } from "bun:test";
@@ -81,15 +82,52 @@ test("Tier 1: 진입 → spawn-design(파일 프로토콜: spawnOptions + draftP
 	expect(out.stage).toBe(1);
 	expect(out.nextAction).toBe("spawn-design");
 	expect(out.spawnRole).toBe("design");
-	// 스폰 옵션(core 정책) 노출.
+	// 스폰 옵션(core 정책) 노출: 명명 에이전트 + hard toolBudget + turnBudget.
 	expect(out.spawnOptions?.skill).toBe(false);
 	expect(out.spawnOptions?.context).toBe("fresh");
-	expect(out.spawnOptions?.toolBudgetBlock.length).toBeGreaterThan(0);
+	expect(out.spawnOptions?.agentName).toBe("factorynote-design");
+	expect(out.spawnOptions?.toolBudget.hard).toBeGreaterThanOrEqual(1);
+	expect(out.spawnOptions?.turnBudget.maxTurns).toBeGreaterThanOrEqual(1);
 	// 파일 프로토콜: draft/designPrompt 경로 노출, 과제는 경로 참조(본문 無).
 	expect(out.draftPath).toBeTruthy();
 	expect(out.feedbackPath).toBeTruthy();
 	expect(out.spawnTask).toContain(out.draftPath!);
 	expect(out.spawnTask).not.toContain("사용자의 자연어");
+});
+
+test("방향1+3a: spawn 지시문이 agent=<명명에이전트> 지시 + spawnTask 경로 참조 + 에이전트 파일 allowlist 단언", async () => {
+	const out = await drivePlan({
+		root,
+		viewerDistDir: VIEWER_DIST,
+		feature: "agentcheck",
+		open: false,
+	});
+	// 방향1: message 가 agent="factorynote-design" 스폰을 지시(toolBudget.block 폐지).
+	expect(out.message).toContain('agent="factorynote-design"');
+	expect(out.message).not.toContain("toolBudget.block");
+	expect(out.message).toContain("turnBudget");
+	// 방향3a: spawnTask 가 designPrompt 파일 경로를 참조하고 본문을 인라인하지 않는다.
+	expect(out.spawnTask).toContain(out.draftPath!);
+	expect(out.spawnTask).not.toContain("사용자의 자연어");
+	// 계약 #1: 명명 에이전트 파일의 tools allowlist 가 heavy 도구를 배제한다.
+	const dir = import.meta.dir;
+	for (const f of ["factorynote-design.md", "factorynote-feedback.md"]) {
+		const md = readFileSync(join(dir, "..", "agents", f), "utf8");
+		const toolsLine = md.split("\n").find((l) => l.startsWith("tools:"));
+		expect(toolsLine).toBeTruthy();
+		for (const banned of [
+			"web_search",
+			"fetch_content",
+			"subagent",
+			"factorynote_plan",
+			"mcp",
+			"ctx_index",
+		]) {
+			expect(toolsLine).not.toContain(banned);
+		}
+		expect(toolsLine).toContain("read");
+		expect(toolsLine).toContain("write");
+	}
 });
 
 test("Tier 1 파일 프로토콜: design 보고는 경로, 게이트는 readArtifact resolve + design-prompt.md 기록", async () => {
