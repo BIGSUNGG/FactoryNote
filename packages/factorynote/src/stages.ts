@@ -58,7 +58,7 @@ export const STAGES: readonly StageDefinition[] = [
 		artifactFile: "03-implementation-plan.md",
 		producesArtifact: true,
 		designPrompt:
-			"설계를 바탕으로 구현 순서, 의존성, 마일스톤을 정하라. 코드를 쓰기 전 사용자가 전체 로드맵을 확정할 수 있게 단계별로 써라. (5대 원칙 3 게이트)",
+			"설계를 바탕으로 구현 순서, 의존성, 마일스톤을 정하라. 코드를 쓰기 전 사용자가 전체 로드맵을 확정할 수 있게 단계별로 써라. 의존성 구조를 시각화하는 것이 도움이 되면 ```factorynote-graph 펜스로 그래프를 본문에 내장할 수 있다(선택) — 펜스 내용은 JSON {sections:[{id,title,nodes,edges}]} 형식이어야 한다. (5대 원칙 3 게이트)",
 		feedbackChecklist: [
 			"구현 순서가 의존성을 존중하는가?",
 			"각 마일스톤이 검증 가능한가?",
@@ -82,3 +82,4 @@ export function stageById(id: StageId): StageDefinition {
 export function currentStageDef(stage: StageId): StageDefinition {
 	return stageById(stage);
 }
+

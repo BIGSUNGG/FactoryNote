@@ -56,7 +56,7 @@ export interface GraphArtifact {
 export interface GateDecision {
 	verdict: GateVerdict;
 	comments: Comment[];
-	/** Stage 2(설계)에서 사용자가 직접 편집한 마크다운 산출물. 직접 편집 → 에이전트가 채택해 저장(5대 원칙 — 게이트 거쳐 채택). */
+	/** Stage 2(설계)에서 사용자가 직접 편집한 마크다운 산출물. 직접 펭집 → 에이전트가 채택해 저장(5대 원칙 — 게이트 거쳐 채택). */
 	artifactMd?: string;
 	/** FR-7: 회귀 대상 단계(1..3). 생략 시 종래대로 1단계 회귀. 현재 단계보다 앞으로만(엔진이 clamp). */
 	revertTo?: StageId;
