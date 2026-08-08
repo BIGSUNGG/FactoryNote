@@ -1,7 +1,7 @@
 // drivePlan 종단 간 스모크(Tier 1) — factorynote_plan 의 오케스트레이션 흐름:
 // spawn-design → Design 보고 → spawn-feedback → Feedback 보고 → 게이트(웹) → 결정 → 전이.
 // Director 에이전트를 흉내내어 내부 루프를 게이트까지 구동해 계약(#2/#7) 을 검증.
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, expect } from "bun:test";
@@ -29,7 +29,9 @@ const postDecision =
 		});
 	};
 
-/** Director 에이전트 흉내: 오케스트레이션을 게이트(또는 done)까지 구동. */
+/** Director 에이전트 흉내: 오케스트레이션을 게이트(또는 done)까지 구동.
+ *  파일 프로토콜 시뮬: spawn-design 출력의 draftPath 에 Design 산출물을 쓰고(자식 시뮬),
+ *  designArtifact/feedbackResult 보고는 그 경로/판정만(본문 無) — 실제 Director 동작. */
 async function driveUntilGate(opts: {
 	feature: string;
 	/** 매 내부 루프 라운드의 Design 초안·Feedback 결과. null 이면 종료. */
@@ -49,13 +51,16 @@ async function driveUntilGate(opts: {
 		if (out.nextAction !== "spawn-design") return out;
 		const r = opts.rounds();
 		if (!r) throw new Error("driveUntilGate: rounds 소진(게이트 미도달)");
-		// design 보고 → spawn-feedback.
-		out = await drivePlan({ ...common, designArtifact: r.draft });
+		const draftPath = out.draftPath!;
+		// Design 자식 시뮬: 산출물을 지정된 파일에 쓰고 반환은 경로만.
+		await writeFile(draftPath, r.draft, "utf8");
+		// design 보고(경로) → spawn-feedback.
+		out = await drivePlan({ ...common, designArtifact: draftPath });
 		if (out.nextAction !== "spawn-feedback") return out;
-		// feedback 보고 → 게이트 오픈(클린/상한) 또는 루프.
+		// feedback 보고(판정 + draft 경로) → 게이트 오픈(클린/상한) 또는 루프.
 		out = await drivePlan({
 			...common,
-			designArtifact: r.draft,
+			designArtifact: draftPath,
 			feedbackResult: r.feedback,
 			...(opts.decision ? { onReady: opts.decision } : {}),
 		});
@@ -66,7 +71,7 @@ test("setup", async () => {
 	root = await mkdtemp(join(tmpdir(), "factorynote-driver-"));
 });
 
-test("Tier 1: 진입 → spawn-design 지시문(designPrompt 과제)", async () => {
+test("Tier 1: 진입 → spawn-design(파일 프로토콜: spawnOptions + draftPath, 본문 無)", async () => {
 	const out = await drivePlan({
 		root,
 		viewerDistDir: VIEWER_DIST,
@@ -76,7 +81,33 @@ test("Tier 1: 진입 → spawn-design 지시문(designPrompt 과제)", async () 
 	expect(out.stage).toBe(1);
 	expect(out.nextAction).toBe("spawn-design");
 	expect(out.spawnRole).toBe("design");
-	expect(out.spawnTask).toBeTruthy(); // designPrompt
+	// 스폰 옵션(core 정책) 노출.
+	expect(out.spawnOptions?.skill).toBe(false);
+	expect(out.spawnOptions?.context).toBe("fresh");
+	expect(out.spawnOptions?.toolBudgetBlock.length).toBeGreaterThan(0);
+	// 파일 프로토콜: draft/designPrompt 경로 노출, 과제는 경로 참조(본문 無).
+	expect(out.draftPath).toBeTruthy();
+	expect(out.feedbackPath).toBeTruthy();
+	expect(out.spawnTask).toContain(out.draftPath!);
+	expect(out.spawnTask).not.toContain("사용자의 자연어");
+});
+
+test("Tier 1 파일 프로토콜: design 보고는 경로, 게이트는 readArtifact resolve + design-prompt.md 기록", async () => {
+	const md = "# 파일 프로토콜 명세\n\n컨텍스트 누적 차단 검증.";
+	const out = await driveUntilGate({
+		feature: "fileproto",
+		rounds: () => ({ draft: md, feedback: "CLEAN" }),
+		decision: postDecision("confirm"),
+	});
+	expect(out.gateResult?.verdict).toBe("confirm");
+	// design 보고가 경로(draftPath) 였고, 게이트가 draft 파일에서 내용을 resolve 해 저장.
+	expect(
+		await readArtifact(root, "fileproto", "01-understanding-and-scenarios.md"),
+	).toBe(md);
+	// designPrompt(불변) 파일도 어댑터가 기록했는가.
+	expect(
+		await readArtifact(root, "fileproto", "design-prompt.md"),
+	).toBeTruthy();
 });
 
 test("Tier 1: clean 루프 → confirm → stage 2 진행 + 산출물 저장", async () => {

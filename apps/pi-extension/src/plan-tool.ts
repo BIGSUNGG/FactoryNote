@@ -6,9 +6,11 @@
 // 실제 스폰은 Director 에이전트가 자신의 subagent 도구로 수행한다(에이전트 매개).
 // 코어(@factorynote/core) 상태기계 + gate-server(웹 게이트) 를 연결.
 import {
+	CHILD_SPAWN_OPTIONS,
 	STAGES,
 	applyVerdict,
 	atLoopCeiling,
+	designTask,
 	initialState,
 	invalidateArtifactsAfter,
 	isComplete,
@@ -21,13 +23,16 @@ import {
 	saveState,
 	stageById,
 	writeArtifact,
+	type ArtifactPaths,
 	type GateDecision,
 	type PipelineState,
+	type SpawnOptions,
 } from "@factorynote/core";
 import type {
 	DesignFeedbackDirective,
 	DesignFeedbackReport,
 } from "@factorynote/core";
+import { join } from "node:path";
 import { runGate, closeGate } from "./gate-server.ts";
 
 /** #4 게이트 자동 만료(ms) — 사용자 이탈 시 좀비 게이트 방지. 30분. */
@@ -60,8 +65,14 @@ export interface DrivePlanOutput {
 	nextAction: NextAction;
 	/** 자식 스폰 역할(nextAction 이 spawn-* 일 때). */
 	spawnRole?: "design" | "feedback";
-	/** 자식에게 줄 과제(subagent 도구의 task). */
+	/** 자식 스폰 과제(subagent 도구의 task). */
 	spawnTask?: string;
+	/** 자식 스폰 컨텍스트 제약(core 정책) — Director 가 subagent skill/context/toolBudget 로 적용. */
+	spawnOptions?: SpawnOptions;
+	/** Design 자식이 산출물을 쓸 파일 경로(파일 프로토콜). designArtifact 보고는 이 경로로. */
+	draftPath?: string;
+	/** Feedback 자식이 상세 리뷰를 쓸 파일 경로. */
+	feedbackPath?: string;
 	/** 내부 Design↔Feedback 루프 카운트(안내용). */
 	dfLoop: number;
 	designPrompt: string;
@@ -70,6 +81,28 @@ export interface DrivePlanOutput {
 	message: string;
 	/** 사용자에게 열린 게이트 URL(디버그/안내용). */
 	gateUrl?: string;
+}
+
+/**
+ * 현 stage 산출물 교환 파일 경로(파일 프로토콜) — designPrompt(불변)·draft·feedback.
+ * Director 는 이 경로들로 자식에게 쓰게 하고 보고도 경로로 받는다(Director 컨텍스트 누적 차단).
+ */
+function resolvePaths(
+	root: string,
+	feature: string,
+	def: ReturnType<typeof stageById>,
+): { paths: ArtifactPaths; draftFile: string } {
+	const dir = join(root, feature);
+	const ext = def.format === "nodes-edges" ? "json" : "md";
+	const draftFile = `draft.${ext}`;
+	return {
+		paths: {
+			designPrompt: join(dir, "design-prompt.md"),
+			draft: join(dir, draftFile),
+			feedback: join(dir, "feedback.md"),
+		},
+		draftFile,
+	};
 }
 
 /** 입력(에이전트 보고) → 코어 보고 객체. dfPhase 로 design/feedback 보고 구분. */
@@ -125,25 +158,32 @@ export async function drivePlan(
 	if (requiresArtifact(state.stage) && !state.gateOpen) {
 		const report = deriveReport(input, state);
 		const draft = input.designArtifact;
+		// 파일 프로토콜: 큰 페이로드(designPrompt/draft/feedback)를 파일로,
+		// spawnTask/보고는 경로만 — Director(영구) 컨텍스트 누적 차단(1261 방지).
+		const { paths, draftFile } = resolvePaths(root, feature, def);
+		// designPrompt(stage 불변) 파일 기록 — 자식이 읽도록. 멱등(정적 내용).
+		await writeArtifact(root, feature, "design-prompt.md", def.designPrompt);
 		const t = nextDesignFeedbackStep(
 			def,
 			{ dfPhase: state.dfPhase, dfLoop: state.dfLoop },
 			report,
 			draft,
+			paths,
 		);
 		state = { ...state, dfPhase: t.dfPhase, dfLoop: t.dfLoop };
 		const d = t.directive;
 
 		if (d.action === "spawn-design" || d.action === "spawn-feedback") {
 			await saveState(root, state);
-			return spawnDirective(state, def, d);
+			return spawnDirective(state, def, d, paths);
 		}
-		// gate 지시문: 산출물 저장 + 게이트 오픈(에스컬레이션 프레이밍 반영).
+		// gate 지시문: draft 파일 경로 → 내용 resolve 후 게이트 저장·표시.
+		const gateArtifact = (await readArtifact(root, feature, draftFile)) ?? "";
 		return await runOpenGate(
 			input,
 			state,
 			def,
-			d.artifact,
+			gateArtifact,
 			false,
 			d.escalated ? { issues: d.issues, loops: d.loops } : undefined,
 		);
@@ -151,14 +191,21 @@ export async function drivePlan(
 
 	// 도달 불가(모든 단계가 산출물 단계) — 안전 추락.
 	await saveState(root, state);
-	return spawnDirective(state, def, {
-		action: "spawn-design",
-		task: def.designPrompt,
-		loop: state.dfLoop,
-	});
+	const { paths: fallbackPaths } = resolvePaths(root, feature, def);
+	return spawnDirective(
+		state,
+		def,
+		{
+			action: "spawn-design",
+			task: designTask(def, fallbackPaths),
+			loop: state.dfLoop,
+			spawnOptions: CHILD_SPAWN_OPTIONS,
+		},
+		fallbackPaths,
+	);
 }
 
-/** spawn 지시문 반환 — 에이전트에게 자식 스폰을 지시. */
+/** spawn 지시문 반환 — 에이전트에게 자식 스폰을 지시(파일 프로토콜 + 스폰 옵션). */
 function spawnDirective(
 	state: PipelineState,
 	def: ReturnType<typeof stageById>,
@@ -166,22 +213,27 @@ function spawnDirective(
 		DesignFeedbackDirective,
 		{ action: "spawn-design" | "spawn-feedback" }
 	>,
+	paths: ArtifactPaths,
 ): DrivePlanOutput {
 	const role = d.action === "spawn-design" ? "design" : "feedback";
 	const verb =
 		role === "design"
 			? `Design 자식 에이전트를 스폰해 ${def.artifact} 산출물을 작성하게 하라`
 			: "Feedback 자식 에이전트를 스폰해 산출물을 비판 검토하게 하라";
+	// 파일 프로토콜 보고 지시: 자식은 파일에 쓰고 반환은 경로/판정만. Director 컨텍스트 누적 차단.
 	const report =
 		role === "design"
-			? "Design 스폰 결과(산출물 초안)를 designArtifact 에 담아 factorynote_plan 을 다시 호출하라."
-			: "Feedback 스폰 결과(첫 줄 CLEAN 또는 ISSUES)를 feedbackResult 에, 현 산출물 초안을 designArtifact 에 담아 factorynote_plan 을 다시 호출하라.";
+			? `Design 자식은 산출물을 파일(${paths.draft})에 쓰고 반환은 그 경로만 한다(본문 금지). designArtifact 에는 경로만 담아 factorynote_plan 을 다시 호출하라.`
+			: `Feedback 자식은 상세 리뷰를 파일(${paths.feedback})에 쓰고 반환은 판정(CLEAN/ISSUES)만 한다. feedbackResult 에 판정을, designArtifact 에 ${paths.draft} 경로를 담아 factorynote_plan 을 다시 호출하라.`;
+	const opts = d.spawnOptions;
+	const optLine = `스폰 옵션(필수 적용): skill=${opts.skill}, context="${opts.context}", toolBudget.block=[${opts.toolBudgetBlock.join(", ")}]`;
 	const loopNote =
 		d.action === "spawn-design"
 			? ` (내부 Design↔Feedback 루프 ${d.loop + 1}회차)`
 			: "";
 	const message = [
 		`Stage ${state.stage}(${def.name}). subagent 도구로 ${verb}.${loopNote}`,
+		optLine,
 		report,
 		"코드는 쓰지 않는다(계획만).",
 	].join("\n");
@@ -193,6 +245,9 @@ function spawnDirective(
 		nextAction: d.action,
 		spawnRole: role,
 		spawnTask: d.task,
+		spawnOptions: d.spawnOptions,
+		draftPath: paths.draft,
+		feedbackPath: paths.feedback,
 		dfLoop: state.dfLoop,
 		designPrompt: def.designPrompt,
 		feedbackChecklist: [...def.feedbackChecklist],
@@ -276,12 +331,16 @@ async function runOpenGate(
 	}
 	const message = (resume ? "[게이트 재오픈(인터럽트 복구)] " : "") + base;
 
+	const nextPaths = resolvePaths(root, feature, nextDef).paths;
 	return {
 		done: false,
 		stage: state.stage,
 		stageName: nextDef.name,
 		nextAction: "spawn-design",
 		spawnRole: "design",
+		spawnOptions: CHILD_SPAWN_OPTIONS,
+		draftPath: nextPaths.draft,
+		feedbackPath: nextPaths.feedback,
 		dfLoop: state.dfLoop,
 		designPrompt: nextDef.designPrompt,
 		feedbackChecklist: [...nextDef.feedbackChecklist],

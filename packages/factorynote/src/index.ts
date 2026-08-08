@@ -4,6 +4,7 @@ export type {
 	ArtifactFormat,
 	AgentRole,
 	AgentSpawn,
+	ArtifactPaths,
 	Comment,
 	DesignFeedbackDirective,
 	DesignFeedbackPhase,
@@ -16,6 +17,7 @@ export type {
 	GraphSection,
 	HistoryEntry,
 	PipelineState,
+	SpawnOptions,
 	StageId,
 	ValidThrough,
 } from "./types.ts";
@@ -47,7 +49,9 @@ export {
 	parseGraphArtifact,
 } from "./graph.ts";
 export {
+	CHILD_SPAWN_OPTIONS,
 	MAX_DESIGN_FEEDBACK_LOOPS,
+	designTask,
 	feedbackTask,
 	nextDesignFeedbackStep,
 	parseFeedback,

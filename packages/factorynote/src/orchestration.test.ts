@@ -4,12 +4,13 @@
 import { test, expect } from "bun:test";
 import { STAGES } from "./stages.ts";
 import {
+	CHILD_SPAWN_OPTIONS,
 	MAX_DESIGN_FEEDBACK_LOOPS,
 	nextDesignFeedbackStep,
 	parseFeedback,
 	runDesignFeedbackLoop,
 } from "./orchestration.ts";
-import type { AgentSpawn, AgentRole } from "./types.ts";
+import type { AgentSpawn, AgentRole, ArtifactPaths } from "./types.ts";
 
 /** 역할별로 큐잉된 응답을 순서대로 반환하는 목 스폰. */
 class MockSpawn implements AgentSpawn {
@@ -189,4 +190,87 @@ test("runDesignFeedbackLoop: Feedback 과제에 체크리스트·산출물 포�
 	const fb = spawn.calls.find((c) => c.role === "feedback");
 	expect(fb?.task).toContain("D1");
 	expect(fb?.task).toContain(stage.feedbackChecklist[0]);
+});
+
+// --- 컨텍스트 한도 관리: paths(파일 경로) 모드 + spawnOptions ---
+// GLM-5.2(기본 202K) 한도 초과(1261) 방지 — 큰 페이로드는 파일로, Director 컨텍스트 누적 차단.
+const paths: ArtifactPaths = {
+	designPrompt: ".factorynote/feat/design-prompt.md",
+	draft: ".factorynote/feat/draft.md",
+	feedback: ".factorynote/feat/feedback.md",
+};
+
+test("CHILD_SPAWN_OPTIONS: 자식 fresh 최소 컨텍스트 정책(skill/toolBudget)", () => {
+	expect(CHILD_SPAWN_OPTIONS.skill).toBe(false);
+	expect(CHILD_SPAWN_OPTIONS.context).toBe("fresh");
+	expect(CHILD_SPAWN_OPTIONS.toolBudgetBlock.length).toBeGreaterThan(0);
+});
+
+test("paths 모드: 진입 spawn-design 가 spawnOptions + designPrompt 파일 경로 참조(본문 無)", () => {
+	const t = nextDesignFeedbackStep(
+		stage,
+		{ dfPhase: "design", dfLoop: 0 },
+		undefined,
+		undefined,
+		paths,
+	);
+	expect(t.directive.action).toBe("spawn-design");
+	if (t.directive.action === "spawn-design") {
+		expect(t.directive.spawnOptions.skill).toBe(false);
+		expect(t.directive.spawnOptions.context).toBe("fresh");
+		expect(t.directive.spawnOptions.toolBudgetBlock.length).toBeGreaterThan(0);
+		expect(t.directive.task).toContain(paths.designPrompt);
+		expect(t.directive.task).toContain(paths.draft);
+		expect(t.directive.task).not.toContain("사용자의 자연어"); // designPrompt 본문 미주입
+	}
+});
+
+test("paths 모드: design 보고 → spawn-feedback 가 draft 파일 경로 참조 + spawnOptions", () => {
+	const t = nextDesignFeedbackStep(
+		stage,
+		{ dfPhase: "design", dfLoop: 0 },
+		{ role: "design", draft: "DRAFT-BODY" },
+		undefined,
+		paths,
+	);
+	expect(t.directive.action).toBe("spawn-feedback");
+	if (t.directive.action === "spawn-feedback") {
+		expect(t.directive.spawnOptions.context).toBe("fresh");
+		expect(t.directive.task).toContain(paths.draft);
+		expect(t.directive.task).toContain(paths.feedback);
+		expect(t.directive.task).toContain(stage.feedbackChecklist[0]!);
+		expect(t.directive.task).not.toContain("DRAFT-BODY"); // 보고 draft 본문 미주입(⑥)
+	}
+});
+
+test("paths 모드: feedback 이슈 → designRevisionTask 가 designPrompt·feedback 파일 경로 참조(본문 재주입 無)", () => {
+	const t = nextDesignFeedbackStep(
+		stage,
+		{ dfPhase: "feedback", dfLoop: 0 },
+		{ role: "feedback", outcome: { clean: false, issues: ["이슈A"] } },
+		undefined,
+		paths,
+	);
+	expect(t.directive.action).toBe("spawn-design");
+	expect(t.dfLoop).toBe(1);
+	if (t.directive.action === "spawn-design") {
+		expect(t.directive.task).toContain(paths.feedback);
+		expect(t.directive.task).toContain(paths.designPrompt);
+		expect(t.directive.task).toContain("이슈A"); // 이슈 요약은 포함
+		expect(t.directive.task).not.toContain("사용자의 자연어"); // designPrompt 본문 미재주입(⑤)
+	}
+});
+
+test("paths 모드: feedback 클린 → gate artifact 가 draft 파일 경로(어댑터가 readArtifact resolve)", () => {
+	const t = nextDesignFeedbackStep(
+		stage,
+		{ dfPhase: "feedback", dfLoop: 0 },
+		{ role: "feedback", outcome: { clean: true } },
+		undefined,
+		paths,
+	);
+	expect(t.directive.action).toBe("gate");
+	if (t.directive.action === "gate") {
+		expect(t.directive.artifact).toBe(paths.draft);
+	}
 });

@@ -69,6 +69,32 @@ export type AgentRole = "design" | "feedback";
 export type DesignFeedbackPhase = "design" | "feedback";
 
 /**
+ * 자식 스폰 컨텍스트 제약(GLM-5.2 기본 202K 한도 관리) — core 가 정책 소유.
+ * pi 어댑터가 이 값을 subagent 도구의 skill/context/toolBudget 파라미터로 매핑해
+ * Director 에게 전달한다. 자식은 (a)고정 세금(도구/스킬 정의) (b)부모 누적 상속을
+ * 피해 fresh 최소 컨텍스트로 스폰된다.
+ */
+export interface SpawnOptions {
+	readonly skill: false;
+	readonly context: "fresh";
+	/** 차단할 도구(어댑터가 toolBudget.block 으로 매핑). 자식은 read/write/edit 정도면 족하다. */
+	readonly toolBudgetBlock: readonly string[];
+}
+
+/**
+ * 파일 경로 기반 산출물 교환 — Director(영구 에이전트) 컨텍스트 누적 차단.
+ * designPrompt(stage 불변)·draft·feedback 상세리뷰 모두 파일로 영속;
+ * spawnTask 와 designArtifact/feedbackResult 보고는 경로(+요약)만 주고받는다.
+ * core 는 harness-agnostic(파일 I/O 無) — 경로를 데이터로 주입받아 task 에 끼운다.
+ * paths 미제공(동기 스폰 목 하네스) 시 inline 모드로 동작(기존 호환).
+ */
+export interface ArtifactPaths {
+	readonly designPrompt: string;
+	readonly draft: string;
+	readonly feedback: string;
+}
+
+/**
  * M4 AgentSpawn 계약 — 동기 스폰이 가능한 harness가 구현하는 인터페이스.
  * pi는 확장 코드가 서브에이전트를 동기 스폰할 수 없으므로(에이전트 전용 도구),
  * pi 어댑터는 이 인터페이스를 '에이전트 매개'로 실현한다(factorynote_plan 이
@@ -92,11 +118,14 @@ export type DesignFeedbackDirective =
 			/** Design 프롬프트(루프 시 이전 이슈 인용 포함). */
 			task: string;
 			loop: number;
+			/** 자식 스폰 컨텍스트 제약(core 정책) — 어댑터가 subagent 파라미터로 매핑. */
+			spawnOptions: SpawnOptions;
 	  }
 	| {
 			action: "spawn-feedback";
 			/** 검토 대상 산출물 + 체크리스트 과제. */
 			task: string;
+			spawnOptions: SpawnOptions;
 	  }
 	| {
 			action: "gate";

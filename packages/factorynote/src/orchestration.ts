@@ -12,14 +12,48 @@
 //    구현체 등)가 직접 호출하는 루프 드라이버. nextDesignFeedbackStep 을 합성.
 import type {
 	AgentSpawn,
+	ArtifactPaths,
 	DesignFeedbackDirective,
 	DesignFeedbackPhase,
 	FeedbackOutcome,
+	SpawnOptions,
 } from "./types.ts";
 import type { StageDefinition } from "./stages.ts";
 
 /** FR-2(내부 루프): 단계별 Design↔Feedback 시도 상한. 도달 시 게이트 에스컬레이션. */
 export const MAX_DESIGN_FEEDBACK_LOOPS = 3;
+
+/**
+ * 자식(Design/Feedback) 스폰 고정 옵션 — 컨텍스트 한도 관리 정책(core 소유).
+ * pi 어댑터가 subagent 호출의 skill/context/toolBudget 로 매핑해 Director 에 전달.
+ * 자식은 read/write/edit(+ 산출물 파일) 정도면 족하다; heavy 비필수 도구 차단으로
+ * 시스템 프롬프트 고정 세금(도구 스키마)을 줄인다.
+ */
+export const CHILD_SPAWN_OPTIONS: SpawnOptions = Object.freeze({
+	skill: false,
+	context: "fresh",
+	toolBudgetBlock: [
+		"web_search",
+		"fetch_content",
+		"get_search_content",
+		"source_check",
+		"subagent",
+		"factorynote_plan",
+		"mcp",
+		"mcpScript",
+		"ctx_fetch_and_index",
+		"ctx_index",
+		"ctx_batch_execute",
+		"lsp_diagnostics",
+		"lens_diagnostics",
+		"symbol_search",
+		"read_symbol",
+		"project_report",
+		"module_report",
+		"commitme",
+		"todo",
+	],
+});
 
 /** Feedback 에이전트가 보고하는 구조화 결과(코어는 raw 텍스트를 이렇게 파싱). */
 export type DesignFeedbackReport =
@@ -61,9 +95,38 @@ export function parseFeedback(raw: string): FeedbackOutcome {
 	};
 }
 
-/** Feedback 과제(산출물 + 체크리스트) 조립. */
-export function feedbackTask(def: StageDefinition, draft: string): string {
+/** Design 첫 산출물 과제. paths 제공 시 designPrompt 파일 참조 + draft 파일 쓰기 지시(inline 본문 금지). */
+export function designTask(
+	def: StageDefinition,
+	paths?: ArtifactPaths,
+): string {
+	if (paths) {
+		return [
+			`${def.artifact} 산출물을 작성하라. 작성 지시는 파일 ${paths.designPrompt} 에 있다(불변) — 읽어 따른다.`,
+			`작성한 산출물은 파일 ${paths.draft} 에 저장한다. 반환은 그 파일 경로만(본문 절대 금지) — 본문을 반환하면 Director 컨텍스트가 부풋어 한도 초과(1261) 한다.`,
+			"코드는 쓰지 않는다(계획 산출물).",
+		].join("\n");
+	}
+	return def.designPrompt;
+}
+
+/** Feedback 과제(체크리스트 + 산출물). paths 제공 시 draft/feedback 파일 참조 + 상세리뷰 파일화. */
+export function feedbackTask(
+	def: StageDefinition,
+	draft: string,
+	paths?: ArtifactPaths,
+): string {
 	const checklist = def.feedbackChecklist.map((c) => `- ${c}`).join("\n");
+	if (paths) {
+		return [
+			`검토 대상 ${def.artifact} 산출물은 파일 ${paths.draft} 에 있다 — 읽어 비판적 검토하라 (보안·병목·구조).`,
+			`판정은 첫 줄에 "CLEAN"(이슈 없음) 또는 "ISSUES"(이후 줄에 각 이슈를 - 로 나열, 최대 5개·각 1줄·프로즈 금지) 로만 출력한다.`,
+			`상세 리뷰 전문은 파일 ${paths.feedback} 에 저장하라. 반환은 판정 + 이슈 요약만(본문 금지).`,
+			"",
+			"## 검토 체크리스트",
+			checklist,
+		].join("\n");
+	}
 	return [
 		`아래 ${def.artifact} 산출물을 비판적으로 검토하라 (보안·병목·구조).`,
 		`판정은 첫 줄에 "CLEAN"(이슈 없음) 또는 "ISSUES"(이후 줄에 각 이슈를 - 로 나열) 로만 출력한다.`,
@@ -93,6 +156,7 @@ export function nextDesignFeedbackStep(
 	state: { dfPhase: DesignFeedbackPhase; dfLoop: number },
 	report: DesignFeedbackReport | undefined,
 	draft: string | undefined,
+	paths?: ArtifactPaths,
 ): DesignFeedbackTransition {
 	const { dfPhase, dfLoop } = state;
 
@@ -101,8 +165,9 @@ export function nextDesignFeedbackStep(
 		return {
 			directive: {
 				action: "spawn-design",
-				task: def.designPrompt,
+				task: designTask(def, paths),
 				loop: dfLoop,
+				spawnOptions: CHILD_SPAWN_OPTIONS,
 			},
 			dfPhase: "design",
 			dfLoop,
@@ -114,7 +179,8 @@ export function nextDesignFeedbackStep(
 		return {
 			directive: {
 				action: "spawn-feedback",
-				task: feedbackTask(def, report.draft),
+				task: feedbackTask(def, report.draft, paths),
+				spawnOptions: CHILD_SPAWN_OPTIONS,
 			},
 			dfPhase: "feedback",
 			dfLoop,
@@ -123,7 +189,8 @@ export function nextDesignFeedbackStep(
 
 	// (3) feedback 보고 → 클린/이슈 분기.
 	if (report !== undefined && report.role === "feedback") {
-		const artifact = draft ?? "";
+		// paths 모드: 게이트 산출물은 draft 파일 경로(어댑터가 readArtifact 로 resolve).
+		const artifact = paths ? paths.draft : (draft ?? "");
 		if (report.outcome.clean) {
 			return {
 				directive: {
@@ -142,8 +209,9 @@ export function nextDesignFeedbackStep(
 			return {
 				directive: {
 					action: "spawn-design",
-					task: designRevisionTask(def, report.outcome.issues),
+					task: designRevisionTask(def, report.outcome.issues, paths),
 					loop: dfLoop + 1,
+					spawnOptions: CHILD_SPAWN_OPTIONS,
 				},
 				dfPhase: "design",
 				dfLoop: dfLoop + 1,
@@ -167,7 +235,8 @@ export function nextDesignFeedbackStep(
 		return {
 			directive: {
 				action: "spawn-feedback",
-				task: feedbackTask(def, draft),
+				task: feedbackTask(def, draft, paths),
+				spawnOptions: CHILD_SPAWN_OPTIONS,
 			},
 			dfPhase: "feedback",
 			dfLoop,
@@ -176,15 +245,35 @@ export function nextDesignFeedbackStep(
 
 	// 안전 추락 — 설계상 도달 불가.
 	return {
-		directive: { action: "spawn-design", task: def.designPrompt, loop: dfLoop },
+		directive: {
+			action: "spawn-design",
+			task: designTask(def, paths),
+			loop: dfLoop,
+			spawnOptions: CHILD_SPAWN_OPTIONS,
+		},
 		dfPhase: "design",
 		dfLoop,
 	};
 }
 
-/** Design 재수정 과제(이전 이슈 인용). */
-function designRevisionTask(def: StageDefinition, issues: string[]): string {
+/** Design 재수정 과제(이전 이슈 인용). paths 제공 시 designPrompt·feedback 파일 참조(본문 재주입 無). */
+function designRevisionTask(
+	def: StageDefinition,
+	issues: string[],
+	paths?: ArtifactPaths,
+): string {
 	const block = issues.map((i) => `- ${i}`).join("\n");
+	if (paths) {
+		return [
+			`이전 산출물이 Feedback 검토에서 반려되었다. 이슈를 근본적으로 반영해 ${def.artifact} 산출물을 재작성하라.`,
+			`상세 리뷰는 파일 ${paths.feedback}, 작성 지시는 파일 ${paths.designPrompt}(불변) — 둘 다 읽어라.`,
+			"",
+			"## 반려 이슈(요약)",
+			block,
+			"",
+			`재작성 결과는 파일 ${paths.draft} 에 저장하고 반환은 경로만.`,
+		].join("\n");
+	}
 	return [
 		`이전 산출물이 Feedback 검토에서 아래 이슈로 반려되었다. 이슈를 근본적으로 반영해 ${def.artifact} 산출물을 재작성하라.`,
 		"",

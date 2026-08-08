@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-06
+updated: 2026-08-07
 tags: [development, changelog]
 ---
 
@@ -11,6 +11,11 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 ## [Unreleased]
 
 ### Added
+
+- **오케스트레이션 컨텍스트 한도(1261) 구조적 해소 — 파일 경로 산출물 교환 + 자식 스폰 컨텍스트 제약** ([[ADR-010-context-overflow-file-protocol]]) — GLM-5.2(기본 202K) 오케스트레이션 중 `1261 Prompt exceeds max length` 원인(Director 영구 에이전트 컨텍스트 누적 + 자식 고정 세금·fork 상속)을 구조적으로 제거.
+  - 코어(`packages/factorynote/src`): `SpawnOptions`(`skill:false`·`context:"fresh"`·`toolBudgetBlock`) + `ArtifactPaths` 타입. 모든 spawn 지시문이 `spawnOptions` carry. `nextDesignFeedbackStep(..., paths?)` 옵셔널 `paths` — 파일 프로토콜(pi) / inline(동기 목 루프) 양립. `designTask`/`feedbackTask`/`designRevisionTask` 가 paths 제공 시 파일 경로 참조(본문 無). `CHILD_SPAWN_OPTIONS` 상수.
+  - Pi 확장(`apps/pi-extension/src`): `drivePlan` 이 designPrompt(불변)·draft·feedback 파일 경로를 계산(`resolvePaths`)·기록, `nextDesignFeedbackStep` 에 paths 주입, 게이트 직전 `readArtifact` 로 경로→내용 resolve. `DrivePlanOutput`·`AgentOut` 에 `spawnOptions`·`draftPath`·`feedbackPath` 노출. `PLAN_MODE_PROMPT` 를 파일 프로토콜(Director 가 스폰 옵션 적용·자식은 파일에 쓰고 경로/판정만 보고)로 재작성.
+  - 자체체크 71건 green(orchestration paths·spawnOptions 5건 + drivePlan 파일 프로토콜 종단간 갱신). `bun run build`/`bun test` 0 종료.
 
 - **Tier 1 에이전트 오케스트레이션 도입 — Tier 0·NFR-7 폐지** ([[ADR-009-tier-1-agent-orchestration]]) — 산출물이 항상 Design 자식 → Feedback 자식 루프를 거쳐 사용자 게이트로 가도록, 단일 에이전트 인라인 자기검토(Tier 0) 경로를 제거하고 오케스트레이션을 유일 경로로.
   - 코어(`packages/factorynote/src`): `AgentSpawn` 인터페이스 + 순수 전이 `nextDesignFeedbackStep` + 동기 루프 드라이버 `runDesignFeedbackLoop(spawn)`(신규 `orchestration.ts`). 내부 Design↔Feedback 루프 상한(`MAX_DESIGN_FEEDBACK_LOOPS`=3) + FR-2 에스컬레이션(잔존 이슈 노출). `PipelineState`에 `dfPhase`/`dfLoop` 추가(구 state.json 마이그레이션 포함).
