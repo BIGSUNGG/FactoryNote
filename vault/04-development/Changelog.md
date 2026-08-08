@@ -10,8 +10,21 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ## [Unreleased]
 
+### Changed
+
+- **코멘트 → 실시간 채팅 통합** — 블록/셀/영역 코멘트(`PlanPage`)와 그래프 코멘트(`DesignStage`)를 로컬 큐 적재가 아닌 즉시 `POST /api/chat`(blockId/node 스코프)로 전송. 코멘트가 채팅 메시지(`role:"user"`)로 표시되며 기존 `chatPending` 루프로 에이전트에 즉시 전달(게이트 유지). [[ADR-011-comment-to-chat-consolidation]].
+
+### Removed
+
+- **SidePanel 검토 패널 전체** — `PlanPage` 우측의 검토 코멘트 큐 + Design↔Feedback 루프 + Feedback 이슈 + 어노테이션 제거. 검토 레이아웃이 [문서 | 채팅] 2단으로 단순화. `SidePanel.jsx` 삭제.
+- **"✎ 수정 지시" 게이트 버튼** — 공용 `GateBar`에서 제거(확정·정정은 유지). 코멘트가 채팅으로 즉시 전달되므로 일괄 modify 트리거 불필요. `PlanPage`/`DesignStage` 의 `sendModify`/`submit("modify")` 경로 제거.
+- **데드 코드 정리(감사)** — `GraphStage.jsx`(bc674f6 의 GraphStage→DesignStage 교체 시 미삭제 잔류; 미사용 + 제거된 `pendingCount` prop 참조) 삭제. 제거된 SidePanel/apply-badge 의 죽은 CSS(`.apply-badge`·`.review-comments`·`.review-comment`·`.rc-target`·`.count`·그룹 선택자의 `.rc-quote`) 제거.
+
 ### Fixed
 
+- **코멘트→채팅 즉시 갱신 + 폴링 0.5초** — 블록/셀/영역/그래프 코멘트 전송 시 `fn-chat-update` 윈도우 이벤트로 `ChatSidebar` 를 즉시 갱신(POST 완료 후 발화)해 내 코멘트가 지체 없이 채팅에 표시. `ChatSidebar` 폴링 2초→0.5초(에이전트 회신 등 안전망).
+- **여러 블록에 걸친 범위 코멘트** — 두 제약 해소. (1) **하이라이트**: 한 번에 감싸는 기법(멀티 노드 범위에서 에러로 스킵)을 텍스트 노드 순회·각각 `<mark>` 감싸기(`highlightRange`)로 교체 → 여러 블록 드래그도 하이라이트. (2) **스코프**: `Document.jsx` 가 `range.intersectsNode` 로 선택이 걸친 모든 블록 수집 → `PlanPage` 가 `blockId` 쉼표 결합(`b2,b3,b4`)으로 전송(이전엔 시작 블록 하나만). 팝오버 헤더에도 전체 범위 표시.
+- **범위 코멘트 인용(quote) 누락** — 채팅 통합 시 드래그 영역 코멘트의 선택 텍스트(`quote`)가 `POST /api/chat` body에서 빠져, 에이전트가 어느 블록인지는 알아도 정확히 어떤 범위인지 몰랐던 것 수정. `ChatMessage.quote` 타입 추가 → `gate-server` `/api/chat` 파싱·저정 → `plan-tool` `formatChat` 이 `(인용: "…")` 로 렌더 → `ChatSidebar` 말풍선에 인용 표시. gate-server 테스트에 quote 왕복 검증 추가.
 - **에이전트 채팅 미동작(Bug 1)** — `apps/pi-extension/src/index.ts` 의 `factorynote_plan` 도구가 채팅 프로토콜과 미연결이었던 것 수정. `chatResponse` 파라미터 추가·`execute`→`drivePlan` 전달·`chatPending` 노출(`formatForAgent`)·`PLAN_MODE_PROMPT` 채팅 처리 지시. 이제 게이트 열린 동안 우측 채팅이 에이전트에 전달돼 답변/그 자리 수정이 동작.
 - **Stage 2 그래프 안 보임(Bug 2)** — `apps/plan-viewer/src/lib/designMd.js` 파서가 에이전트 출력 편차에 취약했던 것 강화: 후행쉼표/`//` 주석 무경화(`sanitizeJson`), 비 `factorynote-graph` 펜스 fallback, **bare 섹션 객체**(sections 래퍼 누락) 수용. 구조 미검색 시 `DesignStage.jsx` 가 원인 특정 진단 배너(mermaid/```json/no-fence 분류) + 산출물 미리보기 표시.
 

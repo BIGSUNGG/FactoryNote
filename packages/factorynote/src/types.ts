@@ -27,6 +27,8 @@ export interface ChatMessage {
 	text: string;
 	/** 부분 코멘트: 대상 블록(미지정 시 전체 산출물에 대한 질문). */
 	blockId?: string;
+	/** 드래그 영역 코멘트의 선택 텍스트(인용). */
+	quote?: string;
 	at: number;
 }
 

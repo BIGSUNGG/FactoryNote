@@ -22,8 +22,13 @@ export default function ChatSidebar({ stage, activeBlockId }) {
 
 	useEffect(() => {
 		fetchChat();
-		const id = setInterval(fetchChat, 2000);
-		return () => clearInterval(id);
+		const id = setInterval(fetchChat, 500); // 폴링 0.5초(에이전트 회신 등 안전망)
+		const refresh = () => fetchChat();
+		window.addEventListener("fn-chat-update", refresh); // 코멘트 전송 시 즉시 갱신
+		return () => {
+			clearInterval(id);
+			window.removeEventListener("fn-chat-update", refresh);
+		};
 	}, []);
 
 	useEffect(() => {
@@ -68,6 +73,9 @@ export default function ChatSidebar({ stage, activeBlockId }) {
 								{m.role === "user" ? "나" : "AI"}
 							</span>
 							{m.blockId && <span className="chat-block">[{m.blockId}]</span>}
+							{m.quote && (
+								<blockquote className="chat-quote">“{m.quote}”</blockquote>
+							)}
 							<div className="chat-text">{m.text}</div>
 						</div>
 					))

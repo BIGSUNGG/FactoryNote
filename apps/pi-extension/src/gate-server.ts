@@ -191,44 +191,48 @@ function makeGateHandler(gate: PersistentGate) {
 				});
 				return;
 			}
-		if (url === "/api/chat") {
-			if (req.method === "POST") {
-				const body = await readBody(req);
-				const parsed = JSON.parse(body) as {
-					text?: unknown;
-					blockId?: unknown;
-				};
-				const text = typeof parsed.text === "string" ? parsed.text : "";
-				if (text.trim()) {
-					const msg: ChatMessage = {
-						id: crypto.randomUUID(),
-						role: "user",
-						text,
-						...(typeof parsed.blockId === "string"
-							? { blockId: parsed.blockId }
-							: {}),
-						at: Date.now(),
+			if (url === "/api/chat") {
+				if (req.method === "POST") {
+					const body = await readBody(req);
+					const parsed = JSON.parse(body) as {
+						text?: unknown;
+						blockId?: unknown;
+						quote?: unknown;
 					};
-					gate.chatLog.push(msg);
-					gate.pendingChats.push(msg);
-					// 대기 중인 runGate 가 있으면 chat 이벤트로 즉시 전달(게이트 유지).
-					const r = gate.currentResolver;
-					if (r) {
-						gate.currentResolver = null;
-						r({ kind: "chat", messages: gate.pendingChats.splice(0) });
+					const text = typeof parsed.text === "string" ? parsed.text : "";
+					if (text.trim()) {
+						const msg: ChatMessage = {
+							id: crypto.randomUUID(),
+							role: "user",
+							text,
+							...(typeof parsed.blockId === "string"
+								? { blockId: parsed.blockId }
+								: {}),
+							...(typeof parsed.quote === "string" && parsed.quote.trim()
+								? { quote: parsed.quote }
+								: {}),
+							at: Date.now(),
+						};
+						gate.chatLog.push(msg);
+						gate.pendingChats.push(msg);
+						// 대기 중인 runGate 가 있으면 chat 이벤트로 즉시 전달(게이트 유지).
+						const r = gate.currentResolver;
+						if (r) {
+							gate.currentResolver = null;
+							r({ kind: "chat", messages: gate.pendingChats.splice(0) });
+						}
 					}
+					res.writeHead(200, { "Content-Type": "application/json" });
+					res.end(JSON.stringify({ ok: true }));
+					return;
 				}
+				// GET /api/chat — 채팅 누적 로그(뷰어가 폴링으로 표시).
 				res.writeHead(200, { "Content-Type": "application/json" });
-				res.end(JSON.stringify({ ok: true }));
+				res.end(JSON.stringify({ messages: gate.chatLog }));
 				return;
 			}
-			// GET /api/chat — 채팅 누적 로그(뷰어가 폴링으로 표시).
-			res.writeHead(200, { "Content-Type": "application/json" });
-			res.end(JSON.stringify({ messages: gate.chatLog }));
-			return;
-		}
-		// 정적 자원(SPA). /assets/* → dist 파일, 그 외 → index.html.
-		const filePath = safeJoin(gate.viewerDistDir, url);
+			// 정적 자원(SPA). /assets/* → dist 파일, 그 외 → index.html.
+			const filePath = safeJoin(gate.viewerDistDir, url);
 			const fallback = join(gate.viewerDistDir, "index.html");
 			const target =
 				filePath && (await canRead(filePath)) ? filePath : fallback;

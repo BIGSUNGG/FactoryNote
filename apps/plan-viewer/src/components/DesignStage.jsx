@@ -347,14 +347,19 @@ export default function DesignStage({
 	}, [menu]);
 
 	const ckey = (targetId) => `${active?.id}::${targetId}`;
-	const pendingTotal = Object.values(comments).reduce(
-		(a, b) => a + b.length,
-		0,
-	);
 	const addComment = () => {
 		if (!draft.trim() || !selected.id) return;
 		const k = ckey(selected.id);
-		setComments((c) => ({ ...c, [k]: [...(c[k] || []), draft.trim()] }));
+		const text = draft.trim();
+		setComments((c) => ({ ...c, [k]: [...(c[k] || []), text] }));
+		// 코멘트 → 실시간 에이전트 채팅으로 즉시 전달(게이트 유지, chatPending 루프).
+		fetch("/api/chat", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ text, blockId: k }),
+		})
+			.then(() => window.dispatchEvent(new Event("fn-chat-update")))
+			.catch(() => {});
 		setDraft("");
 	};
 
@@ -366,14 +371,10 @@ export default function DesignStage({
 			nodes: s.nodes,
 			edges: s.edges,
 		}));
-	const submit = (verdict, withComments, revertTo) =>
+	const submit = (verdict, revertTo) =>
 		onGate({
 			verdict,
-			comments: withComments
-				? Object.entries(comments).flatMap(([k, arr]) =>
-						arr.map((text) => ({ blockId: k, text })),
-					)
-				: [],
+			comments: [],
 			artifactMd: applyStructureToMarkdown(mdSource ?? "", {
 				sections: serialized(),
 			}),
@@ -650,8 +651,8 @@ export default function DesignStage({
 						/>
 					) : (
 						<div className="empty">
-							노드/엣지를 클릭해 상세·편집. 노드·관계에 코멘트 후 하단 수정
-							지시.
+							노드/엣지를 클릭해 상세·편집. 노드·관계에 코멘트를 남기면 우측
+							채팅으로 즉시 전달됩니다.
 						</div>
 					)}
 				</aside>
@@ -662,11 +663,9 @@ export default function DesignStage({
 			<GateBar
 				stage={stage}
 				label={stageName}
-				pendingCount={pendingTotal}
 				stageLabels={stageLabels}
-				onConfirm={() => submit("confirm", false)}
-				onModify={() => submit("modify", true)}
-				onRevert={(t) => submit("revert", false, t)}
+				onConfirm={() => submit("confirm")}
+				onRevert={(t) => submit("revert", t)}
 			/>
 			{menuEl}
 		</>

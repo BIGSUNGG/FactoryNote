@@ -114,7 +114,7 @@ function TableBlock({
 	const renderCell = (r) => (content, c) => {
 		const id = cellId(r, c);
 		const cs = comments.filter((x) => x.targetId === id);
-		const pending = cs.filter((x) => !x.applied);
+		const pending = cs;
 		const Tag = r === -1 ? "th" : "td";
 		return (
 			<Tag
@@ -141,7 +141,7 @@ function TableBlock({
 	};
 
 	const activePending = activeCell
-		? comments.filter((x) => x.targetId === activeCell && !x.applied)
+		? comments.filter((x) => x.targetId === activeCell)
 		: [];
 
 	const cellPopover =
@@ -216,8 +216,7 @@ export default function Block({
 
 	const open = activeTargetId === block.id;
 	const cs = comments.filter((c) => c.targetId === block.id);
-	const pending = cs.filter((c) => !c.applied);
-	const hasApplied = cs.some((c) => c.applied);
+	const pending = cs;
 
 	const submit = () => {
 		if (!draft.trim()) return;
@@ -228,9 +227,7 @@ export default function Block({
 
 	return (
 		<div
-			className={`block ${pending.length ? "has-comment" : ""} ${
-				hasApplied ? "applied" : ""
-			}`}
+			className={`block ${pending.length ? "has-comment" : ""}`}
 			data-block-id={block.id}
 			title="클릭하여 코멘트 · 드래그하여 영역 코멘트"
 		>
@@ -258,8 +255,6 @@ export default function Block({
 					))}
 				</div>
 			)}
-
-			{hasApplied && <span className="apply-badge">✏ 수정 지시 반영됨</span>}
 
 			{open && (
 				<div className="comment-popover" onClick={(e) => e.stopPropagation()}>

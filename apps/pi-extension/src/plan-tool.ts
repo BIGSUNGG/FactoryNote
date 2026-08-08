@@ -236,5 +236,6 @@ function formatComments(comments: GateDecision["comments"]): string {
 /** 채팅 메시지를 에이전트 안내용 텍스트로 포맷(블록 지정 시 표시). */
 function formatChat(m: ChatMessage): string {
 	const block = m.blockId ? ` [블록 ${m.blockId}]` : "";
-	return `- ${block} ${m.text}`;
+	const quote = m.quote ? ` (인용: "${m.quote}")` : "";
+	return `- ${block}${quote} ${m.text}`;
 }

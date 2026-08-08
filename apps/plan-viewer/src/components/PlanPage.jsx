@@ -4,7 +4,6 @@ import Topbar from "./Topbar";
 import Stepper from "./Stepper";
 import Toc from "./Toc";
 import Document from "./Document";
-import SidePanel from "./SidePanel";
 import GateBar from "./GateBar";
 import { mdToBlocks } from "../lib/mdToBlocks";
 
@@ -20,13 +19,42 @@ const stagesFor = (cur) =>
 		state: s.n === cur ? "current" : s.n < cur ? "done" : "locked",
 	}));
 
-const loop = { round: 2, remaining: "1 이슈" };
-const feedbackIssues = [
-	{ resolved: true, text: "✓ FR-2 솔트 길이 명시 — 해결" },
-	{ resolved: false, text: "⚠ NFR-1 세션 만료 정책 누락 — Design 재검토 요청" },
-];
-
 const stripHtml = (html) => html.replace(/<[^>]+>/g, "").trim();
+
+// Range 를 <mark> 로 감싼다. 한 번에 감싸는 기법은 여러 블록/노드에 걸친 범위에서
+// 에러를 던지므로, 텍스트 노드마다 잘라서 감싼다(멀티 블록 안전).
+function highlightRange(range, className) {
+	const root = range.commonAncestorContainer;
+	const walkerRoot =
+		root.nodeType === Node.ELEMENT_NODE ? root : root.parentElement;
+	if (!walkerRoot) return;
+	const walker = document.createTreeWalker(walkerRoot, NodeFilter.SHOW_TEXT, {
+		acceptNode(node) {
+			return range.intersectsNode(node) &&
+				node.nodeValue &&
+				node.nodeValue.length
+				? NodeFilter.FILTER_ACCEPT
+				: NodeFilter.FILTER_REJECT;
+		},
+	});
+	const targets = [];
+	while (walker.nextNode()) targets.push(walker.currentNode);
+	for (const node of targets) {
+		let start = 0;
+		let end = node.nodeValue.length;
+		if (node === range.startContainer) start = range.startOffset;
+		if (node === range.endContainer) end = range.endOffset;
+		if (start >= end) continue;
+		const slice = node.nodeValue.slice(start, end);
+		if (!slice.trim()) continue;
+		const mark = document.createElement("mark");
+		mark.className = className;
+		mark.textContent = slice;
+		const tail = node.splitText(start);
+		tail.splitText(end - start);
+		tail.parentNode.replaceChild(mark, tail);
+	}
+}
 
 export default function PlanPage({
 	mdSource,
@@ -49,7 +77,9 @@ export default function PlanPage({
 	const [activeRange, setActiveRange] = useState(null);
 	const [rangeDraft, setRangeDraft] = useState("");
 
-	const addComment = (targetId, text, quote = null) => {
+	// 코멘트를 로컬(인라인 표시용)에 추가함과 동시에 실시간 에이전트 채팅으로 즉시 전달.
+	// 게이트를 유지한 채 chatPending 루프로 에이전트에게 닿는다(ADR-009).
+	const addComment = (targetId, text, quote = null, blockIds = null) => {
 		setComments((c) => [
 			...c,
 			{
@@ -57,14 +87,20 @@ export default function PlanPage({
 				targetId,
 				text,
 				quote,
-				applied: false,
 			},
 		]);
-	};
-	const applyComments = () => {
-		setComments((c) => c.map((x) => ({ ...x, applied: true })));
-		setActiveTargetId(null);
-		setActiveRange(null);
+		const body = { text };
+		// 범위 코멘트가 여러 블록에 걸치면 전체 블록 목록을 스코프로 에이전트에게 전달.
+		const scope = blockIds && blockIds.length ? blockIds.join(",") : targetId;
+		if (scope) body.blockId = scope;
+		if (quote) body.quote = quote;
+		fetch("/api/chat", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(body),
+		})
+			.then(() => window.dispatchEvent(new Event("fn-chat-update")))
+			.catch(() => {});
 	};
 	const activate = (id) => {
 		setActiveTargetId((prev) => {
@@ -75,42 +111,30 @@ export default function PlanPage({
 		});
 	};
 
-	const onRangeComment = (blockId, sel, quote) => {
-		const rect = sel.getRangeAt(0).getBoundingClientRect();
-		try {
-			const range = sel.getRangeAt(0);
-			const mark = document.createElement("mark");
-			mark.className = "comment-hl";
-			range.surroundContents(mark);
-		} catch {
-			/* 다중 노드 범위 — 하이라이트 생략 */
-		}
+	const onRangeComment = (blockId, sel, quote, blockIds) => {
+		const range = sel.getRangeAt(0);
+		const rect = range.getBoundingClientRect();
+		highlightRange(range, "comment-hl"); // 멀티 노드/블록 안전 하이라이트
 		sel.removeAllRanges();
-		setActiveRange({ blockId, quote, rect });
+		setActiveRange({ blockId, quote, rect, blockIds });
 		setActiveTargetId(null);
 	};
 	const submitRange = () => {
 		if (!rangeDraft.trim() || !activeRange) return;
-		addComment(activeRange.blockId, rangeDraft.trim(), activeRange.quote);
+		addComment(
+			activeRange.blockId,
+			rangeDraft.trim(),
+			activeRange.quote,
+			activeRange.blockIds,
+		);
 		setRangeDraft("");
 		setActiveRange(null);
 	};
 
-	const pendingCount = comments.filter((c) => !c.applied).length;
-
-	// 게이트 결정 전송 — pi 에이전트로 verdict+comments 를 POST.
-	const toGateComment = (c) => {
-		const o = { blockId: c.targetId, text: c.text };
-		if (c.quote) o.quote = c.quote;
-		return o;
-	};
+	// 게이트 결정 전송 — pi 에이전트로 verdict 를 POST. 코멘트는 채팅으로 이미 전달됨.
 	const sendConfirm = () => onGate({ verdict: "confirm", comments: [] });
 	const sendRevert = (target) =>
 		onGate({ verdict: "revert", comments: [], revertTo: target });
-	const sendModify = () => {
-		const pending = comments.filter((c) => !c.applied).map(toGateComment);
-		onGate({ verdict: "modify", comments: pending });
-	};
 
 	const rangePopover = activeRange
 		? createPortal(
@@ -124,7 +148,12 @@ export default function PlanPage({
 					onClick={(e) => e.stopPropagation()}
 				>
 					<div className="popover-head">
-						<span>영역 코멘트 · {activeRange.blockId}</span>
+						<span>
+							영역 코멘트 ·{" "}
+							{activeRange.blockIds && activeRange.blockIds.length > 1
+								? activeRange.blockIds.join(", ")
+								: activeRange.blockId}
+						</span>
 						<button onClick={() => setActiveRange(null)} title="닫기">
 							✕
 						</button>
@@ -161,15 +190,12 @@ export default function PlanPage({
 					onRangeComment={onRangeComment}
 					activeTargetId={activeTargetId}
 				/>
-				<SidePanel loop={loop} issues={feedbackIssues} comments={comments} />
 			</div>
 			<GateBar
 				stage={stage}
 				label={label}
-				pendingCount={pendingCount}
 				stageLabels={stageLabels}
 				onConfirm={sendConfirm}
-				onModify={sendModify}
 				onRevert={sendRevert}
 			/>
 			{rangePopover}

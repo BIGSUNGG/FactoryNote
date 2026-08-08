@@ -324,7 +324,11 @@ test("gate /api/chat accepts and returns chat messages", async () => {
 			await fetch(`${url}/api/chat`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ text: "이 블록 수정해줘", blockId: "b3" }),
+				body: JSON.stringify({
+					text: "이 블록 수정해줘",
+					blockId: "b3",
+					quote: "선택된 범위 텍스트",
+				}),
 			});
 			const res = await fetch(`${url}/api/chat`);
 			captured.msgs = ((await res.json()) as { messages: unknown[] }).messages;
@@ -338,11 +342,13 @@ test("gate /api/chat accepts and returns chat messages", async () => {
 	const msgs = captured.msgs as Array<{
 		text: string;
 		blockId?: string;
+		quote?: string;
 		role: string;
 	}>;
 	expect(msgs).toHaveLength(1);
 	expect(msgs[0]?.text).toBe("이 블록 수정해줘");
 	expect(msgs[0]?.blockId).toBe("b3");
+	expect(msgs[0]?.quote).toBe("선택된 범위 텍스트");
 	expect(msgs[0]?.role).toBe("user");
 	await closeGate(root, "chatdemo");
 });
