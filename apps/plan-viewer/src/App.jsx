@@ -84,6 +84,17 @@ export default function App() {
 		setPhase("preparing");
 	};
 
+	// '검토 요청' — 현 산출물에 AI 재검토(feedback+design 수정 +1 사이클) 요청.
+	// 게이트를 유지한 채 백그라운드 사이클 → preparing 전환 후 재오픈 시 갱신.
+	const onReview = async () => {
+		try {
+			await fetch("/api/review-request", { method: "POST" });
+		} catch {
+			/* 무시 */
+		}
+		setPhase("preparing");
+	};
+
 	if (phase === "closed") return <ClosedScreen done={!!state?.done} />;
 	if (phase === "loading") return <Center>게이트 로딩 중…</Center>;
 	if (phase === "preparing")
@@ -98,26 +109,29 @@ export default function App() {
 	for (const a of state.artifacts || []) stageLabels[a.stage] = a.name;
 	stageLabels[state.stage] = state.stageName;
 
-	const main = state.stage === 2 ? (
-		<DesignStage
-			mdSource={cur?.md || ""}
-			stage={state.stage}
-			stageName={state.stageName}
-			feature={state.feature}
-			stageLabels={stageLabels}
-			onGate={onGate}
-		/>
-	) : (
-		<PlanPage
-			mdSource={pickMarkdown(state)}
-			stage={state.stage}
-			stageName={state.stageName}
-			feature={state.feature}
-			stageLabels={stageLabels}
-			onGate={onGate}
-			onActiveBlock={setActiveBlockId}
-		/>
-	);
+	const main =
+		state.stage === 2 ? (
+			<DesignStage
+				mdSource={cur?.md || ""}
+				stage={state.stage}
+				stageName={state.stageName}
+				feature={state.feature}
+				stageLabels={stageLabels}
+				onGate={onGate}
+				onReview={onReview}
+			/>
+		) : (
+			<PlanPage
+				mdSource={pickMarkdown(state)}
+				stage={state.stage}
+				stageName={state.stageName}
+				feature={state.feature}
+				stageLabels={stageLabels}
+				onGate={onGate}
+				onReview={onReview}
+				onActiveBlock={setActiveBlockId}
+			/>
+		);
 
 	// reviewing: 메인 산출물 + 우측 실시간 에이전트 채팅 사이드바(게이트 열린 동안).
 	return (

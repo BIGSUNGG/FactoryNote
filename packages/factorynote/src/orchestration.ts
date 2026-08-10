@@ -1,38 +1,36 @@
-// M2/M4 Tier 1 — Design↔Feedback 내부 루프 오케스트레이션(순수 로직).
-// vault/01-architecture/multi-agent-pipeline · module-architecture M4 근거.
+// M2/M4 Tier 1 — Design → Feedback(동적 다중 에이전트 병렬) → 조건부 수정 오케스트레이션(순수 로직).
+// ADR-014 동적 feedback 에이전트: Director 가 현 단계 메뉴에서 상황에 맞는 N개를 추려 병렬 스폰.
+// 기본 사이클 수 = DEFAULT_MAX_LOOPS(1, 파라미터화). '검토 요청' 버튼이 런타임 +1 사이클.
 //
-// 하이브리드 원칙: 판정·실행(루프 전이·상한·에스컬레이션) = 이 코드(결정론적);
-// 산출물 '내용' 판단 = LLM(Design/Feedback 역할, AgentSpawn 으로 주입).
+// 하이브리드 원칙: 판정·실행(전이·상한) = 이 코드(결정론적);
+// 산출물 '내용' 판단 + 에이전트 '선택' = LLM(Director 가 메뉴에서 추려 스폰).
 //
 // 두 진입점:
-//  - nextDesignFeedbackStep: 순수 단계 전이함수. drivePlan(pi 어댑터)이
-//    factorynote_plan 호출마다 1회 호출해 단계 지시문을 에이전트에게 반환.
-//    pi는 확장 코드가 서브에이전트를 동기 스폰할 수 없으므로 에이전트 매개.
-//  - runDesignFeedbackLoop: 동기 스폰 가능 harness(CLI 하네스·테스트·Codex/Claude
-//    구현체 등)가 직접 호출하는 루프 드라이버. nextDesignFeedbackStep 을 합성.
+//  - nextDesignFeedbackStep: 순수 단계 전이함수. drivePlan(pi 어댑터)이 호출해 지시문 반환.
+//  - runDesignFeedbackLoop: 동기 스폰 harness(CLI 하네스·테스트)용 — 메뉴 전체(또는 selector) 스폰.
 import type {
 	AgentRole,
 	AgentSpawn,
 	ArtifactPaths,
+	FeedbackAxisOutcome,
+	FeedbackOutcome,
 	DesignFeedbackDirective,
 	DesignFeedbackPhase,
-	FeedbackOutcome,
 	SpawnOptions,
 } from "./types.ts";
 import type { StageDefinition } from "./stages.ts";
-
-/** FR-2(내부 루프): 단계별 Design↔Feedback 시도 상한. 도달 시 게이트 에스컬레이션. */
-export const MAX_DESIGN_FEEDBACK_LOOPS = 3;
+import type { FeedbackAgent } from "./feedback-agents.ts";
+import { feedbackMenuForStage } from "./feedback-agents.ts";
 
 /**
- * 자식(Design/Feedback) 스폰 고정 옵션 — 컨텍스트 한도 관리 정책(core 소유).
- * pi 어댑터가 subagent 호출의 agent/skill/context/toolBudget/turnBudget 로 매핑.
- *
- * 도구 제거(시스템 프롬프트 고정 세금 절감)는 여기가 아니라 **명명 에이전트 정의의
- * `tools:` allowlist**(factorynote-design.md / factorynote-feedback.md)가 담당한다.
- * 이전 toolBudgetBlock 은 프롬프트에서 도구를 빼지 못해(런타임 카운트 게이트일 뿐,
- * hard 누락으로 무효) 1261 방어에 실패했다 — 도구 allowlist 로 대체(ADR-012).
- * SpawnOptions 는 (a) 스폰할 에이전트, (b) 호출/턴 카운트 상한만 소유한다.
+ * FR-2(내부 사이클): Design→병렬 Feedback→조건부 수정 시도 상한(기본값).
+ * 파라미터화 — drivePlan/루프 드라이버가 maxLoops 로 주입. '검토 요청' 버튼은 상한과 무관하게 +1.
+ */
+export const DEFAULT_MAX_LOOPS = 1;
+
+/**
+ * 자식 스폰 고정 옵션 — 컨텍스트 한도 관리 정책(core 소유).
+ * 도구 제거는 명명 에이전트 정의의 tools: allowlist 가 담당(ADR-012). 역량별 도구는 에이전트 파일이 결정.
  */
 export const CHILD_SPAWN_OPTIONS: Readonly<Record<AgentRole, SpawnOptions>> =
 	Object.freeze({
@@ -46,6 +44,7 @@ export const CHILD_SPAWN_OPTIONS: Readonly<Record<AgentRole, SpawnOptions>> =
 		feedback: {
 			skill: false,
 			context: "fresh",
+			// 동적 선택: Director 가 메뉴에서 고른 factorynote-feedback-<name> 스폰. 기본 예산.
 			agentName: "factorynote-feedback",
 			toolBudget: { hard: 15, soft: 10 },
 			turnBudget: { maxTurns: 10, graceTurns: 2 },
@@ -53,10 +52,7 @@ export const CHILD_SPAWN_OPTIONS: Readonly<Record<AgentRole, SpawnOptions>> =
 	});
 
 /**
- * 방향 3b: 자식 보고 입력(designArtifact 경로 / feedbackResult 판정)이 과도히 길면
- * 절단해 Director(영구 에이전트) 컨텍스트 누적(1261 원인)을 막는다. 자식은 파일에 상세를
- * 쓰고 보고는 경로/판정만 반환하도록 규약되어 있으므로, 규약 위반(과대 본문) 시 첫 줄
- * (판정/경로)은 보존하고 잘라낸다. 어댑터가 deriveReport 에서 호출.
+ * 방향 3b: 자식 보고 입력이 과도히 길면 절단해 Director 컨텍스트 누적(1261) 차단.
  */
 export const MAX_REPORT_INPUT_CHARS = 4000;
 export function clampReportInput(
@@ -72,23 +68,7 @@ export function clampReportInput(
 	);
 }
 
-/** Feedback 에이전트가 보고하는 구조화 결과(코어는 raw 텍스트를 이렇게 파싱). */
-export type DesignFeedbackReport =
-	| { role: "design"; draft: string }
-	| { role: "feedback"; outcome: FeedbackOutcome };
-
-/** nextDesignFeedbackStep 반환 — 다음 지시문 + 갱신된 내부 루프 상태. */
-export interface DesignFeedbackTransition {
-	directive: DesignFeedbackDirective;
-	dfPhase: DesignFeedbackPhase;
-	dfLoop: number;
-}
-
-/**
- * Feedback 에이전트의 raw 출력을 판정으로 파싱.
- * 규약: 첫 의미있는 줄이 "CLEAN" 이면 클린, "ISSUES" 이면 나머지 줄이 이슈.
- * 판별 불가(규약 위반) → 안전 기본값 ISSUES(자동 통과 금지).
- */
+/** Feedback 에이전트의 raw 출력을 판정으로 파싱. 안전 기본값 ISSUES. */
 export function parseFeedback(raw: string): FeedbackOutcome {
 	const lines = raw
 		.split("\n")
@@ -98,7 +78,6 @@ export function parseFeedback(raw: string): FeedbackOutcome {
 	if (head === "CLEAN" || head.startsWith("VERDICT: CLEAN")) {
 		return { clean: true };
 	}
-	// ISSUES 헤더 이후 줄들을 이슈로; 헤더가 없으면 전체를 이슈로.
 	const body =
 		head.startsWith("ISSUES") || head.startsWith("VERDICT: ISSUES")
 			? lines.slice(1)
@@ -112,7 +91,35 @@ export function parseFeedback(raw: string): FeedbackOutcome {
 	};
 }
 
-/** Design 첫 산출물 과제. paths 제공 시 designPrompt 파일 참조 + draft 파일 쓰기 지시(inline 본문 금지). */
+/** Feedback 자식 보고. outcomes 는 Director 가 선택·스폰한 에이전트별 결과 집합. */
+export type DesignFeedbackReport =
+	| { role: "design"; draft: string }
+	| { role: "feedback"; outcomes: FeedbackAxisOutcome[] };
+
+/** nextDesignFeedbackStep 반환 — 다음 지시문 + 갱신된 내부 사이클 상태. */
+export interface DesignFeedbackTransition {
+	directive: DesignFeedbackDirective;
+	dfPhase: DesignFeedbackPhase;
+	dfLoop: number;
+}
+
+/** 에이전트별 결과 집합 → 전체 클린 여부 + 취합된 이슈(에이전트명 접두). */
+export function aggregateFeedback(outcomes: FeedbackAxisOutcome[]): {
+	allClean: boolean;
+	issues: string[];
+} {
+	const issues: string[] = [];
+	let allClean = true;
+	for (const o of outcomes) {
+		if (!o.outcome.clean) {
+			allClean = false;
+			for (const i of o.outcome.issues) issues.push(`[${o.axis}] ${i}`);
+		}
+	}
+	return { allClean, issues };
+}
+
+/** Design 첫 산출물 과제. paths 제공 시 designPrompt 파일 참조 + draft 파일 쓰기 지시. */
 export function designTask(
 	def: StageDefinition,
 	paths?: ArtifactPaths,
@@ -127,46 +134,68 @@ export function designTask(
 	return def.designPrompt;
 }
 
-/** Feedback 과제(체크리스트 + 산출물). paths 제공 시 draft/feedback 파일 참조 + 상세리뷰 파일화. */
-export function feedbackTask(
+/** 한 에이전트의 Feedback 과제(동기 harness용 — pi Director 는 메뉴를 보고 직접 과제 구성). */
+export function feedbackAgentTask(
 	def: StageDefinition,
+	agent: FeedbackAgent,
 	draft: string,
 	paths?: ArtifactPaths,
 ): string {
-	const checklist = def.feedbackChecklist.map((c) => `- ${c}`).join("\n");
 	if (paths) {
 		return [
-			`검토 대상 ${def.artifact} 산출물은 파일 ${paths.draft} 에 있다 — 읽어 비판적 검토하라 (보안·병목·구조).`,
-			`판정은 첫 줄에 "CLEAN"(이슈 없음) 또는 "ISSUES"(이후 줄에 각 이슈를 - 로 나열, 최대 5개·각 1줄·프로즈 금지) 로만 출력한다.`,
-			`상세 리뷰 전문은 파일 ${paths.feedback} 에 저장하라. 반환은 판정 + 이슈 요약만(본문 금지).`,
-			"",
-			"## 검토 체크리스트",
-			checklist,
+			`검토 대상 ${def.artifact} 산출물은 파일 ${paths.draft} 에 있다 — 읽고 **${agent.focus} 관점**에서 비판 검토하라.`,
+			`판정은 첫 줄에 "CLEAN"(이슈 없음) 또는 "ISSUES"(이후 줄에 각 이슈를 - 로 나열, 최대 5개·각 1줄)로만 출력한다.`,
+			`상세 리뷰 전문은 파일 ${paths.feedback}.${agent.name} 에 저장하라. 반환은 판정 + 이슈 요약만(본문 금지).`,
 		].join("\n");
 	}
 	return [
-		`아래 ${def.artifact} 산출물을 비판적으로 검토하라 (보안·병목·구조).`,
-		`판정은 첫 줄에 "CLEAN"(이슈 없음) 또는 "ISSUES"(이후 줄에 각 이슈를 - 로 나열) 로만 출력한다.`,
-		"",
-		"## 검토 체크리스트",
-		checklist,
+		`아래 ${def.artifact} 산출물을 **${agent.focus} 관점**에서 비판적으로 검토하라.`,
+		`판정은 첫 줄에 "CLEAN" 또는 "ISSUES"(이후 줄에 각 이슈를 - 로 나열)로만 출력한다.`,
 		"",
 		"## 검토 대상 산출물",
 		draft,
 	].join("\n");
 }
 
+/** Design 재수정 과제(전 에이전트 이슈 취합 주입). */
+function designRevisionTask(
+	def: StageDefinition,
+	issues: string[],
+	paths?: ArtifactPaths,
+): string {
+	const block = issues.map((i) => `- ${i}`).join("\n");
+	if (paths) {
+		return [
+			`이전 산출물이 병렬 Feedback 검토에서 반려되었다. 아래 전 에이전트 이슈를 근본적으로 반영해 ${def.artifact} 산출물을 재작성하라(에이전트별로 따로 고치지 말고 하나의 일관된 산출물로 통합).`,
+			`상세 리뷰는 반려 이슈의 [에이전트명] 에 해당하는 파일(${paths.feedback}.<name>)들 — 모두 읽어라. 작성 지시는 ${paths.designPrompt}(불변).`,
+			"",
+			"## 반려 이슈(전 에이전트 취합)",
+			block,
+			"",
+			`재작성 결과는 파일 ${paths.draft} 에 저장하고 반환은 경로만.`,
+		].join("\n");
+	}
+	return [
+		`이전 산출물이 병렬 Feedback 검토에서 아래 이슈로 반려되었다. 이슈를 근본적으로 반영해 ${def.artifact} 산출물을 재작성하라.`,
+		"",
+		"## 반려 이슈",
+		block,
+		"",
+		"## 원래 작성 지시",
+		def.designPrompt,
+	].join("\n");
+}
+
 /**
- * 순수 단계 전이함수 — 오케스트레이션의 두뇌. drivePlan(pi)과 runDesignFeedbackLoop(동기 harness)
- * 양쪽이 공유. 입력: 단계 정의·현재 내부 루프 상태·에이전트 보고·현재 초안.
- * 출력: 다음 지시문 + 갱신된 (dfPhase, dfLoop).
- *
+ * 순수 단계 전이함수 — 동적 feedback 에이전트 모델(ADR-014). dfLoop = 수행된 revision 수.
+ * spawn-feedback 는 메뉴/드래프트 경로만 전달 — Director 가 메뉴를 읽어 상황에 맞는 N개를 추려 병렬 스폰한다.
  * 전이:
- *  - 보고 없음(dfPhase=design)         → spawn-design(designPrompt)
- *  - design 보고(draft)                → spawn-feedback(draft+체크리스트)
- *  - feedback 보고·클린                → gate(산출물, 에스컬레이션 아님)
- *  - feedback 보고·이슈 & 미상한       → spawn-design(designPrompt+이슈), dfLoop++
- *  - feedback 보고·이슈 & 상한 도달    → gate(마지막 초안, 에스컬레이션)
+ *  - design 단계·보고 없음           → spawn-design(v1)
+ *  - design 보고·dfLoop==0(v1)       → spawn-feedback(메뉴 참조)
+ *  - design 보고·dfLoop>0(수정본)    → dfLoop<maxLoops 면 spawn-feedback(재검토), 아니면 gate
+ *  - feedback 보고·전 에이전트 CLEAN → gate
+ *  - feedback 보고·이슈·dfLoop<max   → spawn-design(수정), dfLoop++
+ *  - feedback 보고·이슈·dfLoop>=max  → gate(에스컬레이션)
  */
 export function nextDesignFeedbackStep(
 	def: StageDefinition,
@@ -174,10 +203,11 @@ export function nextDesignFeedbackStep(
 	report: DesignFeedbackReport | undefined,
 	draft: string | undefined,
 	paths?: ArtifactPaths,
+	maxLoops: number = DEFAULT_MAX_LOOPS,
 ): DesignFeedbackTransition {
 	const { dfPhase, dfLoop } = state;
 
-	// (1) design 단계: 보고가 없으면 Design 스폰 지시.
+	// (1) design 단계·보고 없음 → Design v1 스폰.
 	if (dfPhase === "design" && report === undefined) {
 		return {
 			directive: {
@@ -191,24 +221,39 @@ export function nextDesignFeedbackStep(
 		};
 	}
 
-	// (2) design 보고 → Feedback 스폰 지시. dfPhase 를 feedback 로.
+	// (2) design 보고 → v1(dfLoop==0)은 feedback; 수정본(dfLoop>0)은 남은 사이클 여부로 분기.
 	if (report !== undefined && report.role === "design") {
+		if (dfLoop === 0 || dfLoop < maxLoops) {
+			return {
+				directive: {
+					action: "spawn-feedback",
+					menuPath: paths?.menu ?? "",
+					draftPath: paths?.draft ?? report.draft,
+					feedbackPath: paths?.feedback ?? "",
+					spawnOptions: CHILD_SPAWN_OPTIONS.feedback,
+				},
+				dfPhase: "feedback",
+				dfLoop,
+			};
+		}
 		return {
 			directive: {
-				action: "spawn-feedback",
-				task: feedbackTask(def, report.draft, paths),
-				spawnOptions: CHILD_SPAWN_OPTIONS.feedback,
+				action: "gate",
+				artifact: paths ? paths.draft : report.draft,
+				escalated: false,
+				loops: dfLoop,
+				issues: [],
 			},
-			dfPhase: "feedback",
-			dfLoop,
+			dfPhase: "design",
+			dfLoop: 0,
 		};
 	}
 
 	// (3) feedback 보고 → 클린/이슈 분기.
 	if (report !== undefined && report.role === "feedback") {
-		// paths 모드: 게이트 산출물은 draft 파일 경로(어댑터가 readArtifact 로 resolve).
+		const { allClean, issues } = aggregateFeedback(report.outcomes);
 		const artifact = paths ? paths.draft : (draft ?? "");
-		if (report.outcome.clean) {
+		if (allClean) {
 			return {
 				directive: {
 					action: "gate",
@@ -217,16 +262,15 @@ export function nextDesignFeedbackStep(
 					loops: dfLoop,
 					issues: [],
 				},
-				dfPhase: "design", // 게이트 직전 단계 종료 — 다음 단계 진입 시 design 으로 리셋
+				dfPhase: "design",
 				dfLoop: 0,
 			};
 		}
-		// 이슈 존재: 상한 미도달 시 루프, 도달 시 에스컬레이션 게이트.
-		if (dfLoop + 1 < MAX_DESIGN_FEEDBACK_LOOPS) {
+		if (dfLoop < maxLoops) {
 			return {
 				directive: {
 					action: "spawn-design",
-					task: designRevisionTask(def, report.outcome.issues, paths),
+					task: designRevisionTask(def, issues, paths),
 					loop: dfLoop + 1,
 					spawnOptions: CHILD_SPAWN_OPTIONS.design,
 				},
@@ -239,20 +283,22 @@ export function nextDesignFeedbackStep(
 				action: "gate",
 				artifact,
 				escalated: true,
-				loops: dfLoop + 1,
-				issues: report.outcome.issues,
+				loops: dfLoop,
+				issues,
 			},
 			dfPhase: "design",
-			dfLoop: 0, // 에스컬레이션 후 게이트 판정(modify/revert)이 dfLoop 리셋과 정합
+			dfLoop: 0,
 		};
 	}
 
-	// (4) dfPhase=feedback 인데 보고 없음(비정상 재진입) — Feedback 재스폰 유도.
-	if (dfPhase === "feedback" && draft !== undefined) {
+	// (4) feedback 단계·보고 없음(비정상 재진입) — Feedback 재스폰 유도.
+	if (dfPhase === "feedback") {
 		return {
 			directive: {
 				action: "spawn-feedback",
-				task: feedbackTask(def, draft, paths),
+				menuPath: paths?.menu ?? "",
+				draftPath: paths?.draft ?? draft ?? "",
+				feedbackPath: paths?.feedback ?? "",
 				spawnOptions: CHILD_SPAWN_OPTIONS.feedback,
 			},
 			dfPhase: "feedback",
@@ -273,44 +319,16 @@ export function nextDesignFeedbackStep(
 	};
 }
 
-/** Design 재수정 과제(이전 이슈 인용). paths 제공 시 designPrompt·feedback 파일 참조(본문 재주입 無). */
-function designRevisionTask(
-	def: StageDefinition,
-	issues: string[],
-	paths?: ArtifactPaths,
-): string {
-	const block = issues.map((i) => `- ${i}`).join("\n");
-	if (paths) {
-		return [
-			`이전 산출물이 Feedback 검토에서 반려되었다. 이슈를 근본적으로 반영해 ${def.artifact} 산출물을 재작성하라.`,
-			`상세 리뷰는 파일 ${paths.feedback}, 작성 지시는 파일 ${paths.designPrompt}(불변) — 둘 다 읽어라.`,
-			"",
-			"## 반려 이슈(요약)",
-			block,
-			"",
-			`재작성 결과는 파일 ${paths.draft} 에 저장하고 반환은 경로만.`,
-		].join("\n");
-	}
-	return [
-		`이전 산출물이 Feedback 검토에서 아래 이슈로 반려되었다. 이슈를 근본적으로 반영해 ${def.artifact} 산출물을 재작성하라.`,
-		"",
-		"## 반려 이슈",
-		block,
-		"",
-		"## 원래 작성 지시",
-		def.designPrompt,
-	].join("\n");
-}
-
 /**
- * 동기 스폰 harness용 루프 드라이버. nextDesignFeedbackStep 을 합성해
- * Design↔Feedback 루프를 끝까지 돌린다. pi 어댑터는 이것을 직접 부르지 못한다
- * (확장 코드 = 동기 스폰 불가) → 대신 nextDesignFeedbackStep 을 매 호출마다 쓴다.
- * 테스트는 목 AgentSpawn 으로 이 함수를 구동해 전이를 검증한다.
+ * 동기 스폰 harness용 루프 드라이버. 현 단계 메뜨(또는 select 결과)를 순차 스폰해 집합 후 전이.
+ * pi 어댑터는 동기 스폰 불가 → nextDesignFeedbackStep 을 매 호출마다 쓴다(Director 가 병렬 선택 스폰).
+ * select 미지정 시 현 단계 메뉴 전체 스폰(동기 harness의 결정론적 기본).
  */
 export async function runDesignFeedbackLoop(
 	spawn: AgentSpawn,
 	def: StageDefinition,
+	maxLoops: number = DEFAULT_MAX_LOOPS,
+	select?: (menu: FeedbackAgent[]) => FeedbackAgent[],
 ): Promise<
 	| { kind: "clean"; artifact: string; loops: number }
 	| { kind: "escalate"; artifact: string; issues: string[]; loops: number }
@@ -319,9 +337,17 @@ export async function runDesignFeedbackLoop(
 	let dfLoop = 0;
 	let draft: string | undefined;
 	let report: DesignFeedbackReport | undefined;
+	const menu = (select ?? ((m) => m))(feedbackMenuForStage(def.id));
 
 	for (;;) {
-		const t = nextDesignFeedbackStep(def, { dfPhase, dfLoop }, report, draft);
+		const t = nextDesignFeedbackStep(
+			def,
+			{ dfPhase, dfLoop },
+			report,
+			draft,
+			undefined,
+			maxLoops,
+		);
 		dfPhase = t.dfPhase;
 		dfLoop = t.dfLoop;
 		const d = t.directive;
@@ -332,11 +358,18 @@ export async function runDesignFeedbackLoop(
 			continue;
 		}
 		if (d.action === "spawn-feedback") {
-			const raw = await spawn.spawn("feedback", d.task);
-			report = { role: "feedback", outcome: parseFeedback(raw) };
+			// 메뉴 에이전트 순차 스폰(동기 harness). pi 어댑터는 Director 가 선택해 병렬(runs.all) 스폰.
+			const outcomes: FeedbackAxisOutcome[] = [];
+			for (const agent of menu) {
+				const raw = await spawn.spawn(
+					"feedback",
+					feedbackAgentTask(def, agent, draft ?? ""),
+				);
+				outcomes.push({ axis: agent.name, outcome: parseFeedback(raw) });
+			}
+			report = { role: "feedback", outcomes };
 			continue;
 		}
-		// gate — 루프 종료.
 		return d.escalated
 			? {
 					kind: "escalate",

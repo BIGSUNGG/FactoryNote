@@ -1,11 +1,57 @@
 ---
-updated: 2026-08-08
+updated: 2026-08-09
 tags: [development, dev-log]
 ---
 
 # Dev-Log
 
 날짜별 작업 기록. 무엇을 했는지, 왜, 무엇이 남았는지. [[Changelog]]는 외부용 단위, 본 파일은 일일 흐름.
+
+## 2026-08-09
+
+### install.mjs 에이전트 미배포 버그 수정 (Unknown agent 원인)
+
+**증상**: 새 pi 세션에서 `factorynote-design`/`factorynote-feedback-*` 스폰 시 “Unknown agent”. `subagent list` 에 FactoryNote 에이전트 없음.
+**원인**: `scripts/install.mjs` 가 (1) `apps/pi-extension/agents/` 를 설치 디렉토리로 복사하지 않고, (2) 배포용 `package.json` 에서 `pi-subagents.agents` 매니페스트를 누락. → 설치된 확장에 에이전트가 발견 안 됨. ADR-014 흐름 전체 차단. 테스트는 소스 검사라 미포횩.
+**수정**: 에이전트 디렉토리 복사 + 매니페스트 포함. `bun run build` 후 설치된 확장에 agents/ 33개 + 매니페스트 확인.
+
+### 동적 feedback 에이전트(레지스트리 + Director 선택) 구현 (ADF-014)
+
+**목표**: 이전에 열거한 feedback 검토 축 전부(~32)를 전문 에이전트로 추가 + Director 가 매 사이클 상황에 맞게 추려 병렬 스폰. 정적 단계별 축 세트(ADF-013)에서 동적 선택으로 전환.
+
+**변경**:
+
+- `feedback-agents.ts`(core): `FeedbackAgent` 타입 + `FEEDBACK_AGENTS` 레지스트리(32개: static 24·web 5·graph 3) + `feedbackMenuForStage` + `FEEDBACK_TOOLS`(역량→도구).
+- `scripts/gen-feedback-agents.mjs`: 레지스트리 → `factorynote-feedback-<name>.md` 32개 생성(역량별 tools allowlist).
+- `types.ts`: `ArtifactPaths.menu` 추가; `spawn-feedback` directive를 menuPath/draftPath/feedbackPath 기반(과제 없이 메뉴 참조)으로 변경.
+- `stages.ts`: `feedbackAxes` 제거(레지스트리로 이관).
+- `orchestration.ts`: `nextDesignFeedbackStep` spawn-feedback 가 메뉴 참조; `feedbackBatchTasks`/`feedbackAxisTask` → `feedbackAgentTask`; `runDesignFeedbackLoop` 에 `select` 옵션(동기 harness 메뉴 선택).
+- `plan-tool.ts`: `buildMenuMarkdown`(현 단계 메뉴 파일 기록) + spawn-feedback 지시문이 Director 동적 선택(runs.all) 지시; `parseFeedbackBatch` [name] 기준.
+- `index.ts`: PLAN_MODE_PROMPT 3b 동적 선택 설명로 갱신; `AgentOut`/`promptGuidelines` 정리; gate-server `openBrowser` localhost 가드(방어).
+- 제거: 공용 `factorynote-feedback.md`(전문 에이전트로 대체).
+
+**검증**: `bun test` 98 pass/0 fail · `bun run build` exit 0.
+
+**남음**: 모델 티어(강/빠른) 라우팅 · 선택 품질 휴리스틱(메뉴 추천 표시) · 레지스트리 확장 시 생성기 재실행.
+
+### 병렬 Feedback 팬아웃 파이프라인 구현 (ADF-013)
+
+**목표**: design 에이전트 1개 → feedback 다수 병렬 → 수정 1회(조건부) 흐름으로 전환. 속도(직렬 스폰 6→2~3 단위) + 검토 커버리지(축별 깊이) 동시 확보. default 사이클=1, 게이트 “검토 요청” 버튼으로 +1 사이클.
+
+**변경**:
+
+- `types.ts`: `FeedbackAxis`/`FeedbackAxisOutcome` 추가; `DesignFeedbackDirective.spawn-feedback` 를 `tasks:{axis,task}[]` 배치로; `DesignFeedbackReport` feedback 변형을 `outcomes` 집합으로.
+- `stages.ts`: `feedbackChecklist:string[]` → `feedbackAxes:FeedbackAxis[]`(3단계 각 3축).
+- `orchestration.ts`: `MAX_DESIGN_FEEDBACK_LOOPS=3` → `DEFAULT_MAX_LOOPS=1`(파라미터). `nextDesignFeedbackStep` 병렬 팬아웃 전이 재작성(design v1→병렬 feedback→전 CLEAN 게이트/이슈 수정→수정본 게이트). `feedbackBatchTasks`/`feedbackAxisTask`/`aggregateFeedback`/`parseFeedbackBatch` 헬퍼.
+- `gate-server.ts`: `GateEvent {kind:"review-request"}` + `POST /api/review-request` 엔드포인트.
+- `plan-tool.ts`: `drivePlan` 병렬 feedback 지시(runs.all)·조건부 revision·review-request 재진입(gateOpen false→preparing→재오픈).
+- 뷰어: `GateBar` “🔁 검토 요청” 버튼 + `App` `onReview`(POST /api/review-request → preparing).
+- 에이전트: `factorynote-feedback.md`(축 관점 명시)·`factorynote-design.md`(수정 시 전 축 리뷰 통합).
+- 테스트 재작성: `orchestration.test.ts`(26개 병렬 팬아웃 전이) + `plan-tool.test.ts`(검토 요청 +1사이클 통합 테스트 포함).
+
+**검증**: `bun test` 99 pass/0 fail · `bun run build` exit 0(tsc -b + viewer + install).
+
+**남음**: 루프 횟수 증가용 런타임 커맨드/설정파일 구현(이번엔 `DEFAULT_MAX_LOOPS` 파라미터 주입점만). 축 구성 단계별 튜닝. 수정 후 2차 검증 패스(품질바 필요 시).
 
 ## 2026-08-08
 

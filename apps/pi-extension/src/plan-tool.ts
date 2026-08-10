@@ -1,17 +1,17 @@
 // factorynote_plan 도구 드라이버 — 3단계 게이트 파이프라인의 단일 진입.
-// Tier 1: Director 에이전트가 Design·Feedback 자식을 스폰해 내부 루프를 돌리고,
-// 클린 판정(또는 상한 에스컬레이션) 시에만 사용자 게이트를 연다.
-// 본 드라이버는 core 의 nextDesignFeedbackStep(순수 전이) 로 단계 지시문을 만들어
-// 에이전트에게 반환한다. pi 확장 코드는 서브에이전트를 동기 스폰할 수 없으므로,
-// 실제 스폰은 Director 에이전트가 자신의 subagent 도구로 수행한다(에이전트 매개).
-// 코어(@factorynote/core) 상태기계 + gate-server(웹 게이트) 를 연결.
+// Tier 1(ADR-014 동적 feedback 에이전트): Director 가 현 단계 메뉴에서 상황에 맞는 N개를
+// 추려 병렬 스폰(runs.all) → 집합 보고 → 조건부 수정 → 게이트. 기본 사이클=DEFAULT_MAX_LOOPS(1).
+// '검토 요청' 버튼이 게이트 열린 동안 +1 사이클을 런타임 강제.
+// pi 확장 코드는 서브에이전트를 동기 스폰할 수 없으므로, 스폰은 Director 가 subagent 도구로 수행.
 import {
 	CHILD_SPAWN_OPTIONS,
+	DEFAULT_MAX_LOOPS,
 	STAGES,
 	applyVerdict,
 	atLoopCeiling,
 	clampReportInput,
 	designTask,
+	feedbackMenuForStage,
 	initialState,
 	invalidateArtifactsAfter,
 	isComplete,
@@ -26,6 +26,7 @@ import {
 	writeArtifact,
 	type ArtifactPaths,
 	type ChatMessage,
+	type FeedbackAgent,
 	type GateDecision,
 	type PipelineState,
 	type SpawnOptions,
@@ -42,91 +43,130 @@ import {
 	runGate,
 } from "./gate-server.ts";
 
-/** #4 게이트 자동 만료(ms) — 사용자 이탈 시 좀비 게이트 방지. 30분. */
+/** #4 게이트 자동 만료(ms). 30분. */
 const GATE_TIMEOUT_MS = 30 * 60 * 1000;
 
 export interface DrivePlanInput {
 	root: string;
-	/** 뷰어 빌드 산출물(dist) 디렉토리. */
 	viewerDistDir: string;
 	feature: string;
-	/** Design 스폰 결과(산출물 초안). Feedback 보고 시에도 현 초안을 함께 전달. */
 	designArtifact?: string;
-	/** Feedback 스폰 결과(raw 판정 텍스트 — CLEAN/ISSUES 규약). 보고 시에만. */
 	feedbackResult?: string;
-	/** 이전 게이트에서 받은 채팅에 대한 에이전트 답변(게이트 유지 채팅 루프). 미사용 시 무시. */
 	chatResponse?: string;
-	/** true 면 게이트 결정을 기다리지 않고 즉시 confirm(auto-advance). 관찰용 브라우저는 옴. */
 	autoAdvance?: boolean;
 	signal?: AbortSignal;
-	/** false 면 브라우저 자동 오픈 생략(테스트용). */
 	open?: boolean;
-	/** 게이트 서버 준비 시 URL 통보(테스트/디버그용). async 면 완료를 기다린다. */
 	onReady?: (url: string) => void | Promise<void>;
 }
 
-/** 에이전트가 factorynote_plan 반환 후 할 다음 행동. */
 export type NextAction = "spawn-design" | "spawn-feedback" | "done";
 
 export interface DrivePlanOutput {
 	done: boolean;
 	stage: number;
 	stageName: string;
-	/** 다음 행동. spawn-* 시 spawnRole/spawnTask 로 자식 스폰. done 시 종료. */
 	nextAction: NextAction;
-	/** 자식 스폰 역할(nextAction 이 spawn-* 일 때). */
 	spawnRole?: "design" | "feedback";
-	/** 자식 스폰 과제(subagent 도구의 task). */
 	spawnTask?: string;
-	/** 자식 스폰 컨텍스트 제약(core 정책) — Director 가 subagent skill/context/toolBudget 로 적용. */
 	spawnOptions?: SpawnOptions;
-	/** Design 자식이 산출물을 쓸 파일 경로(파일 프로토콜). designArtifact 보고는 이 경로로. */
 	draftPath?: string;
-	/** Feedback 자식이 상세 리뷰를 쓸 파일 경로. */
 	feedbackPath?: string;
-	/** 내부 Design↔Feedback 루프 카운트(안내용). */
+	/** 현 단계 feedback 메뉴 파일 경로(Director 동적 선택용). */
+	menuPath?: string;
 	dfLoop: number;
 	designPrompt: string;
-	feedbackChecklist: string[];
 	gateResult: GateDecision | null;
 	message: string;
-	/** 사용자에게 열린 게이트 URL(디버그/안내용). */
 	gateUrl?: string;
-	/** 게이트 열린 동안 사용자가 보낸 실시간 채팅(에이전트가 chatResponse 로 답변). */
 	chatPending?: ChatMessage[];
 }
 
-/**
- * 현 stage 산출물 교환 파일 경로(파일 프로토콜) — designPrompt(불변)·draft·feedback.
- * Director 는 이 경로들로 자식에게 쓰게 하고 보고도 경로로 받는다(Director 컨텍스트 누적 차단).
- */
+/** 현 stage 산출물 교환 파일 경로 + feedback 메뉴 파일. */
 function resolvePaths(
 	root: string,
 	feature: string,
 	def: ReturnType<typeof stageById>,
 ): { paths: ArtifactPaths; draftFile: string } {
 	const dir = join(root, feature);
-	const ext = "md"; // Tier 1 도 마크다운 단일진실(develop 통일) — 그래프는 md 내장.
+	const ext = "md";
 	const draftFile = `draft.${ext}`;
 	return {
 		paths: {
 			designPrompt: join(dir, "design-prompt.md"),
 			draft: join(dir, draftFile),
 			feedback: join(dir, "feedback.md"),
+			menu: join(dir, "feedback-menu.md"),
 		},
 		draftFile,
 	};
 }
 
-/** 입력(에이전트 보고) → 코어 보고 객체. dfPhase 로 design/feedback 보고 구분. */
+/** 현 단계 feedback 메뉴 마크다운 — Director 가 읽어 상황에 맞는 N개를 추려 병렬 스폰. */
+function buildMenuMarkdown(def: ReturnType<typeof stageById>): string {
+	const menu = feedbackMenuForStage(def.id);
+	const lines = [
+		`# Stage ${def.id}(${def.name}) Feedback 메뉴`,
+		"",
+		`검토 대상: draft.md. 아래 에이전트 중 **산출물·기능 맥락에 가장 의미있는 N개(전형 3-6)**를 추려 subagent 의 workflowScript runs.all 로 **병렬** 스폰하라.`,
+		'각 에이전트는 factorynote-feedback-<name> (fresh, 최소 도구). 과제: "<focus> 관점에서 draft 검토, 판정 CLEAN/ISSUES, 상세는 feedback.md.<name> 저장, 반환은 판정만".',
+		"집합 보고(필수): 각 선택 에이전트를 '[name]' 헤더 + 판정 줄로 나열.",
+		"",
+		"| name | 역량 | 검토 초점 | 체크리스트 |",
+		"| --- | --- | --- | --- |",
+	];
+	for (const a of menu) {
+		lines.push(
+			`| ${a.name} | ${a.capability} | ${a.focus} | ${a.checklist.join(" / ")} |`,
+		);
+	}
+	return lines.join("\n");
+}
+
+/**
+ * Director 의 에이전트별 집합 보고(raw) → outcomes.
+ * 규약: 각 에이전트를 "[name]" 헤더 + 판정. 헤더/이름 누락 시 안전 기본 ISSUES.
+ */
+function parseFeedbackBatch(
+	raw: string,
+	menu: FeedbackAgent[],
+): { axis: string; outcome: ReturnType<typeof parseFeedback> }[] {
+	const lines = raw.split("\n");
+	const sections = new Map<string, string[]>();
+	let cur: string | null = null;
+	for (const line of lines) {
+		const m = line.match(/^\[([^\]]+)\]\s*$/);
+		if (m) {
+			cur = m[1]!.trim();
+			if (!sections.has(cur)) sections.set(cur, []);
+			continue;
+		}
+		if (cur) sections.get(cur)!.push(line);
+	}
+	if (sections.size === 0) {
+		return menu.map((a) => ({ axis: a.name, outcome: parseFeedback(raw) }));
+	}
+	return menu.map((a) => {
+		const body = (sections.get(a.name) ?? []).join("\n").trim();
+		const outcome = body
+			? parseFeedback(body)
+			: { clean: false, issues: ["(해당 에이전트 보고 누락)"] };
+		return { axis: a.name, outcome };
+	});
+}
+
+/** 입력(에이전트 보고) → 코어 보고 객체. */
 function deriveReport(
 	input: DrivePlanInput,
 	state: PipelineState,
+	def: ReturnType<typeof stageById>,
 ): DesignFeedbackReport | undefined {
 	if (input.feedbackResult !== undefined) {
 		return {
 			role: "feedback",
-			outcome: parseFeedback(clampReportInput(input.feedbackResult)),
+			outcomes: parseFeedbackBatch(
+				clampReportInput(input.feedbackResult),
+				feedbackMenuForStage(def.id),
+			),
 		};
 	}
 	if (input.designArtifact !== undefined && state.dfPhase === "design") {
@@ -135,13 +175,7 @@ function deriveReport(
 	return undefined;
 }
 
-/**
- * 파이프라인 1스텝 구동. Tier 1 오케스트레이션:
- *  - 산출물 단계 & 게이트 닫힘 → nextDesignFeedbackStep 로 내부 루프를 1스텝 전이.
- *    spawn-design/spawn-feedback 지시문 → 에이전트가 자식 스폰 후 보고.
- *    gate 지시문(클린/상한) → 산출물 저장 + 사용자 게이트 오픈(블로킹 결정).
- *  - 게이트 결정 후 → 다음/재시작 단계의 spawn-design 으로 안내(또는 done).
- */
+/** 파이프라인 1스텝 구동. Tier 1 동적 feedback 에이전트 오케스트레이션(ADR-014). */
 export async function drivePlan(
 	input: DrivePlanInput,
 ): Promise<DrivePlanOutput> {
@@ -150,13 +184,13 @@ export async function drivePlan(
 	let state = await loadState(root, feature);
 	if (!state) state = initialState(feature);
 	if (state.done) {
-		await closeGate(root, feature); // 영속 게이트 정리(멱등).
+		await closeGate(root, feature);
 		return complete(state.stage);
 	}
 
 	const def = stageById(state.stage);
 
-	// #3 인터럽트 복구: 게이트가 열린 채 끊겼고 산출물이 디스크에 있으면 재오픈.
+	// #3 인터럽트 복구: 게이트 열린 채 끊겼고 산출물이 디스크에 있으면 재오픈.
 	const resumeFile = def.artifactFile;
 	if (resumeFile) {
 		const onDisk = await readArtifact(root, feature, resumeFile);
@@ -170,21 +204,25 @@ export async function drivePlan(
 		}
 	}
 
-	// Tier 1 오케스트레이션: 산출물 단계 & 게이트 닫힘 → 내부 루프 1스텝.
 	if (requiresArtifact(state.stage) && !state.gateOpen) {
-		const report = deriveReport(input, state);
+		const report = deriveReport(input, state, def);
 		const draft = input.designArtifact;
-		// 파일 프로토콜: 큰 페이로드(designPrompt/draft/feedback)를 파일로,
-		// spawnTask/보고는 경로만 — Director(영구) 컨텍스트 누적 차단(1261 방지).
 		const { paths, draftFile } = resolvePaths(root, feature, def);
-		// designPrompt(stage 불변) 파일 기록 — 자식이 읽도록. 멱등(정적 내용).
+		// designPrompt(불변) + feedback 메뉴(현 단계) 파일 기록 — 자식/Director 가 읽도록.
 		await writeArtifact(root, feature, "design-prompt.md", def.designPrompt);
+		await writeArtifact(
+			root,
+			feature,
+			"feedback-menu.md",
+			buildMenuMarkdown(def),
+		);
 		const t = nextDesignFeedbackStep(
 			def,
 			{ dfPhase: state.dfPhase, dfLoop: state.dfLoop },
 			report,
 			draft,
 			paths,
+			DEFAULT_MAX_LOOPS,
 		);
 		state = { ...state, dfPhase: t.dfPhase, dfLoop: t.dfLoop };
 		const d = t.directive;
@@ -193,7 +231,6 @@ export async function drivePlan(
 			await saveState(root, state);
 			return spawnDirective(state, def, d, paths);
 		}
-		// gate 지시문: draft 파일 경로 → 내용 resolve 후 게이트 저장·표시.
 		const gateArtifact = (await readArtifact(root, feature, draftFile)) ?? "";
 		return await runOpenGate(
 			input,
@@ -205,7 +242,7 @@ export async function drivePlan(
 		);
 	}
 
-	// 도달 불가(모든 단계가 산출물 단계) — 안전 추락.
+	// 도달 불가 — 안전 추락.
 	await saveState(root, state);
 	const { paths: fallbackPaths } = resolvePaths(root, feature, def);
 	return spawnDirective(
@@ -231,53 +268,62 @@ function spawnDirective(
 	>,
 	paths: ArtifactPaths,
 ): DrivePlanOutput {
-	const role = d.action === "spawn-design" ? "design" : "feedback";
-	const verb =
-		role === "design"
-			? `Design 자식 에이전트를 스폰해 ${def.artifact} 산출물을 작성하게 하라`
-			: "Feedback 자식 에이전트를 스폰해 산출물을 비판 검토하게 하라";
-	// 파일 프로토콜 보고 지시: 자식은 파일에 쓰고 반환은 경로/판정만. Director 컨텍스트 누적 차단.
-	const report =
-		role === "design"
-			? `Design 자식은 산출물을 파일(${paths.draft})에 쓰고 반환은 그 경로만 한다(본문 금지). designArtifact 에는 경로만 담아 factorynote_plan 을 다시 호출하라.`
-			: `Feedback 자식은 상세 리뷰를 파일(${paths.feedback})에 쓰고 반환은 판정(CLEAN/ISSUES)만 한다. feedbackResult 에 판정을, designArtifact 에 ${paths.draft} 경로를 담아 factorynote_plan 을 다시 호출하라.`;
 	const opts = d.spawnOptions;
-	const optLine = `스폰 옵션(필수 적용): agent="${opts.agentName}", skill=${opts.skill}, context="${opts.context}", toolBudget={hard:${opts.toolBudget.hard}}, turnBudget={maxTurns:${opts.turnBudget.maxTurns}}`;
-	const loopNote =
-		d.action === "spawn-design"
-			? ` (내부 Design↔Feedback 루프 ${d.loop + 1}회차)`
-			: "";
-	const message = [
-		`Stage ${state.stage}(${def.name}). subagent 도구로 ${verb}.${loopNote}`,
-		optLine,
-		report,
-		"코드는 쓰지 않는다(계획만).",
-	].join("\n");
+	const optLine = `스폰 옵션(기본): skill=${opts.skill}, context="${opts.context}", toolBudget={hard:${opts.toolBudget.hard}}, turnBudget={maxTurns:${opts.turnBudget.maxTurns}}`;
 
+	if (d.action === "spawn-design") {
+		const loopNote = ` (내부 사이클 — Design ${d.loop === 0 ? "최초 작성" : `수정(${d.loop}회차)`})`;
+		const message = [
+			`Stage ${state.stage}(${def.name}). subagent 도구로 Design 자식 에이전트를 스폰해 ${def.artifact} 산출물을 ${d.loop === 0 ? "작성" : "재작성"}하게 하라.${loopNote}`,
+			`agent="${opts.agentName}", ${optLine}`,
+			`Design 자식은 산출물을 파일(${paths.draft})에 쓰고 반환은 그 경로만 한다(본문 금지). designArtifact 에는 경로만 담아 factorynote_plan 을 다시 호출하라.`,
+			"코드는 쓰지 않는다(계획만).",
+		].join("\n");
+		return {
+			done: false,
+			stage: state.stage,
+			stageName: def.name,
+			nextAction: "spawn-design",
+			spawnRole: "design",
+			spawnTask: d.task,
+			spawnOptions: d.spawnOptions,
+			draftPath: paths.draft,
+			feedbackPath: paths.feedback,
+			menuPath: paths.menu,
+			dfLoop: state.dfLoop,
+			designPrompt: def.designPrompt,
+			gateResult: null,
+			message,
+		};
+	}
+
+	// spawn-feedback: 동적 선택. Director 가 메뉴를 읽어 상황에 맞는 N개를 추려 병렬 스폰.
+	const message = [
+		`Stage ${state.stage}(${def.name}). subagent 도구(workflowScript runs.all)로 Feedback 자식 에이전트를 **상황에 맞게 추려 병렬** 스폰해 산출물을 비판 검토하게 하라. (동적 feedback 에이전트, ADR-014)`,
+		`1) 메뉴 파일 ${paths.menu} 를 읽고, 검토 대상 ${paths.draft} 산출물·기능 맥락에 가장 의미있는 N개(전형 3-6)를 추려라. (메뉴 전체가 아닌 상황 맞춤 선택)`,
+		`2) 각 선택 에이전트: agent="factorynote-feedback-<name>", ${optLine}. 과제: "<focus> 관점에서 ${paths.draft} 검토 → 판정 CLEAN/ISSUES → 상세 리뷰는 ${paths.feedback}.<name> 에 저장 → 반환은 판정만".`,
+		`3) 집합 보고(필수 형식): 각 선택 에이전트를 "[name]" 헤더 + 판정("CLEAN" 또는 "ISSUES"+이슈줄)으로 나열.`,
+		`feedbackResult 에 집합 텍스트를, designArtifact 에 ${paths.draft} 경로를 담아 factorynote_plan 을 다시 호출하라.`,
+		"코드는 쓰지 않는다(검토만).",
+	].join("\n");
 	return {
 		done: false,
 		stage: state.stage,
 		stageName: def.name,
-		nextAction: d.action,
-		spawnRole: role,
-		spawnTask: d.task,
+		nextAction: "spawn-feedback",
+		spawnRole: "feedback",
 		spawnOptions: d.spawnOptions,
 		draftPath: paths.draft,
 		feedbackPath: paths.feedback,
+		menuPath: paths.menu,
 		dfLoop: state.dfLoop,
 		designPrompt: def.designPrompt,
-		feedbackChecklist: [...def.feedbackChecklist],
 		gateResult: null,
 		message,
 	};
 }
 
-/**
- * 게이트 오픈 → 결정 → 결정 적용·저장 → 다음 안내 반환.
- * artifactToWrite = 게이트에 저장·표시할 산출물(클린 판정본 또는 에스컬레이션 초안).
- * internalEscalation = 내부 루프 상한 도달 시 에스컬레이션 프레이밍(없으면 일반 오픈).
- * resume = 인터럽트 복구 재오픈(산출물 재저장 생략).
- */
+/** 게이트 오픈 → 결정/채팅/검토요청 → 처리 → 다음 안내 반환. */
 async function runOpenGate(
 	input: DrivePlanInput,
 	stateIn: PipelineState,
@@ -289,22 +335,18 @@ async function runOpenGate(
 	const { root, viewerDistDir, feature, signal } = input;
 	let state = stateIn;
 
-	// 채팅 재진입: 에이전트 답변(chatResponse)을 채팅 로그에 push(뷰어가 GET /api/chat 로 표시).
 	if (input.chatResponse !== undefined) {
 		appendAgentChat(root, feature, input.chatResponse);
 	}
-	// 산물 저장(resume 은 이미 디스크에 있으므로 생략).
 	if (!resume && def.artifactFile) {
 		await writeArtifact(root, feature, def.artifactFile, artifactToWrite);
 	}
 
-	// 게이트 오픈 → 웹에서 결정 또는 실시간 채팅 대기(블로킹).
 	state = markArtifactReady(state);
 	await saveState(root, state);
 
 	let decision: GateDecision;
 	if (input.autoAdvance) {
-		// auto-advance: 게이트 서버 오픈(관찰용) 후 결정 대기 없이 즉시 confirm.
 		await observeGate({
 			root,
 			feature,
@@ -324,8 +366,6 @@ async function runOpenGate(
 			...(input.onReady ? { onReady: input.onReady } : {}),
 		});
 
-		// 채팅 이벤트: 게이트를 유지한 채 에이전트에게 chatPending 반환.
-		// 에이전트는 chatResponse(± Design 자식 재작성 designArtifact)로 재호출.
 		if (event.kind === "chat") {
 			const hasBlock = event.messages.some((m) => m.blockId);
 			return {
@@ -335,25 +375,45 @@ async function runOpenGate(
 				nextAction: "spawn-design",
 				dfLoop: state.dfLoop,
 				designPrompt: def.designPrompt,
-				feedbackChecklist: [...def.feedbackChecklist],
 				gateResult: null,
 				chatPending: event.messages,
 				message:
-					`사용자가 채팅으로 질문/수정을 요청했다${hasBlock ? "(블록 지정 포함 — 부분 코멘트)" : ""}. ` +
+					`사용자가 채팅으로 질문/수정을 요청했다${hasBlock ? "(블록 지정 포함)" : ""}. ` +
 					`질문이면 답변을 chatResponse 로, 산물 수정이 필요하면 Design 자식 스폰으로 재작성해 designArtifact(초안 경로)와 답변 chatResponse 를 담아 factorynote_plan 을 다시 호출하라(게이트 유지).\n` +
 					event.messages.map(formatChat).join("\n"),
 			};
 		}
 
+		if (event.kind === "review-request") {
+			const revState: PipelineState = {
+				...state,
+				gateOpen: false,
+				dfPhase: "feedback",
+				dfLoop: 0,
+			};
+			await saveState(root, revState);
+			const revPaths = resolvePaths(root, feature, def).paths;
+			return spawnDirective(
+				revState,
+				def,
+				{
+					action: "spawn-feedback",
+					menuPath: revPaths.menu,
+					draftPath: revPaths.draft,
+					feedbackPath: revPaths.feedback,
+					spawnOptions: CHILD_SPAWN_OPTIONS.feedback,
+				},
+				revPaths,
+			);
+		}
+
 		decision = event.decision;
 
-		// Stage 2(설계)에서 사용자가 직접 편집한 마크다운을 산물로 채택(저장).
 		if (decision.artifactMd !== undefined && def.artifactFile) {
 			await writeArtifact(root, feature, def.artifactFile, decision.artifactMd);
 		}
 	}
 
-	// 결정 적용·저장.
 	state = applyVerdict(state, decision);
 	if (decision.verdict === "revert") {
 		await invalidateArtifactsAfter(root, feature, state.stage);
@@ -365,21 +425,17 @@ async function runOpenGate(
 		return complete(state.stage);
 	}
 
-	// 다음 안내. 세 가지 에스컬레이션/일반 분기:
-	//  (i)  게이트 오픈 원인이 내부 루프 상한이었던 경우 → 내부 에스컬레이션 프레이밍.
-	//  (ii) 사용자 modify 가 반복 상한(loopCount) → FR-2 modify 에스컬레이션(기존).
-	//  (iii)그 외 일반 next/modify 안내.
 	const nextDef = stageById(state.stage);
 	const commentsBlock = `\n코멘트:\n${formatComments(decision.comments)}`;
 	let base: string;
 	if (internalEscalation) {
-		base = `⚠ 내부 Design↔Feedback 루프 상한(${internalEscalation.loops}회) 도달 — Design↔Feedback 이 수렴하지 못하고 아래 이슈가 잔존한다. 근본적 설계 갈등의 신호일 수 있으니 같은 방식의 단순 재작성 반복은 피하라. 게이트에서 결정: (a) 코멘트로 근본적 재작성 지시 (b) 이전 단계로 회귀 (c) 범위·제약 조건 재협의. 잔존 이슈:\n${internalEscalation.issues.map((i) => `- ${i}`).join("\n")}`;
+		base = `⚠ 내부 Design→Feedback 사이클 상한(${internalEscalation.loops}회) 도달 — Feedback 이 수렴하지 못하고 아래 이슈가 잔존한다. 게이트에서 결정: (a) 코멘트로 근본적 재작성 지시 (b) '검토 요청' 버튼으로 +1 사이클 (c) 이전 단계로 회귀. 잔존 이슈:\n${internalEscalation.issues.map((i) => `- ${i}`).join("\n")}`;
 	} else if (decision.verdict === "modify" && atLoopCeiling(state)) {
-		base = `⚠ FR-2 에스컬레이션: Stage ${state.stage}(${nextDef.name}) 가 ${state.loopCount}회 수정되었으나 아래 이슈가 잔존한다. 이는 근본적 설계 갈등의 신호일 수 있으니 같은 방식의 단순 재작성 반복은 피하라. 선택: (a) 코멘트를 근본적으로 반영해 재작성 (b) 이전 단계로 회귀해 설계 전제 재검토 (c) 범위·제약 조건을 사용자와 재협의. 잔존 이슈:${commentsBlock}`;
+		base = `⚠ FR-2 에스컬레이션: Stage ${state.stage}(${nextDef.name}) 가 ${state.loopCount}회 수정되었으나 아래 이슈가 잔존한다. 선택: (a) 코멘트를 근본적으로 반영해 재작성 (b) 이전 단계로 회귀 (c) 범위·제약 조건 재협의. 잔존 이슈:${commentsBlock}`;
 	} else if (decision.verdict === "modify") {
 		base = `사용자가 Stage ${state.stage}(${nextDef.name}) 산출물의 수정을 요청했다. 코멘트를 반영해 Design 자식에게 재작성시킬 것.${commentsBlock}`;
 	} else {
-		base = `Stage ${state.stage}(${nextDef.name}) 승인. 다음 단계로 진행 — Design 자식 스폰부터 새 내부 루프를 시작한다.`;
+		base = `Stage ${state.stage}(${nextDef.name}) 승인. 다음 단계로 진행 — Design 자식 스폰부터 새 내부 사이클을 시작한다.`;
 	}
 	const message = (resume ? "[게이트 재오픈(인터럽트 복구)] " : "") + base;
 
@@ -393,9 +449,9 @@ async function runOpenGate(
 		spawnOptions: CHILD_SPAWN_OPTIONS.design,
 		draftPath: nextPaths.draft,
 		feedbackPath: nextPaths.feedback,
+		menuPath: nextPaths.menu,
 		dfLoop: state.dfLoop,
 		designPrompt: nextDef.designPrompt,
-		feedbackChecklist: [...nextDef.feedbackChecklist],
 		gateResult: decision,
 		message,
 	};
@@ -409,10 +465,9 @@ function complete(stage: number): DrivePlanOutput {
 		nextAction: "done",
 		dfLoop: 0,
 		designPrompt: "",
-		feedbackChecklist: [],
 		gateResult: null,
 		message:
-			"파이프라인 완료 — 3단계 모두 사용자 승인됨. 계획 산출물은 .factorynote/<feature>/ 에 저장되었다. plan 모드는 자동으로 해제되었다(이제 구현 가능).",
+			"파이프라인 완료 — 3단계 모두 사용자 승인됨. 계획 산출물은 .factorynote/<feature>/ 에 저장되었다.",
 	};
 }
 

@@ -11,6 +11,8 @@ export type {
 	Comment,
 	DesignFeedbackDirective,
 	DesignFeedbackPhase,
+	FeedbackAxis,
+	FeedbackAxisOutcome,
 	FeedbackOutcome,
 	GateDecision,
 	GateVerdict,
@@ -26,6 +28,15 @@ export type {
 } from "./types.ts";
 export { STAGES, currentStageDef, stageById } from "./stages.ts";
 export type { StageDefinition } from "./stages.ts";
+export {
+	FEEDBACK_AGENTS,
+	FEEDBACK_TOOLS,
+	feedbackMenuForStage,
+} from "./feedback-agents.ts";
+export type {
+	FeedbackAgent,
+	FeedbackCapability,
+} from "./feedback-agents.ts";
 export {
 	atLoopCeiling,
 	applyVerdict,
@@ -57,11 +68,12 @@ export {
 export type { DesignMarkdown } from "./graph.ts";
 export {
 	CHILD_SPAWN_OPTIONS,
-	MAX_DESIGN_FEEDBACK_LOOPS,
+	DEFAULT_MAX_LOOPS,
 	MAX_REPORT_INPUT_CHARS,
+	aggregateFeedback,
 	clampReportInput,
 	designTask,
-	feedbackTask,
+	feedbackAgentTask,
 	nextDesignFeedbackStep,
 	parseFeedback,
 	runDesignFeedbackLoop,

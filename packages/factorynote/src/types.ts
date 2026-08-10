@@ -127,6 +127,8 @@ export interface ArtifactPaths {
 	readonly designPrompt: string;
 	readonly draft: string;
 	readonly feedback: string;
+	/** 현 단계 feedback 메뉴 파일 경로(Director 동적 선택용, ADR-014). */
+	readonly menu: string;
 }
 
 /**
@@ -146,6 +148,23 @@ export type FeedbackOutcome =
 	| { clean: true }
 	| { clean: false; issues: string[] };
 
+/**
+ * 검증 축(단계별 설정 기반) — 각 단계는 의미있는 축들로 feedback 을 분할한다.
+ * ADR-013 병렬 팬아웃: 축별 Feedback 자식이 독립 검토 → 한 번에 합성 수정.
+ */
+export interface FeedbackAxis {
+	/** 축 식별자(예: "security", "logic"). 과제 주입·보고 파싱에 사용. */
+	axis: string;
+	/** 해당 축의 검토 체크리스트. */
+	checklist: string[];
+}
+
+/** 한 축의 Feedback 검토 결과(코어 파싱). */
+export interface FeedbackAxisOutcome {
+	axis: string;
+	outcome: FeedbackOutcome;
+}
+
 /** 오케스트레이션 단계 지시문 — drivePlan이 에이전트에게 반환하는 다음 행동. */
 export type DesignFeedbackDirective =
 	| {
@@ -158,8 +177,12 @@ export type DesignFeedbackDirective =
 	  }
 	| {
 			action: "spawn-feedback";
-			/** 검토 대상 산출물 + 체크리스트 과제. */
-			task: string;
+			/** 현 단계 feedback 메뉴 파일 경로 — Director 가 읽어 상황에 맞는 N 개 에이전트를 추려 병렬 스폰(ADF-014). */
+			menuPath: string;
+			/** 검토 대상 draft 파일 경로. */
+			draftPath: string;
+			/** feedback 상세리뷰 베이스 경로(<경로>.<name>). */
+			feedbackPath: string;
 			spawnOptions: SpawnOptions;
 	  }
 	| {

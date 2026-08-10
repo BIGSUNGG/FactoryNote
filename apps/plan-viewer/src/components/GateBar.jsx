@@ -9,6 +9,7 @@ export default function GateBar({
 	stageLabels = {},
 	onConfirm,
 	onRevert,
+	onReview,
 }) {
 	const isLast = stage >= 3;
 	// 회귀 대상 후보 = 현재 단계보다 앞선 Stage(1..stage-1).
@@ -44,6 +45,15 @@ export default function GateBar({
 			>
 				← 정정{targets.length > 1 ? ` → Stage ${revertTo}` : " (이전 Stage)"}
 			</button>
+			{onReview && (
+				<button
+					className="btn"
+					onClick={onReview}
+					title="AI가 산출물을 한 번 더 검토·수정합니다 (+1 사이클)"
+				>
+					🔁 검토 요청
+				</button>
+			)}
 			<button className="btn primary" onClick={onConfirm}>
 				{isLast ? "✓ 최종 확정 (완료)" : `✓ 확정 → Stage ${stage + 1}`}
 			</button>

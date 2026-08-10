@@ -60,6 +60,7 @@ export default function PlanPage({
 	mdSource,
 	stage,
 	onGate,
+	onReview,
 	stageLabels = {},
 	onActiveBlock,
 }) {
@@ -197,6 +198,7 @@ export default function PlanPage({
 				stageLabels={stageLabels}
 				onConfirm={sendConfirm}
 				onRevert={sendRevert}
+				onReview={onReview}
 			/>
 			{rangePopover}
 		</>

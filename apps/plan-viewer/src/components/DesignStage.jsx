@@ -115,6 +115,7 @@ export default function DesignStage({
 	stageName,
 	feature,
 	onGate,
+	onReview,
 	stageLabels = {},
 }) {
 	const [sections, setSections] = useState(() =>
@@ -666,6 +667,7 @@ export default function DesignStage({
 				stageLabels={stageLabels}
 				onConfirm={() => submit("confirm")}
 				onRevert={(t) => submit("revert", t)}
+				onReview={onReview}
 			/>
 			{menuEl}
 		</>

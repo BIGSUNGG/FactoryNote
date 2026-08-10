@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-08
+updated: 2026-08-09
 tags: [development, changelog]
 ---
 
@@ -12,6 +12,10 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ### Changed
 
+- **동적 feedback 에이전트(레지스트리 + Director 선택)** — 단계별 고정 `feedbackAxes`를 폐지하고 전역 `FEEDBACK_AGENTS` 레지스트리(~32 전문 에이전트, 역량 태그 static/web/graph)로 이관. `factorynote_plan`이 현 단계 메뉴를 파일(`feedback-menu.md`)로 쓰고 Director가 상황에 맞는 N개를 추려 병렬(`runs.all`) 스폰. `scripts/gen-feedback-agents.mjs`가 레지스트리에서 에이전트 파일 생성(단일 진실, 드리프트 방지). 역량별 도구: static=read/write/bash, web=+web_search(security/feasibility/compliance/technology-fit/library-deps), graph=+edit(structure/dependency-cycle/dependency-precedence, 그래프 fence 수정). [[ADR-014-dynamic-feedback-agents]].
+
+- **병렬 Feedback 팬아웃 파이프라인(Design→병렬 Feedback→조건부 수정→게이트)** — 내부 Design↔Feedback 루프(단일 Feedback·`MAX_DESIGN_FEEDBACK_LOOPS=3` 머신 루프)를 축별 병렬 팬아웃으로 전면 교체. `StageDefinition.feedbackChecklist:string[]` → `feedbackAxes:FeedbackAxis[]`(단계별 의미 축: Stage1 논리/완전성/모호성, Stage2 보안/확장성/구조, Stage3 정확성/실현가능성/리스크). Design 1회 → 축별 Feedback N개 **병렬**(Director 가 `subagent` `workflowScript runs.all` 로 동시 스폰) → 전 축 CLEAN 시 게이트, 이슈 시 **1회 합성 수정** 후 게이트. 기본 사이클=`DEFAULT_MAX_LOOPS=1`(파라미터화). 게이트에 **“검토 요청” 버튼** 추가 — 열린 게이트에서 +1 사이클(병렬 feedback + 조건부 수정)을 런타임 강제(새 `GateEvent {kind:"review-request"}` + `POST /api/review-request`). `nextDesignFeedbackStep` 전이 재설계; `parseFeedbackBatch` 축별 집합 보고 파싱. [[ADR-013-parallel-feedback-pipeline]].
+
 - **자식 도구 allowlist 전환(`toolBudget.block` 폐지)** — 오케스트레이션 자식 스폰의 `1261 Prompt exceeds max length` 원인 분석 결과, [[ADR-010-context-overflow-file-protocol]] 의 `toolBudgetBlock` 가 시스템 프롬프트에서 도구를 제거하지 못함(런타임 카운트 게이트일 뿐, `hard` 누락으로 무효)이 확인되어 도구 제거 수단을 교체. `apps/pi-extension/agents/factorynote-{design,feedback}.md` 명명 에이전트를 `tools:` 엄격 allowlist(`read, write, edit, bash`)로 도입 + `package.json` `pi-subagents.agents` 매니페스트 선언 → 자식 시스템 프롬프트에서 heavy 도구 스키마(context-mode·pi-lens·subagent·mcp·`factorynote_plan`) 물리 제거. `SpawnOptions` 를 `agentName` + `toolBudget{hard,soft}` + `turnBudget{maxTurns}` 로 재설계(`CHILD_SPAWN_OPTIONS` 역할별 맵). `clampReportInput` 가드로 자식 보고 과대 입력(>4000자) 절단(Director 누적 방어, ADR-010 후속 이행). [[ADR-012-child-tool-allowlist-spawn]].
 
 - **`install.sh` → `install.mjs`(순수 Node)** — 배포 스크립트를 bash 에서 순수 Node(`scripts/install.mjs`)로 이식. Windows 에서 `bun run build` 의 마지막 단계 `bash scripts/install.sh` 가 WRL bash 로 해석돼 `execvpe(/bin/bash) failed`(WSL 배포판 없음)로 즉는 빌드 실패 수정. `package.json` build/deploy 가 `bun scripts/install.mjs` 로 전환. `node:fs`/`node:os` 만 사용해 Windows/macOS/Linux 동일 동작, bash/WSL/Git Bash 의존 제거(`bin/factorynote.mjs` 와 동일한 순수 Node ESM 컨벤션). 구 `install.sh` 삭제(단일 진실, 드리프트 방지).
@@ -20,11 +24,17 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ### Removed
 
+- **단계별 `feedbackAxes` 고정 선택 + 공용 `factorynote-feedback`** — 정적 축 세트·단일 공용 에이전트 폐지(전문 에이전트 + Director 동적 선택으로 대체). `feedbackBatchTasks`/`feedbackAxisTask` → `feedbackAgentTask`+메뉴 기반으로 대체. [[ADR-014-dynamic-feedback-agents]].
+
+- **단일 Feedback 루프·머신 에스컬레이션** — `MAX_DESIGN_FEEDBACK_LOOPS` 상수·`dfLoop` 머신 증분·cap-도달 에스컬레이션(구 내부 루프 잔재) 제거. `feedbackTask`(단일) → `feedbackBatchTasks`/`feedbackAxisTask`(축별)로 대체. `DesignFeedbackDirective` 의 `spawn-feedback` 가 단일 `task` → `tasks:{axis,task}[]`(병렬 배치)로 변경. [[ADR-013-parallel-feedback-pipeline]].
+
 - **SidePanel 검토 패널 전체** — `PlanPage` 우측의 검토 코멘트 큐 + Design↔Feedback 루프 + Feedback 이슈 + 어노테이션 제거. 검토 레이아웃이 [문서 | 채팅] 2단으로 단순화. `SidePanel.jsx` 삭제.
 - **"✎ 수정 지시" 게이트 버튼** — 공용 `GateBar`에서 제거(확정·정정은 유지). 코멘트가 채팅으로 즉시 전달되므로 일괄 modify 트리거 불필요. `PlanPage`/`DesignStage` 의 `sendModify`/`submit("modify")` 경로 제거.
 - **데드 코드 정리(감사)** — `GraphStage.jsx`(bc674f6 의 GraphStage→DesignStage 교체 시 미삭제 잔류; 미사용 + 제거된 `pendingCount` prop 참조) 삭제. 제거된 SidePanel/apply-badge 의 죽은 CSS(`.apply-badge`·`.review-comments`·`.review-comment`·`.rc-target`·`.count`·그룹 선택자의 `.rc-quote`) 제거.
 
 ### Fixed
+
+- **`install.mjs` 에이전트·매니페스트 미배포(“Unknown agent”) — `scripts/install.mjs` 가 `apps/pi-extension/agents/`(Design + 전문 Feedback 32개)를 설치 디렉토리로 복사하지 않고, 배포용 `package.json` 에서도 `pi-subagents.agents` 매니페스트를 누락했던 것 수정. 결과적으로 설치된 확장(~/.pi/agent/extensions/factorynote)에 에이전트가 전혀 발견되지 않아 `factorynote-design`/`factorynote-feedback-*` 스폰 시 “Unknown agent” 로 즉는 현상(ADR-014 흐름 전체 차단). 에이전트 디렉토리 복사 + 매니페스트 포함. [[ADR-014-dynamic-feedback-agents]].
 
 - **`GraphEditor.jsx` 머지 유실 복구** — `develop` 트리에서 `apps/plan-viewer/src/components/GraphEditor.jsx` 가 빠져 `bun run build` 가 `Could not resolve "./GraphEditor" from Block.jsx` 로 즉는 현상. 이 파일은 `1bc204c`(graph 통합)에서 `GraphStage.jsx → GraphEditor.jsx` rename 으로 생성됐으나 이후 머지(`490fdb0 Merge feature/graph`) 과정에서 트리에서 떨어짐. `git checkout 1bc204c -- apps/plan-viewer/src/components/GraphEditor.jsx` 로 복구. 이 파일은 Stage 2 설계 md 의 ```factorynote-graph 펜스를 인터랙티브 에디터로 렌더하는 핵심 컴포넌트(없으면 설계 산출물이 게이트에서 빈 칸)이므로 import 제거가 아닌 복구가 정답.
 - **코멘트→채팅 즉시 갱신 + 폴링 0.5초** — 블록/셀/영역/그래프 코멘트 전송 시 `fn-chat-update` 윈도우 이벤트로 `ChatSidebar` 를 즉시 갱신(POST 완료 후 발화)해 내 코멘트가 지체 없이 채팅에 표시. `ChatSidebar` 폴링 2초→0.5초(에이전트 회신 등 안전망).

@@ -1,19 +1,28 @@
-// Orchestration(Tier 1 Design↔Feedback 루프) 자체체크 — 검증계약 하드 게이트.
-// 목 AgentSpawn 으로 스폰→루프→상한→에스컬레이션→게이트 전이를 결정론적 검증.
+// Orchestration(Tier 1 동적 feedback 에이전트) 자체체크 — 검증계약 하드 게이트.
+// ADR-014: Director 가 메뉴에서 선택·병렬 스폰. 전이·집합·메뉴 필터를 결정론적 검증.
 // 실행: bun test packages/factorynote
 import { test, expect } from "bun:test";
 import { STAGES } from "./stages.ts";
+import { feedbackMenuForStage } from "./feedback-agents.ts";
 import {
 	CHILD_SPAWN_OPTIONS,
-	MAX_DESIGN_FEEDBACK_LOOPS,
+	DEFAULT_MAX_LOOPS,
+	aggregateFeedback,
 	clampReportInput,
+	designTask,
+	feedbackAgentTask,
 	nextDesignFeedbackStep,
 	parseFeedback,
 	runDesignFeedbackLoop,
 } from "./orchestration.ts";
-import type { AgentSpawn, AgentRole, ArtifactPaths } from "./types.ts";
+import type {
+	AgentSpawn,
+	AgentRole,
+	ArtifactPaths,
+	FeedbackAxisOutcome,
+} from "./types.ts";
 
-/** 역할별로 큐잉된 응답을 순서대로 반환하는 목 스폰. */
+/** 역할별 큐잉된 응답을 순서대로 반환하는 목 스폰. */
 class MockSpawn implements AgentSpawn {
 	private queues: Record<AgentRole, string[]>;
 	calls: { role: AgentRole; task: string }[] = [];
@@ -33,27 +42,64 @@ class MockSpawn implements AgentSpawn {
 	}
 }
 
-const stage = STAGES[0]!; // Stage 1 (markdown)
+const stage = STAGES[0]!; // Stage 1
+const menu = feedbackMenuForStage(1);
+const [a0, a1] = menu;
 
+// --- parseFeedback ---
 test("parseFeedback: CLEAN → 클린", () => {
 	expect(parseFeedback("CLEAN")).toEqual({ clean: true });
 	expect(parseFeedback("VERDICT: CLEAN")).toEqual({ clean: true });
 });
 
-test("parseFeedback: ISSUES 헤더 + 줄 → 이슈 배열", () => {
+test("parseFeedback: ISSUES → 이슈 배열", () => {
 	expect(parseFeedback("ISSUES\n- 순환 의존성\n- 과잉 추상화")).toEqual({
 		clean: false,
 		issues: ["순환 의존성", "과잉 추상화"],
 	});
 });
 
-test("parseFeedback: 규약 위반 → 안전 기본값 ISSUES(자동 통과 금지)", () => {
+test("parseFeedback: 규약 위반 → 안전 기본값 ISSUES", () => {
 	const out = parseFeedback("그냥 평문");
 	expect(out.clean).toBe(false);
 	if (!out.clean) expect(out.issues.length).toBeGreaterThan(0);
 });
 
-test("nextDesignFeedbackStep: 진입 → spawn-design(designPrompt)", () => {
+// --- aggregateFeedback ---
+test("aggregateFeedback: 전 에이전트 클린 → allClean", () => {
+	const outcomes: FeedbackAxisOutcome[] = menu.map((a) => ({
+		axis: a.name,
+		outcome: { clean: true as const },
+	}));
+	expect(aggregateFeedback(outcomes)).toEqual({ allClean: true, issues: [] });
+});
+
+test("aggregateFeedback: 일부 이슈 → 축명 접두", () => {
+	const outcomes: FeedbackAxisOutcome[] = [
+		{ axis: a0!.name, outcome: { clean: false, issues: ["이슈A"] } },
+		{ axis: a1!.name, outcome: { clean: true as const } },
+	];
+	const r = aggregateFeedback(outcomes);
+	expect(r.allClean).toBe(false);
+	expect(r.issues).toEqual([`[${a0!.name}] 이슈A`]);
+});
+
+// --- feedbackMenuForStage ---
+test("feedbackMenuForStage: Stage 1 메뉴 ≥1 (completeness 등 포함)", () => {
+	expect(menu.length).toBeGreaterThanOrEqual(1);
+	expect(menu.some((a) => a.name === "completeness")).toBe(true);
+	expect(menu.some((a) => a.name === "feasibility")).toBe(true); // web 에이전트
+});
+
+// --- feedbackAgentTask ---
+test("feedbackAgentTask: focus·draft·feedback.<name> 포함", () => {
+	const t = feedbackAgentTask(stage, a0!, "D1");
+	expect(t).toContain(a0!.focus);
+	expect(t).toContain("D1");
+});
+
+// --- nextDesignFeedbackStep 전이(메뉴 기반) ---
+test("nextDesignFeedbackStep: 진입 → spawn-design(v1)", () => {
 	const t = nextDesignFeedbackStep(
 		stage,
 		{ dfPhase: "design", dfLoop: 0 },
@@ -61,14 +107,13 @@ test("nextDesignFeedbackStep: 진입 → spawn-design(designPrompt)", () => {
 		undefined,
 	);
 	expect(t.directive.action).toBe("spawn-design");
-	expect(t.dfPhase).toBe("design");
 	if (t.directive.action === "spawn-design") {
 		expect(t.directive.task).toBe(stage.designPrompt);
 		expect(t.directive.loop).toBe(0);
 	}
 });
 
-test("nextDesignFeedbackStep: design 보고 → spawn-feedback", () => {
+test("nextDesignFeedbackStep: design v1 보고 → spawn-feedback(메뉴/드래프트 경로)", () => {
 	const t = nextDesignFeedbackStep(
 		stage,
 		{ dfPhase: "design", dfLoop: 0 },
@@ -78,16 +123,20 @@ test("nextDesignFeedbackStep: design 보고 → spawn-feedback", () => {
 	expect(t.directive.action).toBe("spawn-feedback");
 	expect(t.dfPhase).toBe("feedback");
 	if (t.directive.action === "spawn-feedback") {
-		expect(t.directive.task).toContain("초안");
-		expect(t.directive.task).toContain(stage.feedbackChecklist[0]!);
+		expect(t.directive.draftPath).toBe("초안");
+		expect(t.directive.menuPath).toBe(""); // paths 미제공
 	}
 });
 
-test("nextDesignFeedbackStep: feedback 클린 → gate(에스컬레이션 아님)", () => {
+test("nextDesignFeedbackStep: feedback 전 클린 → gate", () => {
+	const outcomes: FeedbackAxisOutcome[] = [
+		{ axis: a0!.name, outcome: { clean: true as const } },
+		{ axis: a1!.name, outcome: { clean: true as const } },
+	];
 	const t = nextDesignFeedbackStep(
 		stage,
 		{ dfPhase: "feedback", dfLoop: 0 },
-		{ role: "feedback", outcome: { clean: true } },
+		{ role: "feedback", outcomes },
 		"초안",
 	);
 	expect(t.directive.action).toBe("gate");
@@ -98,133 +147,150 @@ test("nextDesignFeedbackStep: feedback 클린 → gate(에스컬레이션 아님
 	}
 });
 
-test("nextDesignFeedbackStep: feedback 이슈·미상한 → spawn-design + dfLoop 증가", () => {
+test("nextDesignFeedbackStep: feedback 이슈·미상한 → spawn-design 수정 + dfLoop 증가", () => {
+	const outcomes: FeedbackAxisOutcome[] = [
+		{ axis: a0!.name, outcome: { clean: false, issues: ["이슈A"] } },
+		{ axis: a1!.name, outcome: { clean: true as const } },
+	];
 	const t = nextDesignFeedbackStep(
 		stage,
 		{ dfPhase: "feedback", dfLoop: 0 },
-		{ role: "feedback", outcome: { clean: false, issues: ["이슈A"] } },
+		{ role: "feedback", outcomes },
 		"초안",
 	);
 	expect(t.directive.action).toBe("spawn-design");
 	expect(t.dfLoop).toBe(1);
-	expect(t.dfPhase).toBe("design");
 	if (t.directive.action === "spawn-design") {
 		expect(t.directive.task).toContain("이슈A");
 		expect(t.directive.loop).toBe(1);
 	}
 });
 
-test("nextDesignFeedbackStep: feedback 이슈·상한 도달 → gate(에스컬레이션)", () => {
-	const ceiling = MAX_DESIGN_FEEDBACK_LOOPS - 1;
+test("nextDesignFeedbackStep: design 수정본 보고·상한 → gate(수정 완료)", () => {
 	const t = nextDesignFeedbackStep(
 		stage,
-		{ dfPhase: "feedback", dfLoop: ceiling },
-		{ role: "feedback", outcome: { clean: false, issues: ["잔존X"] } },
+		{ dfPhase: "design", dfLoop: 1 },
+		{ role: "design", draft: "수정본" },
+		"수정본",
+		undefined,
+		DEFAULT_MAX_LOOPS,
+	);
+	expect(t.directive.action).toBe("gate");
+	if (t.directive.action === "gate") {
+		expect(t.directive.escalated).toBe(false);
+		expect(t.directive.artifact).toBe("수정본");
+	}
+});
+
+test("nextDesignFeedbackStep: design 수정본·잔여사이클(maxLoops=2) → spawn-feedback", () => {
+	const t = nextDesignFeedbackStep(
+		stage,
+		{ dfPhase: "design", dfLoop: 1 },
+		{ role: "design", draft: "수정본" },
+		"수정본",
+		undefined,
+		2,
+	);
+	expect(t.directive.action).toBe("spawn-feedback");
+	expect(t.dfPhase).toBe("feedback");
+});
+
+test("nextDesignFeedbackStep: feedback 이슈·상한 → gate(에스컬레이션)", () => {
+	const outcomes: FeedbackAxisOutcome[] = [
+		{ axis: a0!.name, outcome: { clean: false, issues: ["잔존X"] } },
+	];
+	const t = nextDesignFeedbackStep(
+		stage,
+		{ dfPhase: "feedback", dfLoop: 1 },
+		{ role: "feedback", outcomes },
 		"마지막초안",
+		undefined,
+		1,
 	);
 	expect(t.directive.action).toBe("gate");
 	if (t.directive.action === "gate") {
 		expect(t.directive.escalated).toBe(true);
-		expect(t.directive.artifact).toBe("마지막초안");
-		expect(t.directive.issues).toContain("잔존X");
+		expect(t.directive.issues.some((i) => i.includes("잔존X"))).toBe(true);
 	}
 });
 
-test("runDesignFeedbackLoop: 1패스 클린 → clean 결과, design 1회·feedback 1회 스폰", async () => {
+// --- runDesignFeedbackLoop(select 로 소수 에이전트만) ---
+const pick3 = (m: typeof menu) => m.slice(0, 3);
+
+test("runDesignFeedbackLoop: 1패스 클린 → clean, design 1·feedback 3(select)", async () => {
 	const spawn = new MockSpawn({
 		design: ["D1"],
-		feedback: ["CLEAN"],
+		feedback: ["CLEAN", "CLEAN", "CLEAN"],
 	});
-	const res = await runDesignFeedbackLoop(spawn, stage);
+	const res = await runDesignFeedbackLoop(
+		spawn,
+		stage,
+		DEFAULT_MAX_LOOPS,
+		pick3,
+	);
 	expect(res.kind).toBe("clean");
 	if (res.kind === "clean") {
 		expect(res.artifact).toBe("D1");
 		expect(res.loops).toBe(0);
 	}
 	expect(spawn.calls.filter((c) => c.role === "design")).toHaveLength(1);
-	expect(spawn.calls.filter((c) => c.role === "feedback")).toHaveLength(1);
+	expect(spawn.calls.filter((c) => c.role === "feedback")).toHaveLength(3);
 });
 
-test("runDesignFeedbackLoop: 이슈 1회 후 클린 → clean, design 2회·feedback 2회", async () => {
+test("runDesignFeedbackLoop: 이슈 1회 → 수정 → gate(clean), design 2·feedback 3(1라운드)", async () => {
 	const spawn = new MockSpawn({
 		design: ["D1", "D2-개선"],
-		feedback: ["ISSUES\n- 빠진 요구사항", "CLEAN"],
+		feedback: ["ISSUES\n- 빠진 요구사항", "CLEAN", "CLEAN"],
 	});
-	const res = await runDesignFeedbackLoop(spawn, stage);
+	const res = await runDesignFeedbackLoop(
+		spawn,
+		stage,
+		DEFAULT_MAX_LOOPS,
+		pick3,
+	);
 	expect(res.kind).toBe("clean");
 	if (res.kind === "clean") {
 		expect(res.artifact).toBe("D2-개선");
 		expect(res.loops).toBe(1);
 	}
 	expect(spawn.calls.filter((c) => c.role === "design")).toHaveLength(2);
-	expect(spawn.calls.filter((c) => c.role === "feedback")).toHaveLength(2);
+	expect(spawn.calls.filter((c) => c.role === "feedback")).toHaveLength(3);
 });
 
-test("runDesignFeedbackLoop: 상한까지 이슈 → escalate, design·feedback 각 MAX 회", async () => {
-	// MAX_DESIGN_FEEDBACK_LOOPS 만큼 design/feedback 시도 후 상한 도달.
-	const design = Array.from(
-		{ length: MAX_DESIGN_FEEDBACK_LOOPS },
-		(_, i) => `D${i + 1}`,
-	);
-	const feedback = Array.from(
-		{ length: MAX_DESIGN_FEEDBACK_LOOPS },
-		(_, i) => `ISSUES\n- 이슈${i + 1}`,
-	);
-	const spawn = new MockSpawn({ design, feedback });
-	const res = await runDesignFeedbackLoop(spawn, stage);
-	expect(res.kind).toBe("escalate");
-	if (res.kind === "escalate") {
-		expect(res.issues.length).toBeGreaterThan(0);
-		expect(res.artifact).toBe(`D${MAX_DESIGN_FEEDBACK_LOOPS}`);
-	}
-	expect(spawn.calls.filter((c) => c.role === "design")).toHaveLength(
-		MAX_DESIGN_FEEDBACK_LOOPS,
-	);
-	expect(spawn.calls.filter((c) => c.role === "feedback")).toHaveLength(
-		MAX_DESIGN_FEEDBACK_LOOPS,
-	);
-});
-
-test("runDesignFeedbackLoop: Feedback 과제에 체크리스트·산출물 포함", async () => {
-	const spawn = new MockSpawn({ design: ["D1"], feedback: ["CLEAN"] });
-	await runDesignFeedbackLoop(spawn, stage);
-	const fb = spawn.calls.find((c) => c.role === "feedback");
-	expect(fb?.task).toContain("D1");
-	expect(fb?.task).toContain(stage.feedbackChecklist[0]);
-});
-
-// --- 컨텍스트 한도 관리: paths(파일 경로) 모드 + spawnOptions ---
-// GLM-5.2(기본 202K) 한도 초과(1261) 방지 — 큰 페이로드는 파일로, Director 컨텍스트 누적 차단.
-const paths: ArtifactPaths = {
-	designPrompt: ".factorynote/feat/design-prompt.md",
-	draft: ".factorynote/feat/draft.md",
-	feedback: ".factorynote/feat/feedback.md",
-};
-
-test("CHILD_SPAWN_OPTIONS(방향1+2): 역할별 명명 에이전트 + hard≥1 toolBudget + turnBudget", () => {
+// --- 컨텍스트 한도/정책 ---
+test("CHILD_SPAWN_OPTIONS: 역할별 명명 에이전트 + hard≥1 + turnBudget", () => {
 	for (const role of ["design", "feedback"] as const) {
 		const opts = CHILD_SPAWN_OPTIONS[role];
 		expect(opts.skill).toBe(false);
 		expect(opts.context).toBe("fresh");
-		expect(opts.agentName).toBe(`factorynote-${role}`);
+		expect(opts.agentName.startsWith("factorynote-")).toBe(true);
 		expect(opts.toolBudget.hard).toBeGreaterThanOrEqual(1);
 		expect(opts.turnBudget.maxTurns).toBeGreaterThanOrEqual(1);
 	}
 });
 
-test("clampReportInput(방향3b): 과대 보고 입력 절단 — 첫 줄(판정/경로) 보존", () => {
+test("DEFAULT_MAX_LOOPS: 기본 사이클 상한 = 1", () => {
+	expect(DEFAULT_MAX_LOOPS).toBe(1);
+});
+
+test("clampReportInput: 과대 입력 절단 — 첫 줄 보존", () => {
 	expect(clampReportInput("CLEAN")).toBe("CLEAN");
-	expect(clampReportInput(".factorynote/x/draft.md")).toBe(
-		".factorynote/x/draft.md",
-	);
 	const huge = `ISSUES\n${"a".repeat(5000)}`;
 	const clamped = clampReportInput(huge);
 	expect(clamped.length).toBeLessThan(huge.length);
-	expect(clamped.startsWith("ISSUES")).toBe(true); // 판정 줄 보존
+	expect(clamped.startsWith("ISSUES")).toBe(true);
 	expect(clamped).toContain("절단");
 });
 
-test("paths 모드: 진입 spawn-design 가 spawnOptions + designPrompt 파일 경로 참조(본문 無)", () => {
+// --- paths 모드(메뉴 경로 포함) ---
+const paths: ArtifactPaths = {
+	designPrompt: ".factorynote/feat/design-prompt.md",
+	draft: ".factorynote/feat/draft.md",
+	feedback: ".factorynote/feat/feedback.md",
+	menu: ".factorynote/feat/feedback-menu.md",
+};
+
+test("paths 모드: 진입 spawn-design 이 designPrompt 경로 참조(본문 無)", () => {
 	const t = nextDesignFeedbackStep(
 		stage,
 		{ dfPhase: "design", dfLoop: 0 },
@@ -234,20 +300,14 @@ test("paths 모드: 진입 spawn-design 가 spawnOptions + designPrompt 파일 �
 	);
 	expect(t.directive.action).toBe("spawn-design");
 	if (t.directive.action === "spawn-design") {
-		expect(t.directive.spawnOptions.skill).toBe(false);
-		expect(t.directive.spawnOptions.context).toBe("fresh");
 		expect(t.directive.spawnOptions.agentName).toBe("factorynote-design");
-		expect(t.directive.spawnOptions.toolBudget.hard).toBeGreaterThanOrEqual(1);
-		expect(t.directive.spawnOptions.turnBudget.maxTurns).toBeGreaterThanOrEqual(
-			1,
-		);
 		expect(t.directive.task).toContain(paths.designPrompt);
 		expect(t.directive.task).toContain(paths.draft);
-		expect(t.directive.task).not.toContain("사용자의 자연어"); // designPrompt 본문 미주입
+		expect(t.directive.task).not.toContain("사용자의 자연어");
 	}
 });
 
-test("paths 모드: design 보고 → spawn-feedback 가 draft 파일 경로 참조 + spawnOptions", () => {
+test("paths 모드: design 보고 → spawn-feedback 가 menu/draft/feedback 경로", () => {
 	const t = nextDesignFeedbackStep(
 		stage,
 		{ dfPhase: "design", dfLoop: 0 },
@@ -257,42 +317,28 @@ test("paths 모드: design 보고 → spawn-feedback 가 draft 파일 경로 참
 	);
 	expect(t.directive.action).toBe("spawn-feedback");
 	if (t.directive.action === "spawn-feedback") {
-		expect(t.directive.spawnOptions.context).toBe("fresh");
-		expect(t.directive.task).toContain(paths.draft);
-		expect(t.directive.task).toContain(paths.feedback);
-		expect(t.directive.task).toContain(stage.feedbackChecklist[0]!);
-		expect(t.directive.task).not.toContain("DRAFT-BODY"); // 보고 draft 본문 미주입(⑥)
+		expect(t.directive.menuPath).toBe(paths.menu);
+		expect(t.directive.draftPath).toBe(paths.draft);
+		expect(t.directive.feedbackPath).toBe(paths.feedback);
 	}
 });
 
-test("paths 모드: feedback 이슈 → designRevisionTask 가 designPrompt·feedback 파일 경로 참조(본문 재주입 無)", () => {
+test("paths 모드: feedback 클린 → gate artifact = draft 경로", () => {
+	const outcomes: FeedbackAxisOutcome[] = [
+		{ axis: a0!.name, outcome: { clean: true as const } },
+	];
 	const t = nextDesignFeedbackStep(
 		stage,
 		{ dfPhase: "feedback", dfLoop: 0 },
-		{ role: "feedback", outcome: { clean: false, issues: ["이슈A"] } },
-		undefined,
-		paths,
-	);
-	expect(t.directive.action).toBe("spawn-design");
-	expect(t.dfLoop).toBe(1);
-	if (t.directive.action === "spawn-design") {
-		expect(t.directive.task).toContain(paths.feedback);
-		expect(t.directive.task).toContain(paths.designPrompt);
-		expect(t.directive.task).toContain("이슈A"); // 이슈 요약은 포함
-		expect(t.directive.task).not.toContain("사용자의 자연어"); // designPrompt 본문 미재주입(⑤)
-	}
-});
-
-test("paths 모드: feedback 클린 → gate artifact 가 draft 파일 경로(어댑터가 readArtifact resolve)", () => {
-	const t = nextDesignFeedbackStep(
-		stage,
-		{ dfPhase: "feedback", dfLoop: 0 },
-		{ role: "feedback", outcome: { clean: true } },
+		{ role: "feedback", outcomes },
 		undefined,
 		paths,
 	);
 	expect(t.directive.action).toBe("gate");
-	if (t.directive.action === "gate") {
+	if (t.directive.action === "gate")
 		expect(t.directive.artifact).toBe(paths.draft);
-	}
+});
+
+test("designTask: paths 미제공 시 designPrompt 본문(inline)", () => {
+	expect(designTask(stage)).toBe(stage.designPrompt);
 });

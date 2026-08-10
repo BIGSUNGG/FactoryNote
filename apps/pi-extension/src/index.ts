@@ -24,7 +24,7 @@ const PLAN_MODE_PROMPT = `
 2. 사용자의 기능 요청이 들어오면 factorynote_plan({ feature }) 으로 3단계 파이프라인을 구동한다.
 3. 산출물은 '단일 에이전트가 직접 작성'하지 않는다. 항상 Design 자식 → Feedback 자식 루프를 거친다:
    a. factorynote_plan 반환값의 nextAction 이 spawn-design → 너의 subagent 도구로 Design 자식을 스폰한다. **스폰 옵션을 반드시 적용: agent="반환된 spawnOptions.agentName", skill=false, context="fresh", toolBudget={hard: 반환된 spawnOptions.toolBudget.hard}, turnBudget={maxTurns: 반환된 spawnOptions.turnBudget.maxTurns}}** — 자식은 명명 에이전트('tools:' allowlist 로 도구가 제한됨)로 fresh 최소 컨텍스트로 스폰되어 고정 세금(도구/스킬 정의)과 부모 누적 상속이 끊긴다(GLM-5.2 한도 초과·1261 방지). 과제는 반환된 spawnTask 이다. **Design 자식은 산출물을 지정된 파일(draftPath)에 쓰고 반환은 그 경로만 한다 — 너는 그 경로를 designArtifact 에 그대로 담아 factorynote_plan 을 다시 호출한다(절대 산출물 본문을 직접 전달하지 않는다 — 본문이 넘어가면 네 컨텍스트가 부풋어 한도 초과한다).**
-   b. nextAction 이 spawn-feedback → 같은 스폰 옵션으로 Feedback 자식을 스폰한다(과제=spawnTask). Feedback 자식은 상세 리뷰를 파일(feedbackPath)에 쓰고 반환은 판정(CLEAN/ISSUES)만 한다. feedbackResult 에 판정을, designArtifact 에 draftPath 를 담아 factorynote_plan 을 다시 호출한다.
+   b. nextAction 이 spawn-feedback → **동적 선택(ADF-014)**: menuPath 의 feedback 메뉴를 읽고, 검토 대상(draftPath) 산출물·기능 맥락에 가장 의미있는 N개(전형 3-6)의 Feedback 자식을 추려 subagent 의 workflowScript runs.all 로 **병렬** 스폰한다. 각 자식: agent="factorynote-feedback-<name>", skill=false, context="fresh", toolBudget/turnBudget 는 spawnOptions 참조(역량별 도구는 에이전트 파일이 고정). 각 자식은 상세 리뷰를 feedbackPath.<name> 에 쓰고 반환은 판정(CLEAN/ISSUES)만. **집합 보고**: 각 선택을 "[name]" 헤더 + 판정으로 나열해 feedbackResult 에 담고, designArtifact 에 draftPath 를 담아 factorynote_plan 을 다시 호출한다.
    c. nextAction 이 done → 파이프라인 종료.
 4. Design↔Feedback 루프의 전이·반복 상한·에스컬레이션은 FactoryNote(core) 가 통제한다. 너는 지시문(nextAction·spawnTask) 에 따라 스폰하고 결과를 보고할 뿐, 루프 카운트를 임의로 조작하지 않는다. 상한 도달 시 core 가 에스컬레이션 게이트를 연다.
 5. Feedback 클린 판정(또는 상한 에스컬레이션) 시에만 사용자 게이트(웹)가 열린다. 사용자가 승인하기 전에는 다음 단계로 넘어가지 않는다(5대 원칙). 게이트 결정(confirm/modify/revert) 은 factorynote_plan 이 받아 상태를 전이한다.
@@ -106,7 +106,7 @@ export default function (pi: ExtensionAPI): void {
 		promptSnippet: "Drive the FactoryNote 3-stage gated plan pipeline",
 		promptGuidelines: [
 			"Use factorynote_plan when in FactoryNote plan mode to produce a human-gated plan instead of writing code.",
-			"When nextAction=spawn-design/spawn-feedback, spawn the named agent (spawnOptions.agentName) with your subagent tool applying spawnOptions (skill=false, context=fresh, toolBudget.hard, turnBudget.maxTurns) and spawnTask. Children write outputs to files; report back the file path (designArtifact) and verdict (feedbackResult), never inline content.",
+			"When nextAction=spawn-design, spawn factorynote-design with spawnTask (file protocol). When nextAction=spawn-feedback, read menuPath, pick N situation-appropriate factorynote-feedback-<name> agents, and spawn them in parallel (runs.all); report aggregated [name] verdicts. Children write to files; report paths/verdicts, never inline content.",
 		],
 		parameters: Type.Object({
 			feature: Type.String({
@@ -204,9 +204,10 @@ interface AgentOut {
 	draftPath?: string;
 	/** Feedback 자식이 상세 리뷰를 쓸 파일 경로. */
 	feedbackPath?: string;
+	/** 현 단계 feedback 메뉴 파일 경로(Director 동적 선택용). */
+	menuPath?: string;
 	dfLoop: number;
 	designPrompt: string;
-	feedbackChecklist: string[];
 	gateResult: { verdict: string; comments: unknown[] } | null;
 	message: string;
 	chatPending?: { id: string; role: string; text: string; blockId?: string }[];

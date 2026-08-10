@@ -14,10 +14,11 @@ import {
 	type GateDecision,
 } from "@factorynote/core";
 
-/** 게이트 대기 중 발생 이벤트: 사용자 최종 결정, 또는 실시간 채팅(에이전트에 전달해 답변/수정 유도). */
+/** 게이트 대기 중 발생 이벤트: 사용자 최종 결정, 실시간 채팅, 또는 '검토 요청'(AI 재검토 +1 사이클). */
 export type GateEvent =
 	| { kind: "decision"; decision: GateDecision }
-	| { kind: "chat"; messages: ChatMessage[] };
+	| { kind: "chat"; messages: ChatMessage[] }
+	| { kind: "review-request" };
 
 export interface ViewerState {
 	feature: string;
@@ -28,7 +29,6 @@ export interface ViewerState {
 	/** 현 단계 산출물이 사용자 검토 대기 중인지(에이전트가 게이트를 열었는지). 뷰어 폴링 신호. */
 	gateOpen: boolean;
 	designPrompt: string;
-	feedbackChecklist: string[];
 	artifacts: {
 		stage: number;
 		name: string;
@@ -69,7 +69,6 @@ async function buildViewerState(
 		done: state?.done ?? false,
 		gateOpen: state?.gateOpen ?? false,
 		designPrompt: def.designPrompt,
-		feedbackChecklist: [...def.feedbackChecklist],
 		artifacts,
 	};
 }
@@ -96,6 +95,8 @@ function safeJoin(dist: string, urlPath: string): string | null {
 }
 
 function openBrowser(url: string): void {
+	// 방어: 게이트 서버가 생성한 localhost http URL 만 허용(명령 주입 차단).
+	if (!/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(url)) return;
 	const cmd =
 		process.platform === "win32"
 			? `start "" "${url}"`
@@ -188,6 +189,17 @@ function makeGateHandler(gate: PersistentGate) {
 					const r = gate.currentResolver;
 					gate.currentResolver = null;
 					r?.({ kind: "decision", decision });
+				});
+				return;
+			}
+			if (url === "/api/review-request" && req.method === "POST") {
+				// '검토 요청' — 현 산출물에 AI 재검토(feedback+design 수정) +1 사이클을 요청.
+				// 게이트를 닫지 않고 review-request 이벤트로 에이전트에 전달(ADF-013).
+				res.writeHead(200, { "Content-Type": "application/json" });
+				res.end(JSON.stringify({ ok: true }), () => {
+					const r = gate.currentResolver;
+					gate.currentResolver = null;
+					r?.({ kind: "review-request" });
 				});
 				return;
 			}
