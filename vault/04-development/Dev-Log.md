@@ -1,11 +1,19 @@
 ---
-updated: 2026-08-09
+updated: 2026-08-11
 tags: [development, dev-log]
 ---
 
 # Dev-Log
 
 날짜별 작업 기록. 무엇을 했는지, 왜, 무엇이 남았는지. [[Changelog]]는 외부용 단위, 본 파일은 일일 흐름.
+
+## 2026-08-11
+
+### 단계 산출물 stageN/ 폴더 배치 ([[ADR-015-stage-artifact-folders]])
+
+**맥락**: `<root>/<feature>/` 에 평평하게 쌓이던 단계 산출물을 단계별 폴더로 분리해 달라는 사용자 요청.
+**변경**: `packages/factorynote/src/persistence.ts` — `artifactPath` 에 STAGES 파일명→`stageN/` 매핑(`stageSubdir`) 추가. 3개 단계 산출물은 `<feature>/stage1|stage2|stage3/` 로, 보조 파일(`state.json`·`design-prompt.md`·`feedback-menu.md`·`draft.md`·`feedback.md.*`)은 feature 루트 유지. 모든 경로가 `artifactPath` 로 수렴해 호출측(plan-tool·gate-server·invalidate) 무변경. 기존 평평 폴더 마이그레이션은 없음(resume 시 파일 없으면 `undefined` → 재생성).
+**검증**: `bun test` 99 통과(레이아웃 자체체크 추가), `bun run build` 종료 0.
 
 ## 2026-08-09
 

@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-09
+updated: 2026-08-11
 tags: [development, changelog]
 ---
 
@@ -11,6 +11,8 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 ## [Unreleased]
 
 ### Changed
+
+- **단계 산출물 `stageN/` 서브폴더 배치** — 3개 단계 산출물(`01-understanding-and-scenarios.md`, `02-design.md`, `03-implementation-plan.md`)이 feature 폴더 평평한 위치 대신 `<root>/<feature>/stageN/` 서브폴더에 작성된다. `state.json` 과 보조 파일(`design-prompt.md`·`feedback-menu.md`·`draft.md`·`feedback.md.*`)은 feature 루트 유지. `persistence.ts` 의 `artifactPath` 한 지점(STAGES 파일명→stageN 매핑)에서 처리 — 읽기·쓰기·무효화·게이트 서빙 전부 동일 함수 경유라 호출측 변경 없음. 기존 평평 폴더는 마이그레이션하지 않음(resume 시 정상 처리). [[ADR-015-stage-artifact-folders]].
 
 - **동적 feedback 에이전트(레지스트리 + Director 선택)** — 단계별 고정 `feedbackAxes`를 폐지하고 전역 `FEEDBACK_AGENTS` 레지스트리(~32 전문 에이전트, 역량 태그 static/web/graph)로 이관. `factorynote_plan`이 현 단계 메뉴를 파일(`feedback-menu.md`)로 쓰고 Director가 상황에 맞는 N개를 추려 병렬(`runs.all`) 스폰. `scripts/gen-feedback-agents.mjs`가 레지스트리에서 에이전트 파일 생성(단일 진실, 드리프트 방지). 역량별 도구: static=read/write/bash, web=+web_search(security/feasibility/compliance/technology-fit/library-deps), graph=+edit(structure/dependency-cycle/dependency-precedence, 그래프 fence 수정). [[ADR-014-dynamic-feedback-agents]].
 

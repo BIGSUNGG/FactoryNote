@@ -2,7 +2,7 @@
 // 실행: bun test packages/factorynote
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { test, expect } from "bun:test";
 import {
 	applyVerdict,
@@ -108,6 +108,27 @@ test("artifact write/read round-trip", async () => {
 		"01-understanding-and-scenarios.md",
 	);
 	expect(back).toBe(md);
+});
+
+test("stage artifacts go to stageN/ subdirs, aux files stay at feature root", async () => {
+	const p1 = await writeArtifact(
+		root,
+		"layout",
+		"01-understanding-and-scenarios.md",
+		"s1",
+	);
+	const p2 = await writeArtifact(root, "layout", "02-design.md", "s2");
+	const p3 = await writeArtifact(
+		root,
+		"layout",
+		"03-implementation-plan.md",
+		"s3",
+	);
+	const aux = await writeArtifact(root, "layout", "draft.md", "d");
+	expect(dirname(p1)).toBe(join(root, "layout", "stage1"));
+	expect(dirname(p2)).toBe(join(root, "layout", "stage2"));
+	expect(dirname(p3)).toBe(join(root, "layout", "stage3"));
+	expect(dirname(aux)).toBe(join(root, "layout"));
 });
 
 test("corrupt state recovers to undefined", async () => {

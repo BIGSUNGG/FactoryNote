@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-08
+updated: 2026-08-11
 tags: [architecture, implementation, code-map, data-flow]
 ---
 
@@ -29,7 +29,7 @@ FactoryNote MVP의 **실제 코드 구조·모듈 책임·런타임 데이터 �
 
 - **`stages.ts`** — M1 Stage Registry. `STAGES` 배열(3개 `StageDefinition`: id·이름·산출물·포맷·`designPrompt`·`feedbackChecklist`·`artifactFile`). 3단계 모두 산출물을 생성한다.
 - **`engine.ts`** — 순수 상태기계. `initialState` · `markArtifactReady` · `applyVerdict(state, decision)`(confirm→다음 단계/완료, modify→loopCount++·`atLoopCeiling` 경성 에스컬레이션, revert→`revertTo`(생략 시 1단계, clamp `1..현단계-1`) 점프 + `validThrough` 갱신) · `MAX_LOOPS`/`atLoopCeiling`(FR-2). 부작용 없는 함수 — `engine.test.ts` 로 LLM/pi 없이 검증.
-- **`persistence.ts`** — M3. `.factorynote/<feature>/state.json` atomic 쓰기(write-then-rename), 손상 시 `.corrupt-<ts>` 백업 후 `undefined` 복구(NFR-2). 산출물 `NN-stage.md` r/w. 경로를 인자로 받아 pi 의존 0.
+- **`persistence.ts`** — M3. `.factorynote/<feature>/state.json` atomic 쓰기(write-then-rename), 손상 시 `.corrupt-<ts>` 백업 후 `undefined` 복구(NFR-2). 산출물 r/w — 단계 산출물(`STAGES.artifactFile` 등록 파일)은 `<feature>/stageN/` 서브폴더에 배치, 보조 파일(draft·design-prompt·feedback-menu)은 feature 루트([[ADR-015-stage-artifact-folders]]). 경로를 인자로 받아 pi 의존 0.
 - **`types.ts`** — `StageId`·`GateVerdict`(`confirm`/`modify`/`revert`)·`Comment`·`GateDecision`·`PipelineState`.
 
 > 코어는 `@factorynote/core` 로 import된다. 런타임 npm 의존이 0이라 **복사만으로 다른 harness에 이식** 가능하다(NFR-1).
@@ -196,7 +196,7 @@ factorynote/
 | ---- | ---- | ---- |
 | plan 모드 진입 | `/factorynote` 토글 + 프롬프트 주입 | 사용자 시드(모드), FR-8(직접 시작) 아님 |
 | 게이트 UI | **웹 페이지**(로컬 HTTP 서버) | ADR-003 은 옵션이나 시드가 명시 → 주경로 격상 |
-| 산출물/상태 위치 | `.factorynote/<feature>/` 통합 | 시드 부합 + gitignore 1건 |
+| 산출물/상태 위치 | `.factorynote/<feature>/` 통합, 단계 산출물은 `stageN/` 서브폴더 | 시드 부합 + gitignore 1건; [[ADR-015-stage-artifact-folders]] |
 | 에이전트 티어 | **Tier 1**(Design↔Feedback 자식 스폰 루프, 유일 경로) | [[ADR-009-tier-1-agent-orchestration]]; Tier 0·NFR-7 폐지 |
 | 제어 vs 판단 | 제어·영속=코드, 산출물=LLM | 하이브리드 원칙(NFR-4) |
 | 단계별 렌더 | 1/3=마크다운(PlanPage), 2=다중 섹션 그래프(GraphStage) | [[ADR-006-graph-editor]] · [[ADR-008-3-stage-pipeline]] |

@@ -9,11 +9,11 @@ import {
 	copyFile,
 	unlink,
 } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { STAGES } from "./stages.ts";
 import type { PipelineState, ValidThrough } from "./types.ts";
 
-/** 한 feature의 런타임 디렉토리: <root>/<feature>/ (state.json + NN-*.md). */
+/** 한 feature의 런타임 디렉토리: <root>/<feature>/ (state.json + 보조 파일; 단계 산출물은 stageN/ 하위). */
 export function featureDir(root: string, feature: string): string {
 	return join(root, feature);
 }
@@ -22,12 +22,18 @@ export function statePath(root: string, feature: string): string {
 	return join(featureDir(root, feature), "state.json");
 }
 
+/** STAGES 에 등록된 단계 산출물 파일명 → stageN/ 서브폴더. 그 외(보조 파일)는 feature 루트. */
+function stageSubdir(file: string): string {
+	const stage = STAGES.find((s) => s.artifactFile === file);
+	return stage ? `stage${stage.id}` : "";
+}
+
 export function artifactPath(
 	root: string,
 	feature: string,
 	file: string,
 ): string {
-	return join(featureDir(root, feature), file);
+	return join(featureDir(root, feature), stageSubdir(file), file);
 }
 
 async function ensureDir(dir: string): Promise<void> {
@@ -112,9 +118,8 @@ export async function writeArtifact(
 	file: string,
 	markdown: string,
 ): Promise<string> {
-	const dir = featureDir(root, feature);
-	await ensureDir(dir);
 	const path = artifactPath(root, feature, file);
+	await ensureDir(dirname(path));
 	await writeFile(path, markdown, "utf8");
 	return path;
 }

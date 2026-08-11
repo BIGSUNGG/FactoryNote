@@ -90,10 +90,10 @@ plan 모드에서 자연어로 요청:
 코멘트는 pending 큐에 쌓이고, **✎ 수정 지시** 클릭 시 한 번에 에이전트로 전송된다.
 (직접 편집은 불가 — 5대 원칙 "승인 전 반영 금지"의 UI 강제, [[project-identity]])
 
-### 5. 6단계 완료
+### 5. 3단계 완료
 
-Stage 1→2→3→4→5 산출물 작성 + 각 게이트 통과 → Stage 6(최종 검증) 게이트에서 **✓ 최종 확정(완료)**.
-승인된 5개 산출물이 `.factorynote/<feature>/` 에 누적된다.
+Stage 1→2→3 산출물 작성 + 각 게이트 통과 → Stage 3 게이트 확정이 곧 **완료**.
+승인된 3개 산출물이 `.factorynote/<feature>/` 아래 단계별 폴더에 누적된다.
 
 ## 산출물 · 상태 위치
 
@@ -103,11 +103,15 @@ Stage 1→2→3→4→5 산출물 작성 + 각 게이트 통과 → Stage 6(최�
 .factorynote/
 └── <feature>/
     ├── state.json              # 파이프라인 상태(단계·게이트·이력) — 권위
-    ├── 01-requirements.md      # Stage 1
-    ├── 02-scenarios.md         # Stage 2
-    ├── 03-modules.md           # Stage 3
-    ├── 04-classes.md           # Stage 4
-    └── 05-implementation-plan.md  # Stage 5
+    ├── design-prompt.md        # 현 단계 Design 작성 지시(보조)
+    ├── feedback-menu.md        # 현 단계 Feedback 메뉴(보조)
+    ├── draft.md                # 현 단계 초안(게이트 교환 파일)
+    ├── stage1/
+    │   └── 01-understanding-and-scenarios.md   # Stage 1
+    ├── stage2/
+    │   └── 02-design.md        # Stage 2
+    └── stage3/
+        └── 03-implementation-plan.md           # Stage 3
 ```
 
 > 세션을 닫았다 다시 켜도 `state.json` 덕분에 **이어서 진행**(resume)된다.
