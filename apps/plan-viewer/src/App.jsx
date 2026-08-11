@@ -6,7 +6,6 @@
 // 게이트 결정은 /api/decision 로 POST → pi 에이전트로 전달. 서버는 플랜 완료 시 닫힌다.
 import { useState, useEffect, useRef } from "react";
 import PlanPage from "./components/PlanPage";
-import DesignStage from "./components/DesignStage";
 import ChatSidebar from "./components/ChatSidebar";
 
 const HEARTBEAT_MS = 2000; // /api/state 폴링 주기 = 탭 생존 하트비트(서버 재오픈 판정에 사용).
@@ -15,7 +14,7 @@ export default function App() {
 	const [state, setState] = useState(null); // 마지막 /api/state
 	const [phase, setPhase] = useState("loading"); // loading | reviewing | preparing | closed
 	const notifiedRef = useRef(false); // 전환 알림 1회 가드(preparing→reviewing)
-	// F1: 채팅 부분 코멘트용 현재 선택 블록(PlanPage 가 갱신). Stage 2 는 미사용.
+	// F1: 채팅 부분 코멘트용 현재 선택 블록(PlanPage 가 갱신).
 	const [activeBlockId, setActiveBlockId] = useState(null);
 
 	// 초기 1회 로드.
@@ -31,7 +30,7 @@ export default function App() {
 		return () => clearInterval(id);
 	}, [phase]);
 
-	// 단계 전환 시 채팅 부분코멘트 블록 선택을 초기화(Stage 2 는 블록 선택 미사용).
+	// 단계 전환 시 채팅 부분코멘트 블록 선택을 초기화.
 	useEffect(() => {
 		setActiveBlockId(null);
 	}, [state?.stage]);
@@ -103,35 +102,29 @@ export default function App() {
 		);
 	if (!state) return <Center>게이트 로딩 중…</Center>;
 
-	// reviewing: 현재 단계 산출물 렌더. Stage 2 는 md 단일진실 DesignStage, 나머지는 PlanPage.
+	// reviewing: 현재 단계 산출물 렌더. 3단계 모두 동일 문서 경로(PlanPage) — 그래프는
+	// 동반 .json 을 참조하는 읽기 전용 자동 배치 블록(ADR-016).
 	const cur = (state.artifacts || []).find((a) => a.stage === state.stage);
 	const stageLabels = {};
 	for (const a of state.artifacts || []) stageLabels[a.stage] = a.name;
 	stageLabels[state.stage] = state.stageName;
+	const graphData = cur?.graph
+		? { [cur.graph.file]: cur.graph.artifact.sections }
+		: {};
 
-	const main =
-		state.stage === 2 ? (
-			<DesignStage
-				mdSource={cur?.md || ""}
-				stage={state.stage}
-				stageName={state.stageName}
-				feature={state.feature}
-				stageLabels={stageLabels}
-				onGate={onGate}
-				onReview={onReview}
-			/>
-		) : (
-			<PlanPage
-				mdSource={pickMarkdown(state)}
-				stage={state.stage}
-				stageName={state.stageName}
-				feature={state.feature}
-				stageLabels={stageLabels}
-				onGate={onGate}
-				onReview={onReview}
-				onActiveBlock={setActiveBlockId}
-			/>
-		);
+	const main = (
+		<PlanPage
+			mdSource={pickMarkdown(state)}
+			stage={state.stage}
+			stageName={state.stageName}
+			feature={state.feature}
+			stageLabels={stageLabels}
+			onGate={onGate}
+			onReview={onReview}
+			onActiveBlock={setActiveBlockId}
+			graphData={graphData}
+		/>
+	);
 
 	// reviewing: 메인 산출물 + 우측 실시간 에이전트 채팅 사이드바(게이트 열린 동안).
 	return (
@@ -142,7 +135,7 @@ export default function App() {
 	);
 }
 
-// 마크다운 단계(Stage 1·3)의 산출물 텍스트를 반환.
+// 현 단계 산출물 마크다운 텍스트를 반환(3단계 공통).
 function pickMarkdown(state) {
 	const arts = state.artifacts || [];
 	const cur = arts.find((a) => a.stage === state.stage);

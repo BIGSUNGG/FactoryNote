@@ -127,7 +127,7 @@ export function designTask(
 	if (paths) {
 		return [
 			`${def.artifact} 산출물을 작성하라. 작성 지시는 파일 ${paths.designPrompt} 에 있다(불변) — 읽어 따른다.`,
-			`작성한 산출물은 파일 ${paths.draft} 에 저장한다. 반환은 그 파일 경로만(본문 절대 금지) — 본문을 반환하면 Director 컨텍스트가 부풋어 한도 초과(1261) 한다.`,
+			`작성한 산출물은 파일 ${paths.draft} 에 저장한다. 지시에 별도 그래프 JSON 파일 작성이 포함되면 draft 와 같은 폴더의 지정된 파일명(예: draft-graph.json)으로 함께 저장한다. 반환은 draft 파일 경로만(본문 절대 금지) — 본문을 반환하면 Director 컨텍스트가 부풋어 한도 초과(1261) 한다.`,
 			"코드는 쓰지 않는다(계획 산출물).",
 		].join("\n");
 	}
@@ -143,7 +143,7 @@ export function feedbackAgentTask(
 ): string {
 	if (paths) {
 		return [
-			`검토 대상 ${def.artifact} 산출물은 파일 ${paths.draft} 에 있다 — 읽고 **${agent.focus} 관점**에서 비판 검토하라.`,
+			`검토 대상 ${def.artifact} 산출물은 파일 ${paths.draft} 에 있다 — 읽고 **${agent.focus} 관점**에서 비판 검토하라. md 에 \`<!-- graph: <파일명> -->\` 참조가 있으면 같은 폴더의 해당 그래프 JSON 파일도 읽어 구조를 함께 검토한다.`,
 			`판정은 첫 줄에 "CLEAN"(이슈 없음) 또는 "ISSUES"(이후 줄에 각 이슈를 - 로 나열, 최대 5개·각 1줄)로만 출력한다.`,
 			`상세 리뷰 전문은 파일 ${paths.feedback}.${agent.name} 에 저장하라. 반환은 판정 + 이슈 요약만(본문 금지).`,
 		].join("\n");
@@ -172,7 +172,7 @@ function designRevisionTask(
 			"## 반려 이슈(전 에이전트 취합)",
 			block,
 			"",
-			`재작성 결과는 파일 ${paths.draft} 에 저장하고 반환은 경로만.`,
+			`재작성 결과는 파일 ${paths.draft} 에 저장하고 반환은 경로만. 그래프 구조를 변경했으면 동반 그래프 JSON 파일도 일관되게 갱신한다.`,
 		].join("\n");
 	}
 	return [

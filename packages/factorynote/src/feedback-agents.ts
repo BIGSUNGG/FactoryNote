@@ -260,12 +260,12 @@ export const FEEDBACK_AGENTS: readonly FeedbackAgent[] = [
 		capability: "web",
 		stages: [3],
 	},
-	// --- graph (+edit: factorynote-graph fence 구조 검토·수정) ---
+	// --- graph (그래프 JSON 파일 구조 검토) ---
 	{
 		name: "structure",
 		focus: "그래프 JSON 유효·그룹 소속·정합",
 		checklist: [
-			"```factorynote-graph 펜스 JSON이 유효하고 모든 클래스가 모듈 그룹에 속하며 구조-설명이 정합한가?",
+			"md 의 `<!-- graph: ... -->` 참조가 가리키는 그래프 JSON 이 유효하고(position 등 좌표 필드 없이), 모든 클래스가 모듈 그룹에 속하며 구조-설명이 정합한가?",
 		],
 		capability: "graph",
 		stages: [2],

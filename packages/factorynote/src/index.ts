@@ -58,14 +58,13 @@ export {
 	writeArtifact,
 } from "./persistence.ts";
 export {
-	applyStructureToMarkdown,
 	coerceGraphArtifact,
 	emptyGraphArtifact,
-	parseDesignMarkdown,
+	graphJsonNameFor,
+	graphRefFile,
+	GRAPH_REF_RE,
 	parseGraphArtifact,
-	serializeDesignMarkdown,
 } from "./graph.ts";
-export type { DesignMarkdown } from "./graph.ts";
 export {
 	CHILD_SPAWN_OPTIONS,
 	DEFAULT_MAX_LOOPS,

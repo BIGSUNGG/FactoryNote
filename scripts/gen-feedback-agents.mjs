@@ -22,7 +22,7 @@ function toolNote(capability) {
 	if (capability === "web")
 		return ". 필요시 web_search 로 외부 사실(CVE/라이브러리/규제)을 보강하되 추측은 금지";
 	if (capability === "graph")
-		return ". factorynote-graph 펜스 구조 문제는 edit 로 직접 수정 제안 가능(해당 펜스만)";
+		return ". 그래프 구조 문제는 이슈로만 지적한다(수정은 Design 재작성이 담당 — 직접 수정 금지)";
 	return "";
 }
 
@@ -44,7 +44,7 @@ tools: ${tools}
 
 ## 규칙
 
-1. 검토 대상은 파일(draft 경로)에 있다 — 읽고 **${a.focus} 관점**에서 비판 검토하라.
+1. 검토 대상은 파일(draft 경로)에 있다 — 읽고 **${a.focus} 관점**에서 비판 검토하라. md 에 \`<!-- graph: <파일명> -->\` 참조가 있으면 같은 폴더의 해당 그래프 JSON 파일도 읽어 구조를 함께 검토한다.
 2. **판정은 첫 줄에 "CLEAN"(이슈 없음) 또는 "ISSUES"(이후 줄에 각 이슈를 - 로 나열, 최대 5개·각 1줄)로만 출력**한다.
 3. 상세 리뷰 전문은 과제가 지정한 파일(feedback 경로.${a.name})에 저장하라. **반환은 판정 + 이슈 요약만**(본문 금지) — 본문을 반환하면 Director 컨텍스트가 부풋어 한도 초과(1261)한다.
 4. tools allowlist(${tools}) 외 도구는 없다${toolNote(a.capability)}.

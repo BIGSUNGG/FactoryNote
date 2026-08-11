@@ -32,8 +32,8 @@ export interface ChatMessage {
 	at: number;
 }
 
-// --- 그래프 에디터(Stage 2 모듈·클래스) 데이터 모델 ---
-// 코어는 envelope(sections) 만 다루고 노드/엣지 내부는 불투명(react-flow 호환 필드를 그대로 담는다).
+// --- 그래프(Stage 2 모듈·클래스) 데이터 모델 ---
+// 코어는 envelope(sections) 만 다루고 노드/엣지 내부는 불투명(뷰어 렌더 필드를 그대로 담는다).
 /** 그래프 노드(react-flow Node 호환 필드를 자유롭게 포함). */
 export type GraphNode = Record<string, unknown>;
 /** 그래프 엣지(react-flow Edge 호환 필드를 자유롭게 포함). */
@@ -47,7 +47,8 @@ export interface GraphSection {
 	edges: GraphEdge[];
 }
 
-/** 그래프 산출물 전체. F2 부터 Stage 2 md 의 ```factorynote-graph 펜스 안 JSON 으로 직렬화된다. */
+/** 그래프 산출물 전체. 산출물 md 옆 별도 `.json` 파일로 저장되고 md 는
+ * `<!-- graph: <파일명> -->` 참조만 가진다(ADR-016). position 등 좌표 필드 금지 — 뷰어 자동 배치. */
 export interface GraphArtifact {
 	sections: GraphSection[];
 }
@@ -56,8 +57,6 @@ export interface GraphArtifact {
 export interface GateDecision {
 	verdict: GateVerdict;
 	comments: Comment[];
-	/** Stage 2(설계)에서 사용자가 직접 편집한 마크다운 산출물. 직접 펭집 → 에이전트가 채택해 저장(5대 원칙 — 게이트 거쳐 채택). */
-	artifactMd?: string;
 	/** FR-7: 회귀 대상 단계(1..3). 생략 시 종래대로 1단계 회귀. 현재 단계보다 앞으로만(엔진이 clamp). */
 	revertTo?: StageId;
 }

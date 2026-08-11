@@ -70,25 +70,35 @@ test("gate server serves viewer, state, and accepts decision", async () => {
 	if (event.kind === "decision") expect(event.decision.verdict).toBe("confirm");
 });
 
-test("gate /api/state returns Stage 2 design as markdown", async () => {
-	// Stage 2 산물(02-design.md) + stage 2 시드.
+test("gate /api/state returns Stage 2 design md + 동반 그래프 json(ADR-016)", async () => {
+	// Stage 2 산물: md 는 참조 코멘트만, 노드 데이터는 동반 .json.
 	const designMd =
-		"# 설계\n\n## 구조\n\n```factorynote-graph\n" +
-		JSON.stringify({
-			sections: [
-				{ id: "fe", title: "프론트", nodes: [{ id: "UI" }], edges: [] },
-			],
-		}) +
-		"\n```\n\n## 아키텍처 설명\n\n프론트 계층.";
+		"<!-- graph: 02-design-graph.json -->\n# 설계\n\n## 아키텍처 설명\n\n프론트 계층.";
+	const graphJson = JSON.stringify({
+		sections: [{ id: "fe", title: "프론트", nodes: [{ id: "UI" }], edges: [] }],
+	});
 	await writeArtifact(root, "graphdemo", "02-design.md", designMd);
+	await writeArtifact(root, "graphdemo", "02-design-graph.json", graphJson);
 	await saveState(root, { ...initialState("graphdemo"), stage: 2 });
 
 	type StateResp = {
-		artifacts: Array<{ file: string; format: string; md?: string }>;
+		artifacts: Array<{
+			file: string;
+			format: string;
+			md?: string;
+			graph?: { file: string; artifact: { sections: unknown[] } };
+		}>;
 	};
-	const captured: { md: string | undefined; format: string | undefined } = {
+	const captured: {
+		md: string | undefined;
+		format: string | undefined;
+		graphFile: string | undefined;
+		sectionCount: number | undefined;
+	} = {
 		md: undefined,
 		format: undefined,
+		graphFile: undefined,
+		sectionCount: undefined,
 	};
 
 	await runGate({
@@ -103,6 +113,8 @@ test("gate /api/state returns Stage 2 design as markdown", async () => {
 			if (art) {
 				captured.md = art.md;
 				captured.format = art.format;
+				captured.graphFile = art.graph?.file;
+				captured.sectionCount = art.graph?.artifact.sections.length;
 			}
 			await fetch(`${url}/api/decision`, {
 				method: "POST",
@@ -113,8 +125,9 @@ test("gate /api/state returns Stage 2 design as markdown", async () => {
 	});
 
 	expect(captured.format).toBe("markdown");
-	expect(captured.md).toBeTruthy();
-	expect(captured.md).toContain("factorynote-graph");
+	expect(captured.md).toContain("<!-- graph: 02-design-graph.json -->");
+	expect(captured.graphFile).toBe("02-design-graph.json");
+	expect(captured.sectionCount).toBe(1);
 });
 
 test("gate /api/state hides artifacts past current stage on revert", async () => {

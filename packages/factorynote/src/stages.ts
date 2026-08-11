@@ -34,7 +34,7 @@ export const STAGES: readonly StageDefinition[] = [
 		artifactFile: "02-design.md",
 		producesArtifact: true,
 		designPrompt:
-			'시스템을 모듈 단위로 분해하고 모듈 간 의존성을 정의한 뒤, 모듈 내부를 클래스/인터페이스 수준으로 설계하라. 산출물은 **하나의 마크다운 문서**로, 두 절을 순서대로 담는다.\n\n## 구조 — 아래 ```factorynote-graph 펜스 안에 다중 섹션 그래프 JSON({"sections":[{"id","title","nodes","edges"}]})을 담는다. 섹션은 노드 타입으로 구분되는 두 종류: (a) 모듈 관계도 섹션 — 노드={id,label,layer(API|Service|Repository|Util|External),desc}, 엣지={id:`${from}->${to}`,source,target,data:{desc}}; (b) 클래스 구조도 섹션 — 노드는 모듈 그룹({id,type:"group",label,width,height}) 또는 그 안의 클래스({id,type:"class",name,module,attrs:[],methods:[],parentNode}) 이고 엣지는 동일 형식. 모듈 섹션을 먼저, 이어 클래스 섹션. position 은 생략(뷰어 자동 배치). 펜스 안에는 JSON만(마크다운 금지).\n\n## 아키텍처 설명 — 구조의 객체지향 근거(계층 분리·의존 방향·책임 분배)를 prose 로 설명한다. 특히 **객체지향 원칙**(단일 책임·개방-폐쇄·의존 역행 등)에 부합하는지, **확장·유지보수에 유리한지**, **불필요한 관계·모듈·클래스(과잉 추상화·순환 의존·중복 책임)** 가 없는지 스스로 검증하고 그 근거를 담아라.\n\n순환 의존성을 피하고 공용 API를 최소화하라. 코드(구현)는 쓰지 않는다.',
+			'시스템을 모듈 단위로 분해하고 모듈 간 의존성을 정의한 뒤, 모듈 내부를 클래스/인터페이스 수준으로 설계하라. 산출물은 **마크다운 문서 + 별도 그래프 JSON 파일**(두 파일)로 구성한다.\n\n## 그래프 JSON(구조) — 마크다운 본문에 인라인으로 넣지 않고, 산출물 md 와 같은 폴더의 별도 파일에 저장한다. 파일명 = md 파일명에서 `.md` 를 `-graph.json` 으로 바꾼 것(예: draft.md → draft-graph.json). 내용은 다중 섹션 그래프 JSON {"sections":[{"id","title","nodes","edges"}]}. 섹션은 노드 타입으로 구분되는 두 종류: (a) 모듈 관계도 섹션 — 노드={id,label,layer(API|Service|Repository|Util|External),desc}, 엣지={id:`${from}->${to}`,source,target,data:{desc}}; (b) 클래스 구조도 섹션 — 노드는 모듈 그룹({id,type:"group",label}) 또는 그 안의 클래스({id,type:"class",name,module,attrs:[],methods:[],parentNode}) 이고 엣지는 동일 형식. 모듈 섹션을 먼저, 이어 클래스 섹션. **position·width·height 등 좌표·크기 필드는 일체 쓰지 않는다 — 뷰어가 노드 관계 기반 자동 배치한다.**\n\n## 마크다운 본문 — (1) 문서 앞에 그래프 JSON 참조 코멘트 한 줄: `<!-- graph: <json 파일명> -->` (예: `<!-- graph: draft-graph.json -->`). 참조만 둘 뿐 JSON 내용을 본문에 싣지 않는다. (2) 아키텍처 설명: 구조의 객체지향 근거(계층 분리·의존 방향·책임 분배)를 prose 로 설명한다. 특히 **객체지향 원칙**(단일 책임·개방-폐쇄·의존 역행 등)에 부합하는지, **확장·유지보수에 유리한지**, **불필요한 관계·모듈·클래스(과잉 추상화·순환 의존·중복 책임)** 가 없는지 스스로 검증하고 그 근거를 담아라.\n\n순환 의존성을 피하고 공용 API를 최소화하라. 코드(구현)는 쓰지 않는다.',
 	},
 	{
 		id: 3,
@@ -44,7 +44,7 @@ export const STAGES: readonly StageDefinition[] = [
 		artifactFile: "03-implementation-plan.md",
 		producesArtifact: true,
 		designPrompt:
-			"설계를 바탕으로 구현 순서, 의존성, 마일스톤을 정하라. 코드를 쓰기 전 사용자가 전체 로드맵을 확정할 수 있게 단계별로 써라. 의존성 구조를 시각화하는 것이 도움이 되면 ```factorynote-graph 펜스로 그래프를 본문에 내장할 수 있다(선택) — 펜스 내용은 JSON {sections:[{id,title,nodes,edges}]} 형식이어야 한다. (5대 원칙 3 게이트)",
+			"설계를 바탕으로 구현 순서, 의존성, 마일스톤을 정하라. 코드를 쓰기 전 사용자가 전체 로드맵을 확정할 수 있게 단계별로 써라. 의존성 구조를 시각화하는 것이 도움이 되면 그래프를 별도 JSON 파일(md 와 같은 폴더, 파일명 = md 파일명에서 `.md` 를 `-graph.json` 으로 바꾼 것)에 저장하고 본문에 `<!-- graph: <json 파일명> -->` 참조 코멘트를 둘 수 있다(선택) — JSON 형식은 {sections:[{id,title,nodes,edges}]} (Stage 2 와 동일, position 등 좌표 필드 금지). (5대 원칙 3 게이트)",
 	},
 ] as const;
 

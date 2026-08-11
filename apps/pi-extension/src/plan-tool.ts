@@ -6,12 +6,15 @@
 import {
 	CHILD_SPAWN_OPTIONS,
 	DEFAULT_MAX_LOOPS,
+	GRAPH_REF_RE,
 	STAGES,
 	applyVerdict,
 	atLoopCeiling,
 	clampReportInput,
 	designTask,
 	feedbackMenuForStage,
+	graphJsonNameFor,
+	graphRefFile,
 	initialState,
 	invalidateArtifactsAfter,
 	isComplete,
@@ -339,7 +342,17 @@ async function runOpenGate(
 		appendAgentChat(root, feature, input.chatResponse);
 	}
 	if (!resume && def.artifactFile) {
-		await writeArtifact(root, feature, def.artifactFile, artifactToWrite);
+		await writeArtifact(
+			root,
+			feature,
+			def.artifactFile,
+			await promoteGraphArtifact(
+				root,
+				feature,
+				def.artifactFile,
+				artifactToWrite,
+			),
+		);
 	}
 
 	state = markArtifactReady(state);
@@ -408,10 +421,6 @@ async function runOpenGate(
 		}
 
 		decision = event.decision;
-
-		if (decision.artifactMd !== undefined && def.artifactFile) {
-			await writeArtifact(root, feature, def.artifactFile, decision.artifactMd);
-		}
 	}
 
 	state = applyVerdict(state, decision);
@@ -455,6 +464,28 @@ async function runOpenGate(
 		gateResult: decision,
 		message,
 	};
+}
+
+/** 게이트 오픈 시 draft 의 그래프 json 을 산출물과 같은 stageN/ 폴더로 승격(ADR-016).
+ * md 의 참조 코멘트를 최종 json 파일명으로 다시 쓰고, 원본 json 을 동반 저장한다.
+ * 참조 없거나 원본 json 없으면 md 만 반환(그래프 없는 산출물·참조 불량 둘 다 안전). */
+async function promoteGraphArtifact(
+	root: string,
+	feature: string,
+	artifactFile: string,
+	md: string,
+): Promise<string> {
+	const ref = graphRefFile(md);
+	if (!ref) return md;
+	const finalJson = graphJsonNameFor(artifactFile);
+	const rewritten = md.replace(GRAPH_REF_RE, `<!-- graph: ${finalJson} -->`);
+	if (ref !== finalJson) {
+		const raw = await readArtifact(root, feature, ref);
+		if (raw !== undefined) {
+			await writeArtifact(root, feature, finalJson, raw);
+		}
+	}
+	return rewritten;
 }
 
 function complete(stage: number): DrivePlanOutput {

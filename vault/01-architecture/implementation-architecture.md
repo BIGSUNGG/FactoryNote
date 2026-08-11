@@ -59,10 +59,10 @@ Pi 와 코어를 잇는 유일한 계층. pi가 jiti로 TS 를 직접 로드한�
 
 빌드 산출물 `dist/` 가 게이트 서버를 통해 서빙된다.
 
-- **`App.jsx`** — **폴링 상태머신**(loading/reviewing/preparing/closed). `/api/state` 의 `gateOpen` 으로 구동: `gateOpen=true` 면 현 단계 렌더(Stage 2 는 `GraphStage`, 나머지는 `PlanPage`) + 게이트 바, `false` 면 "다음 준비 중…" 화면으로 1초 폴링. 결정 POST 후 preparing 전환 → `gateOpen` 이 다시 true 가 되면(preparing→reviewing) **같은 탭에서 다음 단계로 교체 + 알림**(Web Notification + 타이틀 점멸 + `window.focus`, 백그라운드 탭 대응). 서버 종료/`done` 시 마감 화면.
-- **`PlanPage.jsx`** — 마크다운 단계(1/2/5/6). 마크다운 → 블록(`mdToBlocks`) 렌더 + 블록/셀/드래그 영역 코멘트 + pending 큐([[core-features]] 사양). 게이트 버튼 → `onGate({verdict, comments})`.
-- **`GraphStage.jsx`** — 그래프 단계(2). 다중 섹션 인터랙티브 에디터(react-flow): `/api/state` 의 `graphSections` 로 데이터 주동 렌더 + 섹션 추가·이름·삭제 + 노드/엣지 CRUD(우클릭 메뉴) + 상세 패널 편집 + 클래스 parent-child·`NodeResizer` + 코멘트. 게이트 제출 시 편집된 그래프 전체(`graphSections`)를 `onGate` 로 전달(직접 편집 → 에이전트 채택, [[ADR-006-graph-editor]]).
-- **`GateBar.jsx`** — 하단 게이트 바: **✓ 확정**(confirm) / **✎ 수정 지시**(modify, pending 코멘트 전송) / **← 정정**(revert). `PlanPage`·`GraphStage` 공용.
+- **`App.jsx`** — **폴링 상태머신**(loading/reviewing/preparing/closed). `/api/state` 의 `gateOpen` 으로 구동: `gateOpen=true` 면 현 단계 렌더(3단계 모두 `PlanPage` 동일 문서 경로) + 게이트 바, `false` 면 "다음 준비 중…" 화면으로 1초 폴링. 결정 POST 후 preparing 전환 → `gateOpen` 이 다시 true 가 되면(preparing→reviewing) **같은 탭에서 다음 단계로 교체 + 알림**(Web Notification + 타이틀 점멸 + `window.focus`, 백그라운드 탭 대응). 서버 종료/`done` 시 마감 화면.
+- **`PlanPage.jsx`** — 마크다운 단계(1/2/3 공통). 마크다운 → 블록(`mdToBlocks`) 렌더 + 블록/셀/드래그 영역 코멘트 + pending 큐([[core-features]] 사양). 게이트 버튼 → `onGate({verdict, comments})`. 그래프는 md 의 `<!-- graph: <파일명> -->` 참조 블록으로 렌더(아래 `GraphView`).
+- **`GraphView.jsx`** — 읽기 전용 자동 배치 그래프(react-flow). 동반 `.json`(`/api/state` 의 `artifacts[].graph`)의 sections 를 `layoutGraph`(layer/관계 방향 행 배치 + barycenter 정돈 + 그룹 포함)로 배치해 문서 속 블록으로 렌더. 드래그·연결·편집 없음 — 수정은 채팅으로([[ADR-016-graph-json-externalization]]).
+- **`GateBar.jsx`** — 하단 게이트 바: **✓ 확정**(confirm) / **✎ 수정 지시**(modify, pending 코멘트 전송) / **← 정정**(revert).
 
 ## 런타임 데이터 흐름
 
@@ -130,8 +130,9 @@ sequenceDiagram
   "feedbackChecklist": ["…"],
   "artifacts": [
     { "stage": 1, "name": "요청 이해 · 동작 시나리오", "file": "01-understanding-and-scenarios.md", "format": "markdown", "md": "# 요구사항·시나리오\n…" },
-    { "stage": 2, "name": "모듈 · 클래스 설계", "file": "02-design.json", "format": "nodes-edges",
-      "graphSections": [{ "id": "frontend", "title": "프론트엔드", "nodes": [{ "id": "UI", "data": { "label": "UI" } }], "edges": [] }] }
+    { "stage": 2, "name": "모듈 · 클래스 설계", "file": "02-design.md", "format": "markdown",
+      "md": "<!-- graph: 02-design-graph.json -->\n# 설계\n…",
+      "graph": { "file": "02-design-graph.json", "artifact": { "sections": [{ "id": "frontend", "title": "프론트엔드", "nodes": […], "edges": […] }] } } }
   ]
 }
 ```
@@ -139,23 +140,21 @@ sequenceDiagram
 ### `POST /api/decision` ← `GateDecision`
 
 ```json
-{ "verdict": "modify", "comments": [ { "blockId": "b3", "quote": "일부 텍스트", "text": "더 구체적으로" } ],
-  "graphSections": [ { "id": "frontend", "title": "프론트엔드", "nodes": […], "edges": […] } ] }
+{ "verdict": "modify", "comments": [ { "blockId": "b3", "quote": "일부 텍스트", "text": "더 구체적으로" } ] }
 ```
 
 - `verdict`: `confirm`(다음 단계) · `modify`(현 단계 재작성, 코멘트 전달) · `revert`(회귀 — `revertTo` 생략 시 1단계, 지정 시 해당 단계 점프, 엔진이 `1..현단계-1` 로 clamp).
-- `comments`: 블록(`blockId`) / 드래그 영역(`quote`) / 셀 공통. modify 일 때만 의미.
-- `graphSections`: 그래프 단계(Stage 2)에서 사용자가 편집한 그래프 전체. `drivePlan` 이 이를 `.json` 산출물로 저장(직접 편집 → 에이전트 채택).
+- `comments`: 블록(`blockId`) / 드래그 영역(`quote`) / 셀 공통. modify 일 때만 의미. (그래프 직접 편집·`artifactMd` 역동기화는 폐지 — 수정은 채팅으로, [[ADR-016-graph-json-externalization]])
 - `revertTo?`: FR-7. 뷰어 회귀대상 Stage 셀렉터가 전송(1..3). gate-server 가 forward(과거 drop P0 수정됨) → 엔진 clamp + `invalidateArtifactsAfter(state.stage)` 로 대상 이후 산출물 무효화.
 
 ### `factorynote_plan` 도구 — `drivePlan` 입출력
 
-- **입력**: `{ feature: string, artifactMd?: string }` (도구 파라미터). 내부적으로 `root`·`viewerDistDir`·`signal` 추가.
+- **입력**: `{ feature: string }` (도구 파라미터) + `designArtifact`·`feedbackResult`·`chatResponse`(경로/판정/답변). 내부적으로 `root`·`viewerDistDir`·`signal` 추가.
 - **출력(에이전트로)**: `{ done, stage, stageName, needArtifact, designPrompt, feedbackChecklist, gateResult, message }`. `message` 가 다음 행동을 직접 지시(modify→재작성, confirm→다음 산출물 작성, done→종료).
 
-### 그래프 산출물(Stage 2) — `.json`
+### 그래프 산출물(Stage 2·선택 Stage 3) — md + 동반 `.json`
 
-그래프 단계(모듈·클래스) 산출물은 마크다운이 아닌 **다중 섹션 그래프 JSON** (`02-design.json`):
+그래프 데이터는 산출물 md 옆 별도 JSON 파일(`stageN/<산출물 base>-graph.json`)에 저장하고, md 는 `<!-- graph: <파일명> -->` 참조 코멘트만 가진다([[ADR-016-graph-json-externalization]]):
 
 ```json
 {
@@ -167,9 +166,9 @@ sequenceDiagram
 }
 ```
 
-- 섹션 = 독립 그래프(교차 관계는 별도 섹션). 에이전트는 의미 구조만(`position` 생략 가능 → 뷰어 자동 배치).
-- `core/graph.ts`(`parseGraphArtifact`)가 envelope(`sections`) 검증; 노드/엣지는 react-flow 호환 필드를 불투명하게 담는다.
-- 직접 편집 → 채택: 게이트 결정의 `graphSections` 를 `drivePlan` 이 그대로 `.json` 산출물로 저장([[ADR-006-graph-editor]])。
+- 섹션 = 독립 그래프(모듈 관계도 + 클래스 구조도). **`position`·`width`·`height` 금지** — 좌표는 뷰어 `layoutGraph` 자동 배치가 유일한 출처.
+- `core/graph.ts`(`parseGraphArtifact`·`graphRefFile`·`graphJsonNameFor`)가 envelope/참조 검증; 노드/엣지는 렌더 필드를 불투명하게 담는다.
+- 게이트 오픈 시 `drivePlan` 이 draft 의 참조·json 을 산출물 폴더로 승격(참조를 최종 파일명으로 재작성). 회귀 시 md 와 동반 json 함께 무효화.
 
 ## 설치 레이아웃 — `~/.pi/agent/extensions/factorynote/`
 
@@ -199,8 +198,8 @@ factorynote/
 | 산출물/상태 위치 | `.factorynote/<feature>/` 통합, 단계 산출물은 `stageN/` 서브폴더 | 시드 부합 + gitignore 1건; [[ADR-015-stage-artifact-folders]] |
 | 에이전트 티어 | **Tier 1**(Design↔Feedback 자식 스폰 루프, 유일 경로) | [[ADR-009-tier-1-agent-orchestration]]; Tier 0·NFR-7 폐지 |
 | 제어 vs 판단 | 제어·영속=코드, 산출물=LLM | 하이브리드 원칙(NFR-4) |
-| 단계별 렌더 | 1/3=마크다운(PlanPage), 2=다중 섹션 그래프(GraphStage) | [[ADR-006-graph-editor]] · [[ADR-008-3-stage-pipeline]] |
-| 그래프 편집 | 직접 편집 → 에이전트 채택(graphSections) | 목업 UX + 5대 원칙(게이트 거쳐 채택) |
+| 단계별 렌더 | 3단계 모두 동일 문서 경로(PlanPage), 그래프는 읽기 전용 자동 배치 블록(GraphView) | [[ADR-016-graph-json-externalization]] · [[ADR-008-3-stage-pipeline]] |
+| 그래프 데이터 | md 옆 동반 `.json` + `<!-- graph: -->` 참조, position 금지·자동 배치 | [[ADR-016-graph-json-externalization]] |
 | 회귀(revert) | **다단계 점프**(`revertTo` + clamp `1..현단계-1`) + 대상 이후 산출물 무효화 | FR-7; 뷰어→gate-server→엔진 seam |
 | 반복 상한 | modify@ceiling 시 **경성 에스컬레이션**(잔존 이슈 + 재작성/회귀/재협의 옵션) | FR-2(`MAX_LOOPS`/`atLoopCeiling`) |
 | 게이트 만료 | `timeoutMs`(기본 30min) + `settled` 가드 → 좀비 게이트 자동 modify 복귀 | #4 신뢰성 |

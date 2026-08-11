@@ -208,30 +208,45 @@ test("Tier 1: feedback 이슈 → Design 수정 1회 → gate(개선판 저장, 
 	).toBe(drafts[1]);
 });
 
-test("Tier 1: 게이트 사용자 편집(artifactMd) 채택 → 02-design.md 저장 + stage 3", async () => {
-	await saveState(root, { ...initialState("graphfeat"), stage: 2 });
-	const draftMd = "# 설계\n\n초안 본문.\n";
-	const editedMd = "# 설계\n\n사용자가 게이트에서 고친 본문.\n";
-	let dc = 0;
-	const out = await driveUntilGate({
-		feature: "graphfeat",
-		nextDraft: () => (dc++ === 0 ? draftMd : null),
-		nextFeedback: () => "CLEAN",
-		decision: async (url) => {
-			await fetch(`${url}/api/decision`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					verdict: "confirm",
-					comments: [],
-					artifactMd: editedMd,
-				}),
-			});
-		},
+test("ADR-016: 그래프 json 승격 — draft 참조+json → stage2/02-design-graph.json + 참조 재작성 + confirm → stage 3", async () => {
+	const feat = "graphfeat";
+	await saveState(root, { ...initialState(feat), stage: 2 });
+	const base = {
+		root,
+		viewerDistDir: VIEWER_DIST,
+		feature: feat,
+		open: false,
+	} as const;
+	const draftMd =
+		"<!-- graph: draft-graph.json -->\n# 설계\n\n아키텍처 설명.\n";
+	const graphJson = JSON.stringify({
+		sections: [{ id: "s1", title: "모듈 관계도", nodes: [], edges: [] }],
+	});
+	const onReady = postDecision("confirm");
+
+	let out = await drivePlan({ ...base, onReady });
+	expect(out.nextAction).toBe("spawn-design");
+	await writeFile(out.draftPath!, draftMd, "utf8");
+	await writeFile(join(root, feat, "draft-graph.json"), graphJson, "utf8");
+
+	out = await drivePlan({ ...base, designArtifact: out.draftPath!, onReady });
+	expect(out.nextAction).toBe("spawn-feedback");
+	out = await drivePlan({
+		...base,
+		designArtifact: out.draftPath!,
+		feedbackResult: "CLEAN",
+		onReady,
 	});
 	expect(out.gateResult?.verdict).toBe("confirm");
 	expect(out.stage).toBe(3);
-	expect(await readArtifact(root, "graphfeat", "02-design.md")).toBe(editedMd);
+
+	// 산출물 md 는 최종 json 파일명을 참조하고, json 이 산출물과 같은 stage2/ 에 승격.
+	const promoted = await readArtifact(root, feat, "02-design.md");
+	expect(promoted).toContain("<!-- graph: 02-design-graph.json -->");
+	expect(promoted).not.toContain("draft-graph.json");
+	expect(await readArtifact(root, feat, "02-design-graph.json")).toBe(
+		graphJson,
+	);
 });
 
 test("#3 gateOpen resume: 게이트 열린 채 재시작 → 산출물 보존 + 재오픈", async () => {

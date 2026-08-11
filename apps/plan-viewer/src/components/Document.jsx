@@ -12,8 +12,7 @@ export default function Document({
 	onActivate,
 	onRangeComment,
 	activeTargetId,
-	onGraphChange,
-	graphEdits,
+	graphData,
 }) {
 	const skipRef = useRef(false); // 직전 mouseup 이 드래그였으면 뒤따르는 click 무시
 	const mainRef = useRef(null);
@@ -60,8 +59,7 @@ export default function Document({
 					onAddComment={onAddComment}
 					onActivate={onActivate}
 					activeTargetId={activeTargetId}
-					onGraphChange={onGraphChange}
-					graphEdits={graphEdits}
+					graphData={graphData}
 				/>
 			))}
 		</main>

@@ -63,6 +63,7 @@ export default function PlanPage({
 	onReview,
 	stageLabels = {},
 	onActiveBlock,
+	graphData = {},
 }) {
 	const label = STAGE_DEFS[stage - 1].label;
 	const blocks = useMemo(() => mdToBlocks(mdSource), [mdSource]);
@@ -190,6 +191,7 @@ export default function PlanPage({
 					onActivate={activate}
 					onRangeComment={onRangeComment}
 					activeTargetId={activeTargetId}
+					graphData={graphData}
 				/>
 			</div>
 			<GateBar

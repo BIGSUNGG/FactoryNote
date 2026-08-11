@@ -9,6 +9,22 @@ tags: [development, dev-log]
 
 ## 2026-08-11
 
+### 그래프 JSON 분리 + 렌더 통일 + 자동 배치 ([[ADR-016-graph-json-externalization]])
+
+**맥락**: 사용자 요청 3종 — (1) 스테이지마다 문서 출력 방식이 다름(Stage 2 만 전용 에디터), (2) 그래프 노드 정보가 md 안에 인라인 임베드, (3) 수동 노드 드래그 배치의 겹침·모듈 경계 이탈.
+
+**작업**:
+
+- core: `graph.ts` 펜스 함수 제거 → `graphRefFile`·`graphJsonNameFor` 참조 프로토콜 추가. `persistence.stageSubdir` 가 동반 json 을 stageN/ 로 라우팅, `invalidateArtifactsAfter` 가 md+json 동반 삭제. `GateDecision.artifactMd` 제거. Stage 2·3 designPrompt 2파일 규약 + position 금지로 재작성.
+- pi-extension: `plan-tool.promoteGraphArtifact` — 게이트 오픈 시 draft-graph.json 을 `stageN/<산출물>-graph.json` 으로 승격 + 참조 재작성. gate-server 가 `/api/state` artifacts[] 에 동반 json 파싱(`graph: {file, artifact}`) 포함, decision 의 artifactMd 파싱 제거. Feedback 과제·에이전트 파일이 `<!-- graph: -->` 참조 json 동반 검토 지시(gen-feedback-agents 재생성).
+- viewer: `DesignStage.jsx`·`GraphEditor.jsx`·`designMd.js`·`graphNormalize.js` 삭제. App.jsx 스테이지 분기 제거(3단계 모두 PlanPage). `mdToBlocks` 가 `<!-- graph: -->` 코멘트 → graph 블록. 신규 `GraphView.jsx`(읽기 전용) + `layoutGraph.js`(layer·위상 행 + barycenter, 클래스 ⊂ 모듈 그룹, 겹침 0, 결정적).
+- 테스트: layoutGraph(겹침 0·그룹 포함·결정성·position 무시) 10건, graph 참조 파싱, plan-tool 그래프 승격 종단, gate-server 그래프 서빙. 전체 89 pass. `bun run build` 통과 + 설치 확장 배포.
+- 문서: ADR-016 신규, ADR-006·010 superseded, implementation-architecture·usage-guide·Changelog 갱신.
+
+**결정 포인트(사용자 확정)**: 직접편집 완전 제거(채팅으로만 수정) · position 완전 제거 · layer·관계 방향 정돈 · 기존 펜스 폴백 없음(완전 제거).
+
+**참고**: graph capability Feedback 에이전트의 edit 도구는 유지하되 지시를 '이슈 지적만'으로 변경(수정은 Design 재작성 담당).
+
 ### 단계 산출물 stageN/ 폴더 배치 ([[ADR-015-stage-artifact-folders]])
 
 **맥락**: `<root>/<feature>/` 에 평평하게 쌓이던 단계 산출물을 단계별 폴더로 분리해 달라는 사용자 요청.

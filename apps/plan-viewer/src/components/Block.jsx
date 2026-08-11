@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import GraphEditor from "./GraphEditor";
+import GraphView from "./GraphView";
 
 // 마크다운 블록 타입별 내용 렌더링. inline 포맷은 html로 변환 → dangerouslySetInnerHTML.
 function BlockContent({
@@ -9,8 +9,7 @@ function BlockContent({
 	onAddComment,
 	activeTargetId,
 	onActivate,
-	onGraphChange,
-	graphEdits,
+	graphData,
 }) {
 	switch (block.type) {
 		case "heading": {
@@ -60,10 +59,10 @@ function BlockContent({
 				</div>
 			);
 		case "graph": {
-			// md 내 factorynote-graph 펜스 → 인라인 그래프 에디터. 캔버스 조작은
-			// 상위(Document) 클릭/드래그 코멘트 핸들러로 전파되지 않게 막고,
-			// 헤더 영역만 블록 코멘트 활성화(텍스트 블록과 동일 방식)에 쓴다.
-			const sections = graphEdits?.[block.fenceIndex] ?? block.sections;
+			// md 의 `<!-- graph: <파일명> -->` 참조 → 동반 .json 섹션을 읽기 전용
+			// 자동 배치로 렌더(ADR-016). 캔버스 조작은 상위(Document) 코멘트
+			// 핸들러로 전파되지 않게 막고, 헤더만 블록 코멘트 활성화에 쓴다.
+			const sections = graphData?.[block.graphFile];
 			return (
 				<div className="block-content block-graph">
 					<div className="block-graph-head" title="클릭하여 코멘트">
@@ -74,10 +73,13 @@ function BlockContent({
 						onClick={(e) => e.stopPropagation()}
 						onMouseUp={(e) => e.stopPropagation()}
 					>
-						<GraphEditor
-							sections={sections}
-							onChange={(s) => onGraphChange?.(block.fenceIndex, s)}
-						/>
+						{sections ? (
+							<GraphView sections={sections} />
+						) : (
+							<div className="empty">
+								그래프 데이터({block.graphFile})를 찾을 수 없습니다.
+							</div>
+						)}
 					</div>
 				</div>
 			);
@@ -237,8 +239,7 @@ export default function Block({
 	onAddComment,
 	onActivate,
 	activeTargetId,
-	onGraphChange,
-	graphEdits,
+	graphData,
 }) {
 	const [draft, setDraft] = useState("");
 
@@ -271,8 +272,7 @@ export default function Block({
 				onAddComment={onAddComment}
 				activeTargetId={activeTargetId}
 				onActivate={onActivate}
-				onGraphChange={onGraphChange}
-				graphEdits={graphEdits}
+				graphData={graphData}
 			/>
 
 			{pending.length > 0 && (

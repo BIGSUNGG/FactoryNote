@@ -1,6 +1,6 @@
 ---
-status: accepted
-updated: 2026-08-06
+status: superseded
+updated: 2026-08-11
 tags: [adr, stage-2, design, markdown, data-model, viewer]
 ---
 
@@ -8,7 +8,7 @@ tags: [adr, stage-2, design, markdown, data-model, viewer]
 
 ## 상태
 
-accepted ([[ADR-006-graph-editor]]의 **데이터 모델을 보강** — 그래프 에디터 UX·채택 원칙은 유지, 저장 포맷만 JSON→md 임베드로 변경)
+superseded by [[ADR-016-graph-json-externalization]] — **마크다운 단일진실(산출물 = md) 원칙은 유지**하되, 인라인 ```` ```factorynote-graph ```` 펜스 임베드·역동기화(`applyStructureToMarkdown`·`artifactMd`)는 폐지. 그래프 구조는 md 옆 동반 `.json` 파일 + `<!-- graph: -->` 참조로 분리.
 
 ## 날짜
 

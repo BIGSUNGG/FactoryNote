@@ -16,11 +16,13 @@ function inlineHtml(tok) {
 }
 
 // 마크다운 소스 → 블록 배열. 각 블록이 코멘트 대상(id = b{인덱스}).
+// 그래프 JSON 참조 코멘트(`<!-- graph: <파일명> -->`, ADR-016). 본문에 인라인 JSON 없음.
+const GRAPH_REF_RE = /<!--\s*graph:\s*([\w.-]+)\s*-->/;
+
 export function mdToBlocks(src) {
 	const tokens = md.parse(src, {});
 	const blocks = [];
 	const bid = () => `b${blocks.length}`;
-	let graphFenceCount = 0; // factorynote-graph 펜스 순번(왕복 직렬화용)
 	let i = 0;
 
 	while (i < tokens.length) {
@@ -62,28 +64,12 @@ export function mdToBlocks(src) {
 			i += 3;
 		} else if (t.type === "fence" || t.type === "code_block") {
 			const lang = (t.info || "").trim();
-			// factorynote-graph 펜스 → 그래프 블록(인터랙티브 에디터 렌더 대상).
-			// 내용은 JSON {sections:[{id,title,nodes,edges}]} 형식. 파싱 실패 시 code 블록으로 폴백.
-			let graphSections = null;
-			if (t.type === "fence" && lang === "factorynote-graph") {
-				try {
-					const parsed = JSON.parse(t.content);
-					if (parsed && Array.isArray(parsed.sections))
-						graphSections = parsed.sections;
-				} catch {
-					/* malformed fence → code fallback */
-				}
-			}
-			if (graphSections) {
-				blocks.push({
-					id: bid(),
-					type: "graph",
-					fenceIndex: graphFenceCount++,
-					sections: graphSections,
-				});
-			} else {
-				blocks.push({ id: bid(), type: "code", lang, code: t.content });
-			}
+			blocks.push({ id: bid(), type: "code", lang, code: t.content });
+			i += 1;
+		} else if (t.type === "html_block") {
+			// 그래프 참조 코멘트 → 그래프 블록(실제 데이터는 동반 .json, ADR-016).
+			const m = (t.content || "").match(GRAPH_REF_RE);
+			if (m) blocks.push({ id: bid(), type: "graph", graphFile: m[1] });
 			i += 1;
 		} else if (t.type === "hr") {
 			blocks.push({ id: bid(), type: "hr" });
@@ -163,24 +149,4 @@ export function mdToBlocks(src) {
 		}
 	}
 	return blocks;
-}
-
-/**
- * md 소스의 N번째(0-base) factorynote-graph 펜스 내용만 newContent 로 교체한다.
- * 나머지 md 바이트는 불변 — 그래프 편집 결과를 원본 문서에 정확히 반영(왕복 직렬화).
- * fenceIndex 가 없으면 원본을 그대로 반환한다.
- */
-export function replaceGraphFence(md, fenceIndex, newContent) {
-	const re = /```factorynote-graph[^\n]*\n([\s\S]*?)```/g;
-	let count = 0;
-	let m;
-	while ((m = re.exec(md)) !== null) {
-		if (count === fenceIndex) {
-			const before = md.slice(0, m.index);
-			const after = md.slice(m.index + m[0].length);
-			return before + "```factorynote-graph\n" + newContent + "\n```" + after;
-		}
-		count++;
-	}
-	return md; // 해당 펜스 없음 — 원본 유지
 }

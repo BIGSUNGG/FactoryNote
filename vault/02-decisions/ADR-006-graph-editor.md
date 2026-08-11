@@ -1,6 +1,6 @@
 ---
-status: accepted
-updated: 2026-08-06
+status: superseded
+updated: 2026-08-11
 tags: [adr, graph-editor, viewer, stage-3, stage-4, data-model]
 ---
 
@@ -8,7 +8,7 @@ tags: [adr, graph-editor, viewer, stage-3, stage-4, data-model]
 
 ## 상태
 
-accepted (데이터 모델은 [[ADR-010-md-design-stage]] 가 보강 — Stage 2 저장 포맷 JSON→md 임베드. 그래프 에디터 UX·채택 원칙은 본 ADR 유지)
+superseded by [[ADR-016-graph-json-externalization]] — 그래프 직접편집(드래그·CRUD·역동기화) 폐지, 전 단계 동일 문서 렌더 + 읽기 전용 자동 배치. 데이터 모델(sections envelope)은 [[ADR-016-graph-json-externalization]] 이 외부 .json 으로 계승.
 
 ## 날짜
 

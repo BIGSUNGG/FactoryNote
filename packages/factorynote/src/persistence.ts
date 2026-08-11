@@ -10,6 +10,7 @@ import {
 	unlink,
 } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { graphJsonNameFor } from "./graph.ts";
 import { STAGES } from "./stages.ts";
 import type { PipelineState, ValidThrough } from "./types.ts";
 
@@ -22,10 +23,17 @@ export function statePath(root: string, feature: string): string {
 	return join(featureDir(root, feature), "state.json");
 }
 
-/** STAGES 에 등록된 단계 산출물 파일명 → stageN/ 서브폴더. 그 외(보조 파일)는 feature 루트. */
+/** STAGES 에 등록된 단계 산출물 파일명(및 그 동반 그래프 json) → stageN/ 서브폴더.
+ * 그 외(보조 파일)는 feature 루트. 동반 json: `<산출물명 base>-graph.json`(ADR-016). */
 function stageSubdir(file: string): string {
 	const stage = STAGES.find((s) => s.artifactFile === file);
-	return stage ? `stage${stage.id}` : "";
+	if (stage) return `stage${stage.id}`;
+	if (file.endsWith("-graph.json")) {
+		const md = file.slice(0, -"-graph.json".length) + ".md";
+		const owner = STAGES.find((s) => s.artifactFile === md);
+		if (owner) return `stage${owner.id}`;
+	}
+	return "";
 }
 
 export function artifactPath(
@@ -151,13 +159,18 @@ export async function invalidateArtifactsAfter(
 	const stale = STAGES.filter(
 		(s) => s.artifactFile !== null && s.id > afterStage,
 	);
+	const ignoreEnoent = (err: unknown) => {
+		if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+	};
 	await Promise.all(
-		stale.map((s) =>
-			unlink(artifactPath(root, feature, s.artifactFile as string)).catch(
-				(err) => {
-					if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
-				},
-			),
-		),
+		stale.flatMap((s) => {
+			const md = s.artifactFile as string;
+			const json = graphJsonNameFor(md);
+			return [
+				unlink(artifactPath(root, feature, md)).catch(ignoreEnoent),
+				// 동반 그래프 json 도 함께 무효화(ADR-016).
+				unlink(artifactPath(root, feature, json)).catch(ignoreEnoent),
+			];
+		}),
 	);
 }
