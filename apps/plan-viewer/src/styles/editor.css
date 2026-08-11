@@ -1,0 +1,140 @@
+/* 클래스 에디터 노드 */
+.rf-class {
+	border: 1.5px solid var(--text);
+	border-radius: var(--radius);
+	background: var(--surface);
+	font-size: 11px;
+	min-width: 150px;
+	overflow: hidden;
+	cursor: grab;
+}
+.rf-class:active {
+	cursor: grabbing;
+}
+.rf-class-name {
+	font-family: var(--mono);
+	font-weight: 700;
+	padding: 4px 8px;
+	border-bottom: 1px solid var(--border);
+	text-align: center;
+}
+.rf-class-module {
+	font-size: 9px;
+	color: var(--muted);
+	text-align: center;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	padding: 0 8px 3px;
+}
+.rf-class-section {
+	padding: 4px 8px;
+	border-top: 1px dashed var(--border);
+}
+.rf-class-attr {
+	font-family: var(--mono);
+	color: var(--muted);
+	padding: 1px 0;
+}
+.rf-class-method {
+	font-family: var(--mono);
+	padding: 1px 0;
+}
+.edge-textarea {
+	width: 100%;
+	padding: var(--s2);
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius-sm);
+	font-family: var(--mono);
+	font-size: 12px;
+	resize: vertical;
+}
+.edge-textarea:focus {
+	outline: none;
+	border-color: var(--text);
+}
+
+/* 모듈 그룹(부모) 박스 — 클래스를 감싸는 컨테이너 */
+.rf-modgroup {
+	width: 100%;
+	height: 100%;
+	border: 1.5px dashed var(--text);
+	border-radius: var(--radius);
+	background: rgba(17, 24, 39, 0.02);
+}
+.rf-modgroup-label {
+	position: absolute;
+	top: -10px;
+	left: 12px;
+	background: var(--surface);
+	padding: 0 6px;
+	font-size: 10px;
+	font-family: var(--mono);
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--text);
+}
+
+/* 다중 섹션 탭 (GraphStage — Stage 3/4) */
+.section-bar {
+	display: flex;
+	align-items: center;
+	gap: var(--s2);
+	padding: var(--s2) var(--s4);
+	border-bottom: 1px solid var(--border);
+	background: var(--surface);
+	overflow-x: auto;
+}
+.sec-tab {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--s1);
+	padding: var(--s1) var(--s2);
+	border: 1px solid var(--border);
+	border-radius: var(--radius-sm);
+	background: var(--surface);
+	cursor: pointer;
+	font-size: 13px;
+	color: var(--text);
+}
+.sec-tab.active {
+	border-color: var(--text);
+	background: var(--primary-tint);
+	font-weight: 600;
+}
+.sec-title-input {
+	border: none;
+	background: transparent;
+	font: inherit;
+	color: var(--text);
+	width: 9em;
+	outline: none;
+}
+.sec-del {
+	color: var(--muted);
+	font-size: 11px;
+	padding: 0 2px;
+	cursor: pointer;
+}
+.sec-del:hover {
+	color: var(--text);
+}
+.sec-add {
+	padding: var(--s1) var(--s2);
+	border: 1px dashed var(--border-strong);
+	border-radius: var(--radius-sm);
+	background: transparent;
+	color: var(--muted);
+	cursor: pointer;
+	font-size: 13px;
+}
+.sec-add:hover {
+	color: var(--text);
+	border-color: var(--text);
+}
+/* 빈 상태 텍스트(GraphStage 상세 패널 등) — 목업에 누락되어 있던 폴백 */
+.empty {
+	color: var(--muted);
+	font-size: 13px;
+	line-height: 1.5;
+}

@@ -1,0 +1,128 @@
+/* 코멘트 리스트 / 입력 */
+.comment-list {
+	margin-top: var(--s2);
+}
+.comment-item {
+	font-size: 13px;
+	color: var(--text);
+	padding: 4px 0;
+	border-top: 1px dashed var(--border);
+}
+.comment-item:first-child {
+	border-top: none;
+}
+.comment-input-row {
+	display: flex;
+	gap: var(--s2);
+	margin-top: var(--s2);
+}
+.comment-input-row input {
+	flex: 1;
+	padding: var(--s2);
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius-sm);
+	font: inherit;
+	font-size: 13px;
+}
+.comment-input-row input:focus {
+	outline: none;
+	border-color: var(--text);
+}
+.comment-input-row button {
+	padding: var(--s2) var(--s3);
+	border: 1px solid var(--border-strong);
+	background: var(--surface);
+	border-radius: var(--radius-sm);
+	font: inherit;
+	font-size: 13px;
+	cursor: pointer;
+}
+.comment-input-row button.add-btn {
+	background: var(--text);
+	color: var(--on-color);
+	border-color: var(--text);
+}
+button.btn:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+.gate {
+	position: fixed;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	display: flex;
+	align-items: center;
+	gap: var(--s3);
+	padding: var(--s3) var(--s5);
+	background: var(--surface);
+	border-top: 1px solid var(--border);
+	box-shadow: 0 -2px 8px rgba(17, 24, 39, 0.04);
+}
+.gate .label {
+	font-size: 13px;
+	color: var(--muted);
+}
+.gate .label b {
+	color: var(--text);
+}
+.btn {
+	padding: var(--s2) var(--s4);
+	border-radius: var(--radius);
+	border: 1px solid var(--border-strong);
+	background: var(--surface);
+	font: inherit;
+	font-weight: 500;
+	cursor: pointer;
+	font-size: 14px;
+	transition: 0.12s;
+}
+.btn:hover {
+	border-color: var(--text);
+}
+.btn.primary {
+	background: var(--primary);
+	color: var(--on-color);
+	border-color: var(--primary);
+}
+.btn.primary:hover {
+	opacity: 0.9;
+}
+.btn.secondary {
+	background: var(--secondary);
+	color: var(--on-color);
+	border-color: var(--secondary);
+}
+.gate .spacer {
+	margin-left: auto;
+}
+
+/* === 검토 코멘트 (인라인 표시 — 코멘트는 실시간 채팅 /api/chat 로 즉시 전달) === */
+/* hover-to-comment 핸들: 평소 숨김, req hover 또는 코멘트 있으면 노출 */
+
+/* 표 셀 단위 코멘트 */
+.tcell {
+	position: relative;
+	cursor: pointer;
+	transition: background 0.1s;
+}
+.tcell:hover {
+	background: rgba(17, 24, 39, 0.06);
+}
+.tcell.has-comment {
+	background: rgba(17, 24, 39, 0.05);
+}
+.tcell.active {
+	background: rgba(17, 24, 39, 0.09);
+	outline: 2px solid var(--text);
+	outline-offset: -2px;
+}
+.tcell-mark {
+	position: absolute;
+	top: 2px;
+	right: 4px;
+	font-size: 10px;
+	color: var(--text);
+	font-family: var(--mono);
+	pointer-events: none;
+}

@@ -1,0 +1,250 @@
+/* 공통 페이지 (시나리오/클래스/구현계획/검증) */
+.page-meta {
+	padding: var(--s4) var(--s5);
+	border-bottom: 1px solid var(--border);
+	font-size: 13px;
+	color: var(--muted);
+	display: flex;
+	gap: var(--s4);
+	flex-wrap: wrap;
+}
+.page-meta b {
+	color: var(--text);
+	font-weight: 500;
+}
+.page-meta .stage-tag {
+	font-family: var(--mono);
+	color: var(--text);
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	font-size: 12px;
+}
+.page-title {
+	font-size: 1.6rem;
+	font-weight: 700;
+	letter-spacing: -0.02em;
+	margin: var(--s5) auto var(--s1);
+	max-width: 760px;
+}
+.page-lede {
+	color: var(--muted);
+	max-width: 65ch;
+	margin: 0 auto var(--s4);
+	font-size: 14px;
+}
+.doc > * {
+	max-width: 760px;
+	margin-left: auto;
+	margin-right: auto;
+}
+
+/* 시나리오 */
+.scenario-card {
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	padding: var(--s4);
+	margin-bottom: var(--s3);
+	background: var(--surface);
+}
+.scenario-head {
+	display: flex;
+	align-items: center;
+	gap: var(--s2);
+	margin-bottom: var(--s2);
+}
+.scenario-head h2 {
+	font-size: 1.05rem;
+	font-weight: 600;
+	flex: 1;
+	margin: 0;
+}
+.scenario-id {
+	font-family: var(--mono);
+	font-size: 12px;
+	font-weight: 700;
+	color: var(--text);
+	background: rgba(17, 24, 39, 0.06);
+	padding: 2px 8px;
+	border-radius: 999px;
+}
+.scenario-actor {
+	font-size: 12px;
+	color: var(--muted);
+}
+.scenario-steps {
+	margin: 0;
+	padding-left: 1.4em;
+	font-size: 14px;
+	line-height: 1.7;
+}
+.scenario-steps li {
+	color: var(--text);
+}
+
+/* 클래스 */
+.mermaid-wrap.small {
+	min-height: 360px;
+	display: flex;
+	justify-content: center;
+}
+.class-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+	gap: var(--s3);
+	margin-top: var(--s4);
+}
+.class-card {
+	border: 1.5px solid var(--text);
+	border-radius: var(--radius);
+	overflow: hidden;
+	background: var(--surface);
+}
+.class-name {
+	font-family: var(--mono);
+	font-weight: 700;
+	padding: var(--s2) var(--s3);
+	border-bottom: 1px solid var(--border);
+}
+.class-module {
+	font-size: 10px;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	color: var(--muted);
+	padding: 0 var(--s3) var(--s1);
+}
+.class-section {
+	padding: var(--s1) var(--s3);
+	border-top: 1px dashed var(--border);
+}
+.class-section:first-of-type {
+	border-top: none;
+}
+.class-member {
+	font-family: var(--mono);
+	font-size: 12px;
+	padding: 2px 0;
+}
+.class-member.attr {
+	color: var(--muted);
+}
+
+/* 구현 계획 */
+.progress-bar {
+	height: 8px;
+	background: rgba(17, 24, 39, 0.06);
+	border-radius: 999px;
+	overflow: hidden;
+	margin-bottom: var(--s4);
+}
+.progress-fill {
+	height: 100%;
+	background: var(--text);
+	transition: width 0.2s;
+}
+.phase-card {
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	padding: var(--s4);
+	margin-bottom: var(--s3);
+	background: var(--surface);
+}
+.phase-head {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	margin-bottom: var(--s2);
+}
+.phase-head h2 {
+	font-size: 1rem;
+	font-weight: 600;
+	margin: 0;
+}
+.phase-dep {
+	font-size: 12px;
+	color: var(--muted);
+	font-family: var(--mono);
+}
+.phase-tasks {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.phase-task {
+	padding: 4px 0;
+}
+.phase-task label {
+	display: flex;
+	align-items: center;
+	gap: var(--s2);
+	font-size: 14px;
+	cursor: pointer;
+}
+.phase-task input[type="checkbox"] {
+	width: 16px;
+	height: 16px;
+	accent-color: var(--text);
+}
+.task-done {
+	text-decoration: line-through;
+	color: var(--muted);
+}
+
+/* 최종 검증 */
+.verdict-banner {
+	padding: var(--s3) var(--s4);
+	border-radius: var(--radius);
+	margin-bottom: var(--s4);
+	font-weight: 600;
+	font-size: 14px;
+}
+.verdict-banner.ok {
+	background: rgba(17, 24, 39, 0.05);
+	border: 1px solid var(--border-strong);
+}
+.verdict-banner.warn {
+	border: 2px solid var(--text);
+}
+.review-section {
+	margin-bottom: var(--s5);
+}
+.section-title {
+	font-size: 1.05rem;
+	font-weight: 700;
+	margin-bottom: var(--s2);
+}
+.matrix-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 13px;
+}
+.matrix-table th,
+.matrix-table td {
+	border: 1px solid var(--border);
+	padding: var(--s2);
+	text-align: left;
+}
+.matrix-table th {
+	background: rgba(17, 24, 39, 0.03);
+	font-weight: 600;
+}
+.matrix-table tr.row-warn {
+	background: rgba(17, 24, 39, 0.04);
+}
+.matrix-note {
+	color: var(--muted);
+	font-size: 12px;
+}
+.product-pills {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--s2);
+	margin-bottom: var(--s3);
+}
+.product-pill {
+	font-size: 12px;
+	font-family: var(--mono);
+	padding: 4px 10px;
+	border: 1px solid var(--border-strong);
+	border-radius: 999px;
+}

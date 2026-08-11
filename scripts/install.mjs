@@ -44,19 +44,12 @@ rmSync(EXT_DIR, { recursive: true, force: true });
 mkdirSync(join(EXT_DIR, "node_modules/@factorynote/core"), { recursive: true });
 mkdirSync(join(EXT_DIR, "viewer"), { recursive: true });
 
-// 확장 TS 진입점(+형제 모듈).
-copyFileSync(
-	join(ROOT, "apps/pi-extension/src/index.ts"),
-	join(EXT_DIR, "index.ts"),
-);
-copyFileSync(
-	join(ROOT, "apps/pi-extension/src/plan-tool.ts"),
-	join(EXT_DIR, "plan-tool.ts"),
-);
-copyFileSync(
-	join(ROOT, "apps/pi-extension/src/gate-server.ts"),
-	join(EXT_DIR, "gate-server.ts"),
-);
+// 확장 TS 진입점(+형제 모듈 전체) — 모듈화로 분리된 파일들을 목록 없이 통째로 복사.
+// (개별 파일 목록은 새 모듈 추가 시 갱신 누락 → Cannot find module 에러의 근원이었음)
+cpSync(join(ROOT, "apps/pi-extension/src"), EXT_DIR, {
+	recursive: true,
+	filter: (f) => !f.endsWith(".test.ts"),
+});
 
 // 코어를 로컬 패키지로(@factorynote/core import 해석용). src/protocol/package.json 만.
 cpSync(

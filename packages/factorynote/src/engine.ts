@@ -8,7 +8,7 @@ import type {
 	PipelineState,
 	StageId,
 	ValidThrough,
-} from "./types.ts";
+} from "./types/index.ts";
 import { STAGES } from "./stages.ts";
 
 /** FR-2: 단계별 Design↔Feedback 루프 반복 상한(기본값). 상한 도달 시 게이트 에스컬레이션. */

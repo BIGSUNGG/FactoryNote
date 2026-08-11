@@ -10,6 +10,10 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ## [Unreleased]
 
+### Changed
+
+- **모듈화 리팩토링 — 기능별 단일 책임 모듈로 분해** — 9개 대형 파일을 책임 단위로 분해(원본은 barrel·재수출로 축소, import 경로·퍼블릭 API 불변). 코어: `types.ts` → `types/`(gate·feedback·graph·pipeline), `orchestration.ts` → `df-policy/parse/task/transition/loop`, `feedback-agents.ts` → 역량별 데이터(static·web·graph), `persistence.ts` → `paths/state/artifact`. 어댑터: `plan-tool.ts` → `plan-types/paths/directive/gate`, `gate-server.ts` → `gate-events/viewer-state/http/manager/browser`, `index.ts` → `command/prompt/viewer/format`. 뷰어: `App.jsx` → `Screens.jsx`·`lib/notify.js`, `styles.css`(1,639줄) → `styles/` 기능별 11파일 + `@import` barrel. 검증: `bun test` 109 통과, `bun run build` 0 종료.
+
 ### Added
 
 - **계층 그래프 트리 + 임의 깊이 드릴다운 뷰어** — 그래프 산출물을 단일 파일(`sections`)에서 계층 파일 트리로 재구조화: 루트 `<산출물>-graph.json`(md `<!-- graph: -->` 참조 불변) + `<산출물>-graph/` 서브디렉터리에 자식이 있는 노드마다 파일 1개(임의 깊이). 레벨 파일 공통 형태 `{version:2, id?, title?, childLevel?, nodes}`, 노드는 `{id, ...표시 필드, refs?, children?}`. 관계는 `refs:[{to,comment}]` **나가는 방향만 소스 노드 파일에**(단방향 한쪽·양방향 양쪽, comment 필수). 뷰어는 루트 레벨(모듈 관계도) 기본 표시 → 자식이 있는 노드 더블클릭 시 하단에 자식 레벨 패널 스택, 재더블클릭 선택 해제(토글), 다중 선택 시 병합(부모 그룹 합성·크로스 참조 표시·미선택 영역 참조 숨김), module→class→method 임의 깊이 동일 로직(`LevelPanel` 재귀). 코어 `graph.ts` 트리 프로토콜 재작성(`coerceGraphLevelFile`·`loadGraphTree`·`collectGraphChildFiles`·경로 안전), `persistence.ts` 트리 라우팅·회귀 삭제·`promoteGraphTree`(도달 가능 파일만 승격, 고아 제외), 게이트 서버 `artifacts[].graph.tree` 중첩 서빙, Stage 2·3 designPrompt·Feedback structure 체크리스트 갱신. 구 `sections` 포맷 호환 없음. 자체체크 109 pass. [[ADR-018-hierarchical-graph-tree]] ([[ADR-016-graph-json-externalization]] 확장).

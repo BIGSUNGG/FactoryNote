@@ -10,7 +10,7 @@ import type {
 	GraphLevelFile,
 	GraphRef,
 	GraphTreeNode,
-} from "./types.ts";
+} from "./types/index.ts";
 
 /** md 안의 그래프 JSON 참조 코멘트(`<!-- graph: <파일명> -->`).
  * 파일명은 안전한 문자만 허용(경로 분리자 금지 — traversal 차단). */

@@ -23,7 +23,7 @@ import type {
 	AgentRole,
 	ArtifactPaths,
 	FeedbackAxisOutcome,
-} from "./types.ts";
+} from "./types/index.ts";
 
 /** 역할별 큐잉된 응답을 순서대로 반환하는 목 스폰. */
 class MockSpawn implements AgentSpawn {

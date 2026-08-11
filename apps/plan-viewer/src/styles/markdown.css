@@ -1,0 +1,129 @@
+/* 마크다운 블록 타입별 스타일 */
+.block-heading {
+	letter-spacing: -0.01em;
+	margin: 0;
+}
+.block-heading.level-1 {
+	font-size: 1.6rem;
+	font-weight: 700;
+}
+.block-heading.level-2 {
+	font-size: 1.3rem;
+	font-weight: 700;
+}
+.block-heading.level-3 {
+	font-size: 1.1rem;
+	font-weight: 600;
+}
+.block-heading.level-4 {
+	font-size: 1rem;
+	font-weight: 600;
+}
+.block-heading.level-5 {
+	font-size: 0.9rem;
+	font-weight: 600;
+}
+.block-heading.level-6 {
+	font-size: 0.85rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.block-list {
+	margin: 0;
+	padding-left: 1.5em;
+	font-size: 14px;
+}
+.block-list li {
+	margin: 4px 0;
+}
+.block-list .task-item {
+	list-style: none;
+	margin-left: -1.5em;
+	display: flex;
+	align-items: center;
+	gap: var(--s2);
+}
+.block-list .task-item input[type="checkbox"] {
+	width: 16px;
+	height: 16px;
+	accent-color: var(--text);
+	cursor: default;
+}
+
+.block-image {
+	margin: 0;
+}
+.block-image img {
+	max-width: 100%;
+	display: block;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+}
+.block-image figcaption {
+	font-size: 12px;
+	color: var(--muted);
+	margin-top: var(--s1);
+	text-align: center;
+}
+
+.block-quote {
+	margin: 0;
+	padding: var(--s2) var(--s3);
+	border-left: 2px solid var(--border-strong);
+	background: rgba(17, 24, 39, 0.02);
+	border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+	font-size: 14px;
+	color: var(--text);
+}
+
+.block-hr {
+	border: none;
+	border-top: 1px solid var(--border);
+	margin: var(--s3) 0;
+}
+
+/* inline 포맷 (mdToBlocks가 html로 변환한 strong/em/code/a/del) */
+.block-content strong,
+.block-content b {
+	font-weight: 600;
+}
+.block-content em {
+	font-style: italic;
+}
+.block-content code {
+	font-family: var(--mono);
+	font-size: 0.9em;
+	background: rgba(17, 24, 39, 0.05);
+	padding: 1px 5px;
+	border-radius: 4px;
+}
+.block-content a {
+	color: var(--text);
+	text-decoration: underline;
+	text-underline-offset: 2px;
+}
+.block-content del {
+	color: var(--muted);
+}
+
+/* 드래그 영역 하이라이트 + 인용 */
+.comment-hl {
+	background: rgba(17, 24, 39, 0.14);
+	border-radius: 2px;
+	padding: 0 1px;
+	cursor: pointer;
+}
+.range-quote,
+.comment-quote,
+.chat-quote {
+	margin: 0 0 var(--s1);
+	padding: 2px 0 2px var(--s2);
+	border-left: 2px solid var(--border-strong);
+	font-size: 12px;
+	font-style: italic;
+	color: var(--muted);
+	white-space: pre-wrap;
+	word-break: break-word;
+}

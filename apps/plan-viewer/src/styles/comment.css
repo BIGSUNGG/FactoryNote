@@ -1,0 +1,83 @@
+/* 좌클릭 코멘트 팝오버 (handle 버튼 제거) */
+.block {
+	cursor: pointer;
+}
+.block-count,
+.comment-count {
+	pointer-events: none;
+}
+.comment-count {
+	position: absolute;
+	top: 50%;
+	right: 8px;
+	transform: translateY(-50%);
+	font-size: 11px;
+	color: var(--text);
+	font-family: var(--mono);
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: 999px;
+	padding: 1px 7px;
+	z-index: 2;
+}
+.comment-popover {
+	position: absolute;
+	top: calc(100% + 6px);
+	right: 0;
+	z-index: 30;
+	width: 320px;
+	max-width: calc(100vw - 48px);
+	background: var(--surface);
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius);
+	box-shadow:
+		0 8px 24px rgba(17, 24, 39, 0.12),
+		0 2px 6px rgba(17, 24, 39, 0.08);
+	padding: var(--s3);
+	text-align: left;
+	cursor: default;
+}
+.comment-popover::before {
+	content: "";
+	position: absolute;
+	top: -6px;
+	right: 18px;
+	width: 10px;
+	height: 10px;
+	background: var(--surface);
+	border-top: 1px solid var(--border-strong);
+	border-left: 1px solid var(--border-strong);
+	transform: rotate(45deg);
+}
+.popover-head {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	font-size: 12px;
+	color: var(--muted);
+	font-family: var(--mono);
+	margin-bottom: var(--s2);
+}
+.popover-head button {
+	border: none;
+	background: none;
+	cursor: pointer;
+	font-size: 14px;
+	color: var(--muted);
+	padding: 0;
+	line-height: 1;
+}
+.popover-head button:hover {
+	color: var(--text);
+}
+.comment-popover .comment-input-row {
+	margin-top: 0;
+}
+.block-table {
+	position: relative;
+}
+
+/* 셀 코멘트 팝오버 — fixed(document.body). 화살표 없음, 표 레이아웃 분리 */
+.comment-popover-fixed::before {
+	display: none;
+}

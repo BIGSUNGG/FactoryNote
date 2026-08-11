@@ -1,0 +1,42 @@
+:root {
+	/* monotone — 무채형. 액센트는 near-black, 상태는 명도로 구분. */
+	--primary: #111827;
+	--secondary: #111827;
+	--success: #6b7280; /* 완료/해결 = 옅은 회색 */
+	--warning: #111827; /* 미해결/경고 = 강조 검정 */
+	--danger: #111827;
+	--surface: #ffffff;
+	--text: #111827;
+	--bg: var(--surface);
+	--muted: rgba(17, 24, 39, 0.5);
+	--border: rgba(17, 24, 39, 0.12);
+	--border-strong: rgba(17, 24, 39, 0.22);
+	/* tint는 전부 회색 알파 */
+	--primary-tint: rgba(17, 24, 39, 0.06);
+	--secondary-tint: rgba(17, 24, 39, 0.06);
+	--success-tint: rgba(17, 24, 39, 0.05);
+	--warning-tint: rgba(17, 24, 39, 0.06);
+	--danger-tint: rgba(17, 24, 39, 0.06);
+	--on-color: var(--surface);
+	--radius: 8px;
+	--radius-sm: 4px;
+	--s1: 4px;
+	--s2: 8px;
+	--s3: 16px;
+	--s4: 24px;
+	--s5: 32px;
+	--shadow: 0 1px 2px rgba(17, 24, 39, 0.05), 0 1px 3px rgba(17, 24, 39, 0.03);
+	--mono: "JetBrains Mono", ui-monospace, monospace;
+}
+* {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+}
+body {
+	font-family: Inter, system-ui, sans-serif;
+	color: var(--text);
+	background: var(--bg);
+	line-height: 1.5;
+	-webkit-font-smoothing: antialiased;
+}

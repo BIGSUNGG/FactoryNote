@@ -1,7 +1,7 @@
 // M1 Stage Registry — 3단계 정의(이름·산출물·Design 프롬프트).
 // Feedback 검토 축은 전역 FEEDBACK_AGENTS 레지스트리로 이관(ADR-014 동적 선택).
 // 프로토콜(protocol/stages/)의 실행 투영. 근거: vault/01-architecture/multi-agent-pipeline.
-import type { ArtifactFormat, StageId } from "./types.ts";
+import type { ArtifactFormat, StageId } from "./types/index.ts";
 
 export interface StageDefinition {
 	id: StageId;

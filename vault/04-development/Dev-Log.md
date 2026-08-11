@@ -61,6 +61,27 @@ tags: [development, dev-log]
 **변경**: `packages/factorynote/src/persistence.ts` — `artifactPath` 에 STAGES 파일명→`stageN/` 매핑(`stageSubdir`) 추가. 3개 단계 산출물은 `<feature>/stage1|stage2|stage3/` 로, 보조 파일(`state.json`·`design-prompt.md`·`feedback-menu.md`·`draft.md`·`feedback.md.*`)은 feature 루트 유지. 모든 경로가 `artifactPath` 로 수렴해 호출측(plan-tool·gate-server·invalidate) 무변경. 기존 평평 폴더 마이그레이션은 없음(resume 시 파일 없으면 `undefined` → 재생성).
 **검증**: `bun test` 99 통과(레이아웃 자체체크 추가), `bun run build` 종료 0.
 
+### 모듈화 리팩토링 — 기능별 단일 책임 모듈로 분해 (사용자 요청)
+
+**맥락**: "이 프로젝트를 기능 별로 세세하게 분리해서 모듈화를 강하게" — 대형 파일을 단일 책임 단위로 분해하고, 분리 가능한 타입/인터페이스/컴포넌트를 추출. 응집도 원칙 기준(라인 이동이 아닌 책임 분해), 퍼블릭 export 자유 재구성(소비자 연결은 유지).
+
+**변경**: 9개 대형 파일을 책임 단위 모듈로 분해(원본은 barrel·재수출 유지로 import 경로 불변).
+
+- **코어**(`packages/factorynote/src/`):
+  - `types.ts`(257줄) → `types/` 디렉토리 4모듈 — `gate.ts`(단계·판정·코멘트·채팅·이력), `feedback.ts`(스폰·예산·지시문 타입), `graph.ts`(계층 그래프 모델), `pipeline.ts`(영속 상태). `types/index.ts` barrel.
+  - `orchestration.ts`(442줄) → `df-policy.ts`(수준 스펙·상한·스폰 옵션·입력 절단), `df-parse.ts`(parsing·집합), `df-task.ts`(과제 구성), `df-transition.ts`(전이 함수), `df-loop.ts`(동기 루프 드라이버).
+  - `feedback-agents.ts`(292줄) → 역량별 데이터 분리 — `feedback-agents-static.ts`(24), `-web.ts`(5), `-graph.ts`(3), 레지스트리·메뉴는 원본 barrel.
+  - `persistence.ts`(225줄) → `paths.ts`(경로 계산)·`state.ts`(원자적 상태·복구)·`artifact.ts`(산출물·그래프 승격·무효화).
+- **어댑터**(`apps/pi-extension/src/`):
+  - `plan-tool.ts`(540줄) → `plan-types.ts`(계약 타입)·`plan-paths.ts`(경로·메뉴·보고 파싱)·`plan-directive.ts`(스폰 지시)·`plan-gate.ts`(게이트 실행).
+  - `gate-server.ts`(496줄) → `gate-events.ts`(이벤트 타입)·`viewer-state.ts`(상태 조립)·`gate-http.ts`(라우팅 핸들러)·`gate-manager.ts`(영속 서버 풀)·`gate-browser.ts`(브라우저·경로 유틸).
+  - `index.ts`(275줄) → `command.ts`(명령·세션 상태)·`prompt.ts`(plan 모드 프롬프트)·`viewer.ts`(dist 탐색)·`format.ts`(반환 포맷).
+- **뷰어**(`apps/plan-viewer/src/`):
+  - `App.jsx`(245줄) → `components/Screens.jsx`(전환 화면)·`lib/notify.js`(알림 유틸) 분리.
+  - `styles.css`(1639줄) → `styles/` 11개 기능 파일 — base·layout·blocks·gate·comment·markdown·stage3·graph·pages·editor·chat. 원본은 `@import` barrel.
+
+**검증**: `bun test` 109 통과(0 fail), `bun run typecheck` 0, `bun run build` 0(뷰어 빌드 + 설치 배포). 퍼블릭 시그니처·동작 무변경(테스트 전체 통과로 확인).
+
 ## 2026-08-09
 
 ### 문서 정정: pi-subagents 사전요구 + install 경로 (사용성 버그)

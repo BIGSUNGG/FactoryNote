@@ -27,7 +27,7 @@ export type {
 	SpawnOptions,
 	StageId,
 	ValidThrough,
-} from "./types.ts";
+} from "./types/index.ts";
 export { STAGES, currentStageDef, stageById } from "./stages.ts";
 export type { StageDefinition } from "./stages.ts";
 export {
