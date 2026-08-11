@@ -10,6 +10,10 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ## [Unreleased]
 
+### Added
+
+- **Feedback 수준 명령 `/factorynote feedback (none|low|medium|high|ultra)`** — 내부 Design↔Feedback 루프의 검토 강도를 세션 토글로 조절(`auto`와 동일 패턴, 기본 `medium`). 수준별 Feedback 자식 수: none = 0(Feedback 루프 스킵, Design 산출물 게이트 직행 — 폐지됐던 Tier 0의 opt-in 부활), low = 1개(1~3개 영역 담당), medium = 2~3개(현행), high = 4~6개, ultra = 9개. 수 스펙(`FEEDBACK_LEVELS`)은 core 소유·`nextDesignFeedbackStep` 전이가 none 처리, 수준은 spawn-feedback 지시문·메뉴 파일·PLAN_MODE_PROMPT 에 실린다. 병렬 스폰이 라우터 호출 수/레이트 리밋 에러로 실패하면 3~4개씩 순차 배치로 분할 재시도(프로토콜 규칙). 게이트 통제(5대 원칙)는 수준과 무관하게 유지. [[ADR-017-feedback-levels]].
+
 ### Changed
 
 - **그래프 JSON 외부 파일화 + 전 단계 동일 문서 렌더 + 자동 배치** — (1) 3단계 모두 동일한 문서 렌더 경로(`PlanPage`: TOC + 본문 + 블록/영역 코멘트)로 통일. Stage 2 전용 에디터(`DesignStage.jsx`)·인라인 그래프 에디터(`GraphEditor.jsx`)·펜스 파서(`designMd.js`·core `parse/serialize/applyStructureToMarkdown`)·게이트 `artifactMd` 역동기화 경로 제거. 그래프는 문서 속 읽기 전용 자동 배치 블록(`GraphView.jsx`)으로 렌더되고 모든 수정은 에이전트 채팅으로. (2) 그래프 노드·관계 데이터는 산출물 md 옆 `stageN/<산출물>-graph.json` 에 저장, md 는 `<!-- graph: <파일명> -->` 참조만 보유(draft 단계도 동일 규약, 게이트 오픈 시 승격·참조 재작성, 회귀 시 동반 삭제). `position`·`width`·`height` 필드 금지. (3) 뷰어 `layoutGraph.js` 결정적 자동 배치: layer·관계 방향 행 + barycenter 정돈, 클래스는 모듈 그룹 경계 내부, 노드·그룹 겹침 0(자체 테스트 가드). Stage 2·3 designPrompt·Feedback 에이전트 지시 갱신. 기존 펜스 폴백 없음. [[ADR-016-graph-json-externalization]] ([[ADR-006-graph-editor]]·[[ADR-010-md-design-stage]] 대체).

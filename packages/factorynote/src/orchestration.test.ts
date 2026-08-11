@@ -6,11 +6,14 @@ import { STAGES } from "./stages.ts";
 import { feedbackMenuForStage } from "./feedback-agents.ts";
 import {
 	CHILD_SPAWN_OPTIONS,
+	DEFAULT_FEEDBACK_LEVEL,
 	DEFAULT_MAX_LOOPS,
+	FEEDBACK_LEVELS,
 	aggregateFeedback,
 	clampReportInput,
 	designTask,
 	feedbackAgentTask,
+	feedbackLevelCountSpec,
 	nextDesignFeedbackStep,
 	parseFeedback,
 	runDesignFeedbackLoop,
@@ -341,4 +344,69 @@ test("paths 모드: feedback 클린 → gate artifact = draft 경로", () => {
 
 test("designTask: paths 미제공 시 designPrompt 본문(inline)", () => {
 	expect(designTask(stage)).toBe(stage.designPrompt);
+});
+
+// --- Feedback 수준(ADR-017) ---
+test("FEEDBACK_LEVELS: 수준별 에이전트 수 스펙(none 0 · low 1 · medium 2-3 · high 4-6 · ultra 9)", () => {
+	expect(FEEDBACK_LEVELS.none.maxAgents).toBe(0);
+	expect(FEEDBACK_LEVELS.low.minAgents).toBe(1);
+	expect(FEEDBACK_LEVELS.low.maxAgents).toBe(1);
+	expect(FEEDBACK_LEVELS.medium.minAgents).toBe(2);
+	expect(FEEDBACK_LEVELS.medium.maxAgents).toBe(3);
+	expect(FEEDBACK_LEVELS.high.minAgents).toBe(4);
+	expect(FEEDBACK_LEVELS.high.maxAgents).toBe(6);
+	expect(FEEDBACK_LEVELS.ultra.minAgents).toBe(9);
+	expect(FEEDBACK_LEVELS.ultra.maxAgents).toBe(9);
+	expect(DEFAULT_FEEDBACK_LEVEL).toBe("medium");
+	expect(feedbackLevelCountSpec("high")).toBe("4~6개");
+	expect(feedbackLevelCountSpec("ultra")).toBe("정확히 9개");
+	expect(feedbackLevelCountSpec("low")).toContain("정확히 1개");
+});
+
+test("수준 none: design 보고 → gate(Feedback 루프 스킵 — opt-in Tier 0)", () => {
+	const t = nextDesignFeedbackStep(
+		stage,
+		{ dfPhase: "design", dfLoop: 0 },
+		{ role: "design", draft: "v1" },
+		"v1",
+		undefined,
+		DEFAULT_MAX_LOOPS,
+		"none",
+	);
+	expect(t.directive.action).toBe("gate");
+	if (t.directive.action === "gate") {
+		expect(t.directive.escalated).toBe(false);
+		expect(t.directive.artifact).toBe("v1");
+	}
+	expect(t.dfLoop).toBe(0);
+});
+
+test("수준 전달: spawn-feedback 지시문이 feedbackLevel 을 운반", () => {
+	const t = nextDesignFeedbackStep(
+		stage,
+		{ dfPhase: "design", dfLoop: 0 },
+		{ role: "design", draft: "v1" },
+		"v1",
+		undefined,
+		DEFAULT_MAX_LOOPS,
+		"high",
+	);
+	expect(t.directive.action).toBe("spawn-feedback");
+	if (t.directive.action === "spawn-feedback") {
+		expect(t.directive.feedbackLevel).toBe("high");
+	}
+});
+
+test("runDesignFeedbackLoop: 수준 none → design 1회 스폰 후 clean 직행(feedback 스폰 0)", async () => {
+	const spawn = new MockSpawn({ design: ["D1"], feedback: [] });
+	const res = await runDesignFeedbackLoop(
+		spawn,
+		stage,
+		DEFAULT_MAX_LOOPS,
+		undefined,
+		"none",
+	);
+	expect(res.kind).toBe("clean");
+	expect(spawn.calls.length).toBe(1);
+	expect(spawn.calls[0]!.role).toBe("design");
 });

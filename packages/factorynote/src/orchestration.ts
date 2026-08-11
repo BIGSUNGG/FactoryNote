@@ -13,6 +13,7 @@ import type {
 	AgentSpawn,
 	ArtifactPaths,
 	FeedbackAxisOutcome,
+	FeedbackLevel,
 	FeedbackOutcome,
 	DesignFeedbackDirective,
 	DesignFeedbackPhase,
@@ -27,6 +28,32 @@ import { feedbackMenuForStage } from "./feedback-agents.ts";
  * 파라미터화 — drivePlan/루프 드라이버가 maxLoops 로 주입. '검토 요청' 버튼은 상한과 무관하게 +1.
  */
 export const DEFAULT_MAX_LOOPS = 1;
+
+/**
+ * Feedback 수준 스펙(ADR-017) — 수준별 Feedback 자식 에이전트 수.
+ * none = 스폰 0(Design 산출물 게이트 직행, opt-in Tier 0).
+ * low 는 1개가 1~3개 검토 영역 담당(과제에 지시). 수치는 Director 지시문으로 전달되는 프로토콜 값.
+ */
+export const FEEDBACK_LEVELS: Readonly<
+	Record<FeedbackLevel, { minAgents: number; maxAgents: number; label: string }>
+> = Object.freeze({
+	none: { minAgents: 0, maxAgents: 0, label: "없음 — 게이트 직행" },
+	low: { minAgents: 1, maxAgents: 1, label: "1개(1~3 영역 담당)" },
+	medium: { minAgents: 2, maxAgents: 3, label: "2~3개" },
+	high: { minAgents: 4, maxAgents: 6, label: "4~6개" },
+	ultra: { minAgents: 9, maxAgents: 9, label: "9개" },
+});
+
+export const DEFAULT_FEEDBACK_LEVEL: FeedbackLevel = "medium";
+
+/** 수준별 에이전트 수 지시 문구(Director 지시문·메뉴 공통). */
+export function feedbackLevelCountSpec(level: FeedbackLevel): string {
+	const s = FEEDBACK_LEVELS[level];
+	if (level === "low")
+		return "정확히 1개 — 메뉴에서 가장 관련 높은 1개를 골라 1~3개 검토 영역을 맡긴다";
+	if (s.minAgents === s.maxAgents) return `정확히 ${s.minAgents}개`;
+	return `${s.minAgents}~${s.maxAgents}개`;
+}
 
 /**
  * 자식 스폰 고정 옵션 — 컨텍스트 한도 관리 정책(core 소유).
@@ -191,6 +218,7 @@ function designRevisionTask(
  * spawn-feedback 는 메뉴/드래프트 경로만 전달 — Director 가 메뉴를 읽어 상황에 맞는 N개를 추려 병렬 스폰한다.
  * 전이:
  *  - design 단계·보고 없음           → spawn-design(v1)
+ *  - design 보고·수준 none(ADR-017)  → gate(Feedback 루프 스킵 — opt-in Tier 0)
  *  - design 보고·dfLoop==0(v1)       → spawn-feedback(메뉴 참조)
  *  - design 보고·dfLoop>0(수정본)    → dfLoop<maxLoops 면 spawn-feedback(재검토), 아니면 gate
  *  - feedback 보고·전 에이전트 CLEAN → gate
@@ -204,6 +232,7 @@ export function nextDesignFeedbackStep(
 	draft: string | undefined,
 	paths?: ArtifactPaths,
 	maxLoops: number = DEFAULT_MAX_LOOPS,
+	feedbackLevel: FeedbackLevel = DEFAULT_FEEDBACK_LEVEL,
 ): DesignFeedbackTransition {
 	const { dfPhase, dfLoop } = state;
 
@@ -221,8 +250,21 @@ export function nextDesignFeedbackStep(
 		};
 	}
 
-	// (2) design 보고 → v1(dfLoop==0)은 feedback; 수정본(dfLoop>0)은 남은 사이클 여부로 분기.
+	// (2) design 보고 → 수준 none 이면 Feedback 루프 스킵·게이트 직행(ADR-017).
 	if (report !== undefined && report.role === "design") {
+		if (feedbackLevel === "none") {
+			return {
+				directive: {
+					action: "gate",
+					artifact: paths ? paths.draft : report.draft,
+					escalated: false,
+					loops: dfLoop,
+					issues: [],
+				},
+				dfPhase: "design",
+				dfLoop: 0,
+			};
+		}
 		if (dfLoop === 0 || dfLoop < maxLoops) {
 			return {
 				directive: {
@@ -230,6 +272,7 @@ export function nextDesignFeedbackStep(
 					menuPath: paths?.menu ?? "",
 					draftPath: paths?.draft ?? report.draft,
 					feedbackPath: paths?.feedback ?? "",
+					feedbackLevel,
 					spawnOptions: CHILD_SPAWN_OPTIONS.feedback,
 				},
 				dfPhase: "feedback",
@@ -293,12 +336,27 @@ export function nextDesignFeedbackStep(
 
 	// (4) feedback 단계·보고 없음(비정상 재진입) — Feedback 재스폰 유도.
 	if (dfPhase === "feedback") {
+		// 수준 none 이면 feedback 단계 자체가 비정상 — 게이트 직행으로 복구.
+		if (feedbackLevel === "none") {
+			return {
+				directive: {
+					action: "gate",
+					artifact: paths?.draft ?? draft ?? "",
+					escalated: false,
+					loops: dfLoop,
+					issues: [],
+				},
+				dfPhase: "design",
+				dfLoop: 0,
+			};
+		}
 		return {
 			directive: {
 				action: "spawn-feedback",
 				menuPath: paths?.menu ?? "",
 				draftPath: paths?.draft ?? draft ?? "",
 				feedbackPath: paths?.feedback ?? "",
+				feedbackLevel,
 				spawnOptions: CHILD_SPAWN_OPTIONS.feedback,
 			},
 			dfPhase: "feedback",
@@ -329,6 +387,7 @@ export async function runDesignFeedbackLoop(
 	def: StageDefinition,
 	maxLoops: number = DEFAULT_MAX_LOOPS,
 	select?: (menu: FeedbackAgent[]) => FeedbackAgent[],
+	feedbackLevel: FeedbackLevel = DEFAULT_FEEDBACK_LEVEL,
 ): Promise<
 	| { kind: "clean"; artifact: string; loops: number }
 	| { kind: "escalate"; artifact: string; issues: string[]; loops: number }
@@ -347,6 +406,7 @@ export async function runDesignFeedbackLoop(
 			draft,
 			undefined,
 			maxLoops,
+			feedbackLevel,
 		);
 		dfPhase = t.dfPhase;
 		dfLoop = t.dfLoop;

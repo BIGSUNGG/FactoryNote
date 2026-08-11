@@ -9,6 +9,19 @@ tags: [development, dev-log]
 
 ## 2026-08-11
 
+### Feedback 수준 명령(none|low|medium|high|ultra) ([[ADR-017-feedback-levels]])
+
+**맥락**: 사용자 요청 — `/factorynote feedback <level>` 로 검토 강도 조절. none=피드백 없음(기존 Tier 0 동일), low=1개가 1~3 영역, medium=2~3개(현행), high=4~6개, ultra=9개. 라우터 호출 수 제한 시 3~4개씩 분할 재시도.
+
+**작업**:
+
+- core: `types.ts` 에 `FeedbackLevel` 타입 + spawn-feedback 지시문 `feedbackLevel` 필드. `orchestration.ts` 에 `FEEDBACK_LEVELS` 스펙·`feedbackLevelCountSpec` 문구·`nextDesignFeedbackStep`/`runDesignFeedbackLoop` 수준 파라미터(none → design 보고 직후 게이트 직행 전이).
+- pi-extension: `index.ts` 에 `/factorynote feedback <level>` 세션 토글(기본 medium, 잘못된 값 거부) + PLAN_MODE_PROMPT 수준별 수·배치 분할 규칙 반영. `plan-tool.ts` 가 수준을 전이함수에 주입하고 spawn-feedback 지시문·메뉴 파일에 수 지시 + 리밋 실패 시 3-4개 순차 배치 분할 문구 기록('검토 요청' 경로 포함).
+- 프로토콜: `packages/factorynote/orchestrator/README.md` 에 수준 표 + 호출 수 제한 대응 규칙.
+- 테스트: 수준 스펙·none 전이·지시문 수준 운반·루프 none 직행(core) + drivePlan none 게이트 직행·high 4~6 지시·low 1개 지시(pi 어댑터). 전체 96 pass. `bun run build` 통과 + 설치 확장 배포.
+
+**결정 포인트(사용자 확정)**: 세션 지속 토글 · none = 게이트 직행 + ADR 기록 · 실패 시 분할(평소 전량 병렬) · low = 기존 에이전트 1개가 1~3 영역(신규 범용 에이전트 없음) · 기본값 medium.
+
 ### 그래프 JSON 분리 + 렌더 통일 + 자동 배치 ([[ADR-016-graph-json-externalization]])
 
 **맥락**: 사용자 요청 3종 — (1) 스테이지마다 문서 출력 방식이 다름(Stage 2 만 전용 에디터), (2) 그래프 노드 정보가 md 안에 인라인 임베드, (3) 수동 노드 드래그 배치의 겹침·모듈 경계 이탈.

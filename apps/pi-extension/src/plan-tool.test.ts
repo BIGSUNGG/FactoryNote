@@ -340,6 +340,72 @@ test("검토 요청(ADF-013): 게이트 열린 동안 +1 사이클 → feedback�
 	).toBe("# v2 수정본\n");
 });
 
+test("ADR-017: feedbackLevel none → design 보고가 Feedback 스폰 없이 게이트 직행(opt-in Tier 0)", async () => {
+	const feat = "fblevel-none";
+	const base = {
+		root,
+		viewerDistDir: VIEWER_DIST,
+		feature: feat,
+		open: false,
+		feedbackLevel: "none" as const,
+	};
+	let out = await drivePlan({ ...base });
+	expect(out.nextAction).toBe("spawn-design");
+	await writeFile(out.draftPath!, "# none 수준 산출물\n", "utf8");
+
+	// 두 번째 호출에서 곧장 게이트 → confirm — spawn-feedback 는 결코 오지 않는다.
+	out = await drivePlan({
+		...base,
+		designArtifact: out.draftPath!,
+		onReady: postDecision("confirm"),
+	});
+	expect(out.gateResult?.verdict).toBe("confirm");
+	expect(out.stage).toBe(2);
+	expect(out.nextAction).toBe("spawn-design");
+	expect(
+		await readArtifact(root, feat, "01-understanding-and-scenarios.md"),
+	).toBe("# none 수준 산출물\n");
+});
+
+test("ADR-017: feedbackLevel high → spawn-feedback 지시문에 4~6개 수 지시 + 배치 분할 규칙", async () => {
+	const feat = "fblevel-high";
+	const base = {
+		root,
+		viewerDistDir: VIEWER_DIST,
+		feature: feat,
+		open: false,
+		feedbackLevel: "high" as const,
+	};
+	let out = await drivePlan({ ...base });
+	await writeFile(out.draftPath!, "# v1\n", "utf8");
+	out = await drivePlan({ ...base, designArtifact: out.draftPath! });
+	expect(out.nextAction).toBe("spawn-feedback");
+	expect(out.feedbackLevel).toBe("high");
+	expect(out.message).toContain("4~6");
+	expect(out.message).toContain("3-4개씩 순차 배치");
+	// 메뉴 파일에도 수준이 반영된다.
+	const menuMd = readFileSync(join(root, feat, "feedback-menu.md"), "utf8");
+	expect(menuMd).toContain("**high**");
+});
+
+test("ADR-017: feedbackLevel low → 정확히 1개(1~3 영역 담당) 지시", async () => {
+	const feat = "fblevel-low";
+	const base = {
+		root,
+		viewerDistDir: VIEWER_DIST,
+		feature: feat,
+		open: false,
+		feedbackLevel: "low" as const,
+	};
+	let out = await drivePlan({ ...base });
+	await writeFile(out.draftPath!, "# v1\n", "utf8");
+	out = await drivePlan({ ...base, designArtifact: out.draftPath! });
+	expect(out.nextAction).toBe("spawn-feedback");
+	expect(out.feedbackLevel).toBe("low");
+	expect(out.message).toContain("정확히 1개");
+	expect(out.message).toContain("1~3개 검토 영역");
+});
+
 test("teardown", async () => {
 	await rm(root, { recursive: true, force: true });
 });

@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-07
+updated: 2026-08-11
 tags: [orchestration, protocol, agents, tier-1]
 ---
 
@@ -30,6 +30,7 @@ factorynote_plan({feature})                         ── 진입
    ▼
 factorynote_plan({feature, designArtifact=초안})    ── Design 보고
    │ nextAction=spawn-feedback → Director 가 Feedback 자식 스폰(산출물+체크리스트)
+   │ (Feedback 수준 none(ADR-017) → 스킵, 바로 사용자 게이트)
    ▼
 factorynote_plan({feature, designArtifact=초안, feedbackResult=CLEAN|ISSUES})
    │  CLEAN         → 산출물 저장 + 사용자 게이트 오픈
@@ -56,6 +57,24 @@ factorynote_plan({feature, designArtifact=초안, feedbackResult=CLEAN|ISSUES})
 잔존하면 **근본적 설계 갈등의 신호**로 보고, 산출물(마지막 초안)을 사용자 게이트로 올리되
 에스컬레이션 프레이밍으로 제시 — 선택: (a) 코멘트로 근본적 재작성 지시 (b) 이전 Stage 회귀
 (c) 범위·제약 조건 재협의. (사용자-modify 루프의 FR-2 에스컬레이션과 별개·독립 상한.)
+
+## Feedback 수준 (ADR-017)
+
+사용자가 `/factorynote feedback <level>` 로 검토 강도를 설정한다(pi 어댑터 세션 상태,
+기본 `medium`). 수준은 `factorynote_plan` 의 spawn-feedback 지시문(`feedbackLevel`)과
+메뉴 파일에 실려 Director 의 스폰 에이전트 수를 결정한다.
+
+| 수준 | Feedback 자식 수 | Director 규칙 |
+| --- | --- | --- |
+| `none` | 0 | 스폰 없음 — Design 산출물이 Feedback 루프를 건너뛰고 사용자 게이트 직행(opt-in Tier 0) |
+| `low` | 정확히 1 | 메뉴에서 가장 관련 높은 1개를 골라 **1~3개 검토 영역**을 한 과제에서 담당시킨다 |
+| `medium`(기본) | 2~3 | 메뉴에서 상황 맞춤 2~3개를 병렬 스폰 |
+| `high` | 4~6 | 메뉴에서 상황 맞춤 4~6개를 병렬 스폰 |
+| `ultra` | 정확히 9 | 메뉴에서 9개를 병렬 스폰 |
+
+**호출 수 제한 대응**: 병렬 스폰이 라우터의 에이전트 호출 수/레이트 리밋 에러로
+실패하면, 선택한 에이전트를 **3~4개씩 순차 배치**로 나눠 재시도하고 전 배치의 판정을
+하나의 집합 보고(`[name]` 헤더 + 판정)로 합쳐 `feedbackResult` 로 보고한다.
 
 ## pi 실현 제약 (M4 Tier 1)
 

@@ -13,6 +13,7 @@ export type {
 	DesignFeedbackPhase,
 	FeedbackAxis,
 	FeedbackAxisOutcome,
+	FeedbackLevel,
 	FeedbackOutcome,
 	GateDecision,
 	GateVerdict,
@@ -67,12 +68,15 @@ export {
 } from "./graph.ts";
 export {
 	CHILD_SPAWN_OPTIONS,
+	DEFAULT_FEEDBACK_LEVEL,
 	DEFAULT_MAX_LOOPS,
+	FEEDBACK_LEVELS,
 	MAX_REPORT_INPUT_CHARS,
 	aggregateFeedback,
 	clampReportInput,
 	designTask,
 	feedbackAgentTask,
+	feedbackLevelCountSpec,
 	nextDesignFeedbackStep,
 	parseFeedback,
 	runDesignFeedbackLoop,

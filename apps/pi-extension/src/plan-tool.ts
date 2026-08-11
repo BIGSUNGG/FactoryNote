@@ -5,6 +5,7 @@
 // pi 확장 코드는 서브에이전트를 동기 스폰할 수 없으므로, 스폰은 Director 가 subagent 도구로 수행.
 import {
 	CHILD_SPAWN_OPTIONS,
+	DEFAULT_FEEDBACK_LEVEL,
 	DEFAULT_MAX_LOOPS,
 	GRAPH_REF_RE,
 	STAGES,
@@ -12,6 +13,7 @@ import {
 	atLoopCeiling,
 	clampReportInput,
 	designTask,
+	feedbackLevelCountSpec,
 	feedbackMenuForStage,
 	graphJsonNameFor,
 	graphRefFile,
@@ -30,6 +32,7 @@ import {
 	type ArtifactPaths,
 	type ChatMessage,
 	type FeedbackAgent,
+	type FeedbackLevel,
 	type GateDecision,
 	type PipelineState,
 	type SpawnOptions,
@@ -49,6 +52,10 @@ import {
 /** #4 게이트 자동 만료(ms). 30분. */
 const GATE_TIMEOUT_MS = 30 * 60 * 1000;
 
+/** ADR-017: 라우터 호출 수 제한 실패 시 3-4개 순차 배치 분할 프로토콜 문구. */
+const FEEDBACK_BATCH_SPLIT_RULE =
+	"스폰이 에이전트 호출 수/레이트 리밋 에러로 실패하면 선택 에이전트를 3-4개씩 순차 배치로 나눠 재시도하고, 전 배치 판정을 하나의 집합 보고로 합친다.";
+
 export interface DrivePlanInput {
 	root: string;
 	viewerDistDir: string;
@@ -56,6 +63,8 @@ export interface DrivePlanInput {
 	designArtifact?: string;
 	feedbackResult?: string;
 	chatResponse?: string;
+	/** Feedback 수준(ADR-017). 미지정 시 DEFAULT_FEEDBACK_LEVEL(medium). */
+	feedbackLevel?: FeedbackLevel;
 	autoAdvance?: boolean;
 	signal?: AbortSignal;
 	open?: boolean;
@@ -76,6 +85,8 @@ export interface DrivePlanOutput {
 	feedbackPath?: string;
 	/** 현 단계 feedback 메뉴 파일 경로(Director 동적 선택용). */
 	menuPath?: string;
+	/** 현 Feedback 수준(ADR-017) — spawn-feedback 일 때 에이전트 수 결정 기준. */
+	feedbackLevel?: FeedbackLevel;
 	dfLoop: number;
 	designPrompt: string;
 	gateResult: GateDecision | null;
@@ -88,7 +99,7 @@ export interface DrivePlanOutput {
 function resolvePaths(
 	root: string,
 	feature: string,
-	def: ReturnType<typeof stageById>,
+	_def: ReturnType<typeof stageById>,
 ): { paths: ArtifactPaths; draftFile: string } {
 	const dir = join(root, feature);
 	const ext = "md";
@@ -104,15 +115,19 @@ function resolvePaths(
 	};
 }
 
-/** 현 단계 feedback 메뉴 마크다운 — Director 가 읽어 상황에 맞는 N개를 추려 병렬 스폰. */
-function buildMenuMarkdown(def: ReturnType<typeof stageById>): string {
+/** 현 단계 feedback 메뉴 마크다운 — Director 가 읽어 수준별 N개를 추려 병렬 스폰. */
+function buildMenuMarkdown(
+	def: ReturnType<typeof stageById>,
+	level: FeedbackLevel,
+): string {
 	const menu = feedbackMenuForStage(def.id);
 	const lines = [
 		`# Stage ${def.id}(${def.name}) Feedback 메뉴`,
 		"",
-		`검토 대상: draft.md. 아래 에이전트 중 **산출물·기능 맥락에 가장 의미있는 N개(전형 3-6)**를 추려 subagent 의 workflowScript runs.all 로 **병렬** 스폰하라.`,
+		`검토 대상: draft.md. Feedback 수준: **${level}** — 아래 에이전트 중 **${feedbackLevelCountSpec(level)}**를 추려 subagent 의 workflowScript runs.all 로 **병렬** 스폰하라.`,
 		'각 에이전트는 factorynote-feedback-<name> (fresh, 최소 도구). 과제: "<focus> 관점에서 draft 검토, 판정 CLEAN/ISSUES, 상세는 feedback.md.<name> 저장, 반환은 판정만".',
 		"집합 보고(필수): 각 선택 에이전트를 '[name]' 헤더 + 판정 줄로 나열.",
+		FEEDBACK_BATCH_SPLIT_RULE,
 		"",
 		"| name | 역량 | 검토 초점 | 체크리스트 |",
 		"| --- | --- | --- | --- |",
@@ -208,6 +223,7 @@ export async function drivePlan(
 	}
 
 	if (requiresArtifact(state.stage) && !state.gateOpen) {
+		const feedbackLevel = input.feedbackLevel ?? DEFAULT_FEEDBACK_LEVEL;
 		const report = deriveReport(input, state, def);
 		const draft = input.designArtifact;
 		const { paths, draftFile } = resolvePaths(root, feature, def);
@@ -217,7 +233,7 @@ export async function drivePlan(
 			root,
 			feature,
 			"feedback-menu.md",
-			buildMenuMarkdown(def),
+			buildMenuMarkdown(def, feedbackLevel),
 		);
 		const t = nextDesignFeedbackStep(
 			def,
@@ -226,13 +242,14 @@ export async function drivePlan(
 			draft,
 			paths,
 			DEFAULT_MAX_LOOPS,
+			feedbackLevel,
 		);
 		state = { ...state, dfPhase: t.dfPhase, dfLoop: t.dfLoop };
 		const d = t.directive;
 
 		if (d.action === "spawn-design" || d.action === "spawn-feedback") {
 			await saveState(root, state);
-			return spawnDirective(state, def, d, paths);
+			return spawnDirective(state, def, d, paths, feedbackLevel);
 		}
 		const gateArtifact = (await readArtifact(root, feature, draftFile)) ?? "";
 		return await runOpenGate(
@@ -270,6 +287,7 @@ function spawnDirective(
 		{ action: "spawn-design" | "spawn-feedback" }
 	>,
 	paths: ArtifactPaths,
+	feedbackLevel: FeedbackLevel = DEFAULT_FEEDBACK_LEVEL,
 ): DrivePlanOutput {
 	const opts = d.spawnOptions;
 	const optLine = `스폰 옵션(기본): skill=${opts.skill}, context="${opts.context}", toolBudget={hard:${opts.toolBudget.hard}}, turnBudget={maxTurns:${opts.turnBudget.maxTurns}}`;
@@ -300,12 +318,14 @@ function spawnDirective(
 		};
 	}
 
-	// spawn-feedback: 동적 선택. Director 가 메뉴를 읽어 상황에 맞는 N개를 추려 병렬 스폰.
+	// spawn-feedback: 동적 선택. Director 가 메뉴를 읽어 수준별 N개를 추려 병렬 스폰(ADR-017).
+	const level = d.feedbackLevel ?? feedbackLevel;
 	const message = [
-		`Stage ${state.stage}(${def.name}). subagent 도구(workflowScript runs.all)로 Feedback 자식 에이전트를 **상황에 맞게 추려 병렬** 스폰해 산출물을 비판 검토하게 하라. (동적 feedback 에이전트, ADR-014)`,
-		`1) 메뉴 파일 ${paths.menu} 를 읽고, 검토 대상 ${paths.draft} 산출물·기능 맥락에 가장 의미있는 N개(전형 3-6)를 추려라. (메뉴 전체가 아닌 상황 맞춤 선택)`,
+		`Stage ${state.stage}(${def.name}). Feedback 수준: **${level}**. subagent 도구(workflowScript runs.all)로 Feedback 자식 에이전트를 **수준에 맞게 추려 병렬** 스폰해 산출물을 비판 검토하게 하라. (동적 feedback 에이전트, ADR-014)`,
+		`1) 메뉴 파일 ${paths.menu} 를 읽고, 검토 대상 ${paths.draft} 산출물·기능 맥락에 가장 의미있는 **${feedbackLevelCountSpec(level)}**를 추려라. (메뉴 전체가 아닌 상황 맞춤 선택)`,
 		`2) 각 선택 에이전트: agent="factorynote-feedback-<name>", ${optLine}. 과제: "<focus> 관점에서 ${paths.draft} 검토 → 판정 CLEAN/ISSUES → 상세 리뷰는 ${paths.feedback}.<name> 에 저장 → 반환은 판정만".`,
 		`3) 집합 보고(필수 형식): 각 선택 에이전트를 "[name]" 헤더 + 판정("CLEAN" 또는 "ISSUES"+이슈줄)으로 나열.`,
+		`4) ${FEEDBACK_BATCH_SPLIT_RULE}`,
 		`feedbackResult 에 집합 텍스트를, designArtifact 에 ${paths.draft} 경로를 담아 factorynote_plan 을 다시 호출하라.`,
 		"코드는 쓰지 않는다(검토만).",
 	].join("\n");
@@ -319,6 +339,7 @@ function spawnDirective(
 		draftPath: paths.draft,
 		feedbackPath: paths.feedback,
 		menuPath: paths.menu,
+		feedbackLevel: level,
 		dfLoop: state.dfLoop,
 		designPrompt: def.designPrompt,
 		gateResult: null,
@@ -398,6 +419,7 @@ async function runOpenGate(
 		}
 
 		if (event.kind === "review-request") {
+			const revLevel = input.feedbackLevel ?? DEFAULT_FEEDBACK_LEVEL;
 			const revState: PipelineState = {
 				...state,
 				gateOpen: false,
@@ -414,9 +436,11 @@ async function runOpenGate(
 					menuPath: revPaths.menu,
 					draftPath: revPaths.draft,
 					feedbackPath: revPaths.feedback,
+					feedbackLevel: revLevel,
 					spawnOptions: CHILD_SPAWN_OPTIONS.feedback,
 				},
 				revPaths,
+				revLevel,
 			);
 		}
 

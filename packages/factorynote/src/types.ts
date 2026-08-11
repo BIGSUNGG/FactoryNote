@@ -79,6 +79,13 @@ export type AgentRole = "design" | "feedback";
 /** 내부 Design↔Feedback 루프 위치(게이트 전). */
 export type DesignFeedbackPhase = "design" | "feedback";
 
+/**
+ * Feedback 수준(ADR-017) — 내부 Design↔Feedback 루프의 검토 강도.
+ * none = Feedback 자식 없이 Design 산출물이 게이트 직행(opt-in Tier 0).
+ * 수준별 에이전트 수 스펙은 orchestration 의 FEEDBACK_LEVELS.
+ */
+export type FeedbackLevel = "none" | "low" | "medium" | "high" | "ultra";
+
 /** 자식 스폰 툴 호출 카운트 예산 — pi-subagents toolBudget(hard 필수, hard≥1) 에 매핑.
  *  hard 초과 후 남은 도구(기본 read/grep/find/ls) 차단 → 자식 종료 유도.
  *  주: 이것은 호출 '횟수' 상한이지, 시스템 프롬프트에서 도구를 빼는 기능이 아니다(ADR-012). */
@@ -182,6 +189,8 @@ export type DesignFeedbackDirective =
 			draftPath: string;
 			/** feedback 상세리뷰 베이스 경로(<경로>.<name>). */
 			feedbackPath: string;
+			/** 현 Feedback 수준(ADR-017) — Director 의 스폰 에이전트 수 결정 기준. */
+			feedbackLevel?: FeedbackLevel;
 			spawnOptions: SpawnOptions;
 	  }
 	| {
