@@ -7,6 +7,7 @@ import {
 	copyFileSync,
 	cpSync,
 	mkdirSync,
+	readdirSync,
 	rmSync,
 	writeFileSync,
 	existsSync,
@@ -84,10 +85,28 @@ cpSync(join(ROOT, "apps/plan-viewer/dist"), join(EXT_DIR, "viewer/dist"), {
 	recursive: true,
 });
 
-// 에이전트 정의(Design + 전문 Feedback 32개) — pi-subagents 가 ./agents 에서 발견(ADR-014).
+// 에이전트 정의(Design + 전문 Feedback 32개) — 확장 디렉토리에도 배치(참고용).
 cpSync(join(ROOT, "apps/pi-extension/agents"), join(EXT_DIR, "agents"), {
 	recursive: true,
 });
+
+// 사용자 스코프(~/.pi/agent/agents/) 배포 — pi-subagents 실제 발견 위치(전역).
+// 확장 package.json 매니페스트는 발견 메커니즘이 아니므로, 발견되는 파일시스템 스코프에 직접 배치.
+const USER_AGENTS_DIR = join(AGENT_DIR, "agents");
+mkdirSync(USER_AGENTS_DIR, { recursive: true });
+// stale factorynote-*.md 제거(레지스트리에서 제거된 에이전트 정리; 타 에이전트는 건드리지 않음).
+for (const f of readdirSync(USER_AGENTS_DIR)) {
+	if (/^factorynote-.*\.md$/.test(f)) rmSync(join(USER_AGENTS_DIR, f));
+}
+const agentsSrc = join(ROOT, "apps/pi-extension/agents");
+let deployed = 0;
+for (const f of readdirSync(agentsSrc)) {
+	if (f.endsWith(".md")) {
+		copyFileSync(join(agentsSrc, f), join(USER_AGENTS_DIR, f));
+		deployed++;
+	}
+}
+console.log(`  사용자 스코프 에이전트 ${deployed}개 배포 → ${USER_AGENTS_DIR}`);
 
 // 확장 메타(pi 가 index.ts 자동 발견; type:module 로 ESM 인식 보조).
 // pi-subagents.agents 매니페스트 포함 — 설치된 확장에서 에이전트 발견(없으면 Unknown agent).
@@ -104,6 +123,9 @@ writeFileSync(
 
 console.log("설치 완료.");
 console.log("  새 pi 세션에서: /factorynote   (plan 모드 토글)");
+console.log(
+	"  에이전트 발견    : 사용자 스코프(~/.pi/agent/agents/) — 새 세션에서 factorynote-* 가 subagent list 에 표시",
+);
 console.log(
 	"  상태 조회 CLI : factorynote status   (또는 factorynote <feature>)",
 );

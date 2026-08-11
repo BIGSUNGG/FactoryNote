@@ -9,11 +9,17 @@ tags: [development, dev-log]
 
 ## 2026-08-09
 
+### 문서 정정: pi-subagents 사전요구 + install 경로 (사용성 버그)
+
+**맥락**: “깨끗한 pi 하네스에서 서브 에이전트가 동작하나?” 질문으로 확인 — pi-subagents 가 pi 에 번들되지 않고 프로젝트가 설치해주지도 않는데 문서에 사전 요구로 없어, 사용자가 pi+Node+bun 만 갖추고 와서 “왜 안 되지?” 하는 문제.
+**수정**: `usage-guide.md` 전제 조건에 **pi-subagents 확장**(subagent 도구·발견 제공, 별도 설치 필요) 추가 + 설치 단계에 에이전트 사용자 스코프 배포 기재. `README.md` 구경로 `bash scripts/install.sh` → `bun scripts/install.mjs` 정정(트리 포함).
+**별도 발견(수정됨)**: `README.md` 가 **“6단계 파이프라인”**으로 서술돼 있었으나 실제는 [[ADR-008-3-stage-pipeline]] 로 **3단계**(요구사항·시나리오 / 설계 / 구현계획). Stage 1–6 표·“6단계 산출물” 문구를 3단계(요구사항·시나리오 / 설계(모듈·클래스) / 구현 계획)로 재작성·정정.
+
 ### install.mjs 에이전트 미배포 버그 수정 (Unknown agent 원인)
 
 **증상**: 새 pi 세션에서 `factorynote-design`/`factorynote-feedback-*` 스폰 시 “Unknown agent”. `subagent list` 에 FactoryNote 에이전트 없음.
 **원인**: `scripts/install.mjs` 가 (1) `apps/pi-extension/agents/` 를 설치 디렉토리로 복사하지 않고, (2) 배포용 `package.json` 에서 `pi-subagents.agents` 매니페스트를 누락. → 설치된 확장에 에이전트가 발견 안 됨. ADR-014 흐름 전체 차단. 테스트는 소스 검사라 미포횩.
-**수정**: 에이전트 디렉토리 복사 + 매니페스트 포함. `bun run build` 후 설치된 확장에 agents/ 33개 + 매니페스트 확인.
+**수정(2차, 실제 해결)**: 1차(에이전트 복사+매니페스트)로는 부족 — 조사 결과 **확장 `package.json` `pi-subagents.agents` 매니페스트는 pi-subagents 발견 메커니즘이 아님**(파일시스템 스코프만 발견; pi SDK `registerAgent` API 도 없음). `install.mjs` 가 에이전트를 **사용자 스코프** `~/.pi/agent/agents/`(전역 발견 위치)에 배포(stale `factorynote-*.md` 정리 후 복사, 타 에이전트 보존). `bun run build` 후 33개 배포·`Explore.md` 보존 확인. 새 세션에서 `factorynote-*` 가 `subagent list` 에 표시.
 
 ### 동적 feedback 에이전트(레지스트리 + Director 선택) 구현 (ADF-014)
 

@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-08
+updated: 2026-08-09
 tags: [meta, usage, manual, how-to]
 ---
 
@@ -11,6 +11,7 @@ FactoryNote MVP를 pi 하네스에서 **설치하고 직접 사용하는 방법*
 ## 전제 조건
 
 - **pi**(`@earendil-works/pi-coding-agent`)가 전역 설치되어 있고 대화형 세션이 가능할 것.
+- **pi-subagents 확장** — Director 가 Design/Feedback 자식 에이전트를 스폰하는 `subagent` 도구와 에이전트 발견을 제공. **pi 에 번들되지 않으므로 별도 설치 필요** — 없으면 자식 스폰 불가(“Unknown agent”/도구 부재)로 FactoryNote 흐름이 동작하지 않는다.
 - **Node.js**(확장 런타임) — pi 와 함께 이미 설치됨.
 - (개발/수정 시) **Bun** — 빌드/테스트용.
 
@@ -26,6 +27,7 @@ bun scripts/install.mjs
 
 1. 뷰어가 빌드되어 있지 않으면 `apps/plan-viewer` 에서 `bun run build`.
 2. 확장을 `~/.pi/agent/extensions/factorynote/` 에 배치(확장 TS + `@factorynote/core` 로컬 패키지 + 뷰어 `dist/`).
+3. **에이전트를 사용자 스코프 `~/.pi/agent/agents/` 에 배포**(Design + 전문 Feedback 32개) — pi-subagents 가 발견하는 파일시스템 위치. stale `factorynote-*.md` 정리 후 복사(타 에이전트는 보존).
 
 > 설치 후 **새 pi 세션**에서 pi 가 확장을 자동 발견한다.(`/reload` 불필요 — 새 세션 시작 시 로드)
 

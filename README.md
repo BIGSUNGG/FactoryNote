@@ -1,7 +1,7 @@
 # FactoryNote
 
-**Human-Gated Plan 생성 워크플로 패키지** — pi 하네스 위에서 동작하는 6단계 파이프라인.
-AI가 코드를 서두르기 전에, 요청 이해부터 최종 검증까지 6단계 산출물을 순차 작성하고
+**Human-Gated Plan 생성 워크플로 패키지** — pi 하네스 위에서 동작하는 3단계 파이프라인.
+AI가 코드를 서두르기 전에, 요청 이해부터 구현 계획까지 3단계 산출물을 순차 작성하고
 각 단계를 **사용자가 웹 페이지 게이트에서 검토·수정·확정**한다.
 
 > AI(Feedback 자기검토 포함)는 게이트를 통과시킬 수 없다. 오직 사용자만.
@@ -9,7 +9,7 @@ AI가 코드를 서두르기 전에, 요청 이해부터 최종 검증까지 6�
 ## 상태
 
 **MVP 구현 완료** — pi 하네스에서 실동작. `/factorynote` 로 plan 모드를 켜고 기능을 요청하면,
-에이전트가 6단계 산출물을 작성·제출하고 로컬 웹 페이지가 게이트가 되어 결정을 받는다.
+에이전트가 3단계 산출물을 작성·제출하고 로컬 웹 페이지가 게이트가 되어 결정을 받는다.
 상세는 [`vault/01-architecture/implementation-architecture.md`](vault/01-architecture/implementation-architecture.md).
 
 ## 빠른 시작
@@ -21,7 +21,7 @@ bun run build          # tsc -b (타입검사 + 선언문)
 bun test               # 19개 자체체크
 
 # 2. 로컬 pi에 확장 설치
-bash scripts/install.sh    # → ~/.pi/agent/extensions/factorynote/
+bun scripts/install.mjs    # → ~/.pi/agent/extensions/factorynote/ (+ 에이전트 사용자 스코프 배포)
 
 # 3. 새 pi 세션에서 사용
 #    /factorynote         ← plan 모드 ON
@@ -45,7 +45,7 @@ factorynote/
 │   └── src/                     #   index(/factorynote·plan모드) · plan-tool(도구) · gate-server(웹 게이트)
 ├── apps/plan-viewer/ # 뷰어(React+Vite) — 빌드 dist 가 게이트 서버를 통해 서빙됨
 ├── bin/factorynote.mjs          # CLI(순수 Node, 상태 조회)
-├── scripts/install.sh           # 로컬 pi 설치
+├── scripts/install.mjs          # 로컬 pi 설치(순수 Node — Windows/macOS/Linux 공통)
 ├── vault/                       # 문서(Obsidian 볼트 — 기획·설계·ADR·아키텍처)
 └── .pi/skills/                  # doc-workflow 스킬
 ```
@@ -60,16 +60,13 @@ factorynote/
 
 > Layer 1-2(`packages/factorynote`)만 복사하면 다른 harness로 이식. Layer 3만 harness별 재작성.
 
-## 6단계 파이프라인
+## 3단계 파이프라인
 
 | Stage | 산출물 | 게이트 원칙 |
 | ----- | ------ | ------ |
-| 1 | 요구사항 명세 | 승인된 요구사항 없이 설계 불가 |
-| 2 | 시나리오 명세 | 시나리오 확정 후 설계 |
-| 3 | 모듈 구조도 | 승인된 설계 없이 계획 불가 |
-| 4 | 클래스 명세 | 클래스 설계 확정 후 계획 |
-| 5 | 구현 계획 | 승인된 계획 없이 코드 불가 |
-| 6 | 최종 검증(정합) | 검증 전 반영 불가 |
+| 1 | 요구사항·시나리오 명세 | 승인된 요구사항 없이 설계 불가 |
+| 2 | 설계(모듈·클래스) | 승인된 설계 없이 구현 계획 불가 |
+| 3 | 구현 계획 | 승인된 구현 계획 없이 코드 불가 |
 
 ## 문서
 
