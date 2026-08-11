@@ -260,12 +260,12 @@ export const FEEDBACK_AGENTS: readonly FeedbackAgent[] = [
 		capability: "web",
 		stages: [3],
 	},
-	// --- graph (그래프 JSON 파일 구조 검토) ---
+	// --- graph (계층 그래프 트리 구조 검토) ---
 	{
 		name: "structure",
-		focus: "그래프 JSON 유효·그룹 소속·정합",
+		focus: "계층 그래프 트리 유효·참조 규칙·정합",
 		checklist: [
-			"md 의 `<!-- graph: ... -->` 참조가 가리키는 그래프 JSON 이 유효하고(position 등 좌표 필드 없이), 모든 클래스가 모듈 그룹에 속하며 구조-설명이 정합한가?",
+			"md 의 `<!-- graph: ... -->` 참조가 가리키는 계층 그래프 트리(루트 json + 자식 파일 서브디렉터리)가 유효한가? — version:2, refs 는 {to, comment} 나가는 방향만 소스 파일에, children 경로가 실제 파일과 일치, position 등 좌표 필드 없음, 구조-설명 정합.",
 		],
 		capability: "graph",
 		stages: [2],

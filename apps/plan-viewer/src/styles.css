@@ -904,7 +904,7 @@ button.btn:disabled {
 	color: var(--muted);
 }
 
-/* 문서 속 그래프 블록(읽기 전용 자동 배치 — ADR-016) */
+/* 문서 속 그래프 블록(읽기 전용 계층 드릴다운 — ADR-018) */
 .graph-view {
 	display: flex;
 	flex-direction: column;
@@ -950,6 +950,31 @@ button.btn:disabled {
 .rf-external {
 	border-radius: 24px;
 	border-style: dashed;
+}
+/* 드릴다운: 자식 있는 노드(더블클릭 대상) 커서 + 선택된 노드 하이라이트(ADR-018). */
+.rf-selected {
+	outline: 3px solid var(--text);
+	outline-offset: 3px;
+}
+.rf-generic {
+	padding: var(--s2) var(--s3);
+	background: var(--surface);
+	border: 1.5px solid var(--border-strong);
+	border-radius: var(--radius-sm);
+	font-size: 12px;
+	min-width: 110px;
+	max-width: 220px;
+	text-align: center;
+}
+.rf-generic-name {
+	font-weight: 600;
+	font-family: var(--mono);
+	color: var(--text);
+}
+.rf-generic-desc {
+	font-size: 10px;
+	color: var(--muted);
+	margin-top: 2px;
 }
 .rf-mod-name {
 	font-weight: 600;

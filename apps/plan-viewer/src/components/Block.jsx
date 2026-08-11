@@ -59,10 +59,10 @@ function BlockContent({
 				</div>
 			);
 		case "graph": {
-			// md 의 `<!-- graph: <파일명> -->` 참조 → 동반 .json 섹션을 읽기 전용
-			// 자동 배치로 렌더(ADR-016). 캔버스 조작은 상위(Document) 코멘트
+			// md 의 `<!-- graph: <파일명> -->` 참조 → 계층 그래프 트리(ADR-018)를
+			// 읽기 전용 드릴다운 뷰로 렌더. 캔버스 조작은 상위(Document) 코멘트
 			// 핸들러로 전파되지 않게 막고, 헤더만 블록 코멘트 활성화에 쓴다.
-			const sections = graphData?.[block.graphFile];
+			const tree = graphData?.[block.graphFile];
 			return (
 				<div className="block-content block-graph">
 					<div className="block-graph-head" title="클릭하여 코멘트">
@@ -73,8 +73,8 @@ function BlockContent({
 						onClick={(e) => e.stopPropagation()}
 						onMouseUp={(e) => e.stopPropagation()}
 					>
-						{sections ? (
-							<GraphView sections={sections} />
+						{tree ? (
+							<GraphView tree={tree} />
 						) : (
 							<div className="empty">
 								그래프 데이터({block.graphFile})를 찾을 수 없습니다.

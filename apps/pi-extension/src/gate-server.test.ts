@@ -70,35 +70,66 @@ test("gate server serves viewer, state, and accepts decision", async () => {
 	if (event.kind === "decision") expect(event.decision.verdict).toBe("confirm");
 });
 
-test("gate /api/state returns Stage 2 design md + 동반 그래프 json(ADR-016)", async () => {
-	// Stage 2 산물: md 는 참조 코멘트만, 노드 데이터는 동반 .json.
+test("gate /api/state returns Stage 2 design md + 계층 그래프 트리(ADR-018)", async () => {
+	// Stage 2 산물: md 는 참조 코멘트만, 노드 데이터는 계층 트리(루트 + 자식 파일).
 	const designMd =
 		"<!-- graph: 02-design-graph.json -->\n# 설계\n\n## 아키텍처 설명\n\n프론트 계층.";
-	const graphJson = JSON.stringify({
-		sections: [{ id: "fe", title: "프론트", nodes: [{ id: "UI" }], edges: [] }],
+	const rootJson = JSON.stringify({
+		version: 2,
+		title: "모듈 관계도",
+		childLevel: "modules",
+		nodes: [
+			{
+				id: "UI",
+				label: "UI",
+				layer: "API",
+				children: "modules/UI.json",
+				refs: [{ to: "API", comment: "호출" }],
+			},
+			{ id: "API", label: "API", layer: "Service" },
+		],
+	});
+	const uiJson = JSON.stringify({
+		version: 2,
+		id: "UI",
+		childLevel: "classes",
+		nodes: [{ id: "View", type: "class", name: "View", module: "UI" }],
 	});
 	await writeArtifact(root, "graphdemo", "02-design.md", designMd);
-	await writeArtifact(root, "graphdemo", "02-design-graph.json", graphJson);
+	await writeArtifact(root, "graphdemo", "02-design-graph.json", rootJson);
+	await writeArtifact(
+		root,
+		"graphdemo",
+		"02-design-graph/modules/UI.json",
+		uiJson,
+	);
 	await saveState(root, { ...initialState("graphdemo"), stage: 2 });
 
+	type TreeResp = {
+		file: string;
+		childLevel?: string;
+		nodes: Array<{ id: string; children?: TreeResp }>;
+	};
 	type StateResp = {
 		artifacts: Array<{
 			file: string;
 			format: string;
 			md?: string;
-			graph?: { file: string; artifact: { sections: unknown[] } };
+			graph?: { file: string; tree: TreeResp };
 		}>;
 	};
 	const captured: {
 		md: string | undefined;
 		format: string | undefined;
 		graphFile: string | undefined;
-		sectionCount: number | undefined;
+		rootNodes: number | undefined;
+		uiClassCount: number | undefined;
 	} = {
 		md: undefined,
 		format: undefined,
 		graphFile: undefined,
-		sectionCount: undefined,
+		rootNodes: undefined,
+		uiClassCount: undefined,
 	};
 
 	await runGate({
@@ -114,7 +145,10 @@ test("gate /api/state returns Stage 2 design md + 동반 그래프 json(ADR-016)
 				captured.md = art.md;
 				captured.format = art.format;
 				captured.graphFile = art.graph?.file;
-				captured.sectionCount = art.graph?.artifact.sections.length;
+				captured.rootNodes = art.graph?.tree.nodes.length;
+				captured.uiClassCount = art.graph?.tree.nodes.find(
+					(n) => n.id === "UI",
+				)?.children?.nodes.length;
 			}
 			await fetch(`${url}/api/decision`, {
 				method: "POST",
@@ -127,7 +161,8 @@ test("gate /api/state returns Stage 2 design md + 동반 그래프 json(ADR-016)
 	expect(captured.format).toBe("markdown");
 	expect(captured.md).toContain("<!-- graph: 02-design-graph.json -->");
 	expect(captured.graphFile).toBe("02-design-graph.json");
-	expect(captured.sectionCount).toBe(1);
+	expect(captured.rootNodes).toBe(2);
+	expect(captured.uiClassCount).toBe(1);
 });
 
 test("gate /api/state hides artifacts past current stage on revert", async () => {

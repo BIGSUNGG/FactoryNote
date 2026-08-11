@@ -54,6 +54,7 @@ accepted ([[ADR-006-graph-editor]]·[[ADR-010-md-design-stage]] 를 대체 — �
 ## 참고
 
 - [[ADR-006-graph-editor]] — 대체됨(그래프 에디터·직접편집→채택 폐지)
+- [[ADR-018-hierarchical-graph-tree]] — 본 ADR 의 데이터 모델을 계층 트리 + 드릴다운으로 확장
 - [[ADR-010-md-design-stage]] — 대체됨(인라인 펜스 임베드 폐지, md 단일진실은 유지)
 - [[ADR-015-stage-artifact-folders]] — 동반 json 이 `stageN/` 폴더에 함께 승격
 - [[implementation-architecture]] — 뷰어·게이트 서버 구조

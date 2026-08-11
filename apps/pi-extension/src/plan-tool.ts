@@ -24,6 +24,7 @@ import {
 	markArtifactReady,
 	nextDesignFeedbackStep,
 	parseFeedback,
+	promoteGraphTree,
 	readArtifact,
 	requiresArtifact,
 	saveState,
@@ -490,9 +491,9 @@ async function runOpenGate(
 	};
 }
 
-/** 게이트 오픈 시 draft 의 그래프 json 을 산출물과 같은 stageN/ 폴더로 승격(ADR-016).
- * md 의 참조 코멘트를 최종 json 파일명으로 다시 쓰고, 원본 json 을 동반 저장한다.
- * 참조 없거나 원본 json 없으면 md 만 반환(그래프 없는 산출물·참조 불량 둘 다 안전). */
+/** 게이트 오픈 시 draft 그래프 트리를 산출물과 같은 stageN/ 폴더로 승격(ADR-018).
+ * md 의 참조 코멘트를 최종 루트 json 파일명으로 다시 쓰고, 도달 가능한 트리 파일을
+ * 동반 승격한다. 참조 없으면 md 만 반환(그래프 없는 산출물 안전). */
 async function promoteGraphArtifact(
 	root: string,
 	feature: string,
@@ -503,12 +504,7 @@ async function promoteGraphArtifact(
 	if (!ref) return md;
 	const finalJson = graphJsonNameFor(artifactFile);
 	const rewritten = md.replace(GRAPH_REF_RE, `<!-- graph: ${finalJson} -->`);
-	if (ref !== finalJson) {
-		const raw = await readArtifact(root, feature, ref);
-		if (raw !== undefined) {
-			await writeArtifact(root, feature, finalJson, raw);
-		}
-	}
+	await promoteGraphTree(root, feature, ref, finalJson);
 	return rewritten;
 }
 

@@ -12,6 +12,8 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ### Added
 
+- **계층 그래프 트리 + 임의 깊이 드릴다운 뷰어** — 그래프 산출물을 단일 파일(`sections`)에서 계층 파일 트리로 재구조화: 루트 `<산출물>-graph.json`(md `<!-- graph: -->` 참조 불변) + `<산출물>-graph/` 서브디렉터리에 자식이 있는 노드마다 파일 1개(임의 깊이). 레벨 파일 공통 형태 `{version:2, id?, title?, childLevel?, nodes}`, 노드는 `{id, ...표시 필드, refs?, children?}`. 관계는 `refs:[{to,comment}]` **나가는 방향만 소스 노드 파일에**(단방향 한쪽·양방향 양쪽, comment 필수). 뷰어는 루트 레벨(모듈 관계도) 기본 표시 → 자식이 있는 노드 더블클릭 시 하단에 자식 레벨 패널 스택, 재더블클릭 선택 해제(토글), 다중 선택 시 병합(부모 그룹 합성·크로스 참조 표시·미선택 영역 참조 숨김), module→class→method 임의 깊이 동일 로직(`LevelPanel` 재귀). 코어 `graph.ts` 트리 프로토콜 재작성(`coerceGraphLevelFile`·`loadGraphTree`·`collectGraphChildFiles`·경로 안전), `persistence.ts` 트리 라우팅·회귀 삭제·`promoteGraphTree`(도달 가능 파일만 승격, 고아 제외), 게이트 서버 `artifacts[].graph.tree` 중첩 서빙, Stage 2·3 designPrompt·Feedback structure 체크리스트 갱신. 구 `sections` 포맷 호환 없음. 자체체크 109 pass. [[ADR-018-hierarchical-graph-tree]] ([[ADR-016-graph-json-externalization]] 확장).
+
 - **Feedback 수준 명령 `/factorynote feedback (none|low|medium|high|ultra)`** — 내부 Design↔Feedback 루프의 검토 강도를 세션 토글로 조절(`auto`와 동일 패턴, 기본 `medium`). 수준별 Feedback 자식 수: none = 0(Feedback 루프 스킵, Design 산출물 게이트 직행 — 폐지됐던 Tier 0의 opt-in 부활), low = 1개(1~3개 영역 담당), medium = 2~3개(현행), high = 4~6개, ultra = 9개. 수 스펙(`FEEDBACK_LEVELS`)은 core 소유·`nextDesignFeedbackStep` 전이가 none 처리, 수준은 spawn-feedback 지시문·메뉴 파일·PLAN_MODE_PROMPT 에 실린다. 병렬 스폰이 라우터 호출 수/레이트 리밋 에러로 실패하면 3~4개씩 순차 배치로 분할 재시도(프로토콜 규칙). 게이트 통제(5대 원칙)는 수준과 무관하게 유지. [[ADR-017-feedback-levels]].
 
 ### Changed

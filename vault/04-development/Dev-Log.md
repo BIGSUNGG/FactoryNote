@@ -9,6 +9,23 @@ tags: [development, dev-log]
 
 ## 2026-08-11
 
+### 계층 그래프 트리 + 드릴다운 뷰어 ([[ADR-018-hierarchical-graph-tree]])
+
+**맥락**: 사용자 요청 — 그래프를 모듈/클래스/… 계층으로 파일 분할하고, 뷰어는 기본 모듈 뷰 → 모듈 더블클릭 시 클래스 뷰 하단 추가 → 다중 선택 병합(모듈 간 클래스 관계 포함) → 재더블클릭 선택 해제. 모듈→클래스 2단계 고정이 아닌 모든 노드가 하위 N개를 가질 수 있는 임의 깊이 확장 구조(메서드 레벨 포함).
+
+**결정 포인트(사용자 확정)**: 참조는 나가는 방향만 소스 파일에(`refs:{to,comment}`, 단방향 한쪽·양방향 양쪽, 전 노드 동일 규칙) · 에이전트가 계층 트리를 직접 작성(코어는 검증만) · 뷰어는 임의 깊이 스택 패널 · 메서드 레벨 그래프까지 이번 범위 · 루트 파일 유지 + 서브디렉터리 미러 배치 · 미선택 대상 참조는 렌더 숨김.
+
+**작업**:
+
+- core: `graph.ts` 트리 프로토콜 재작성 — `coerceGraphLevelFile`(version:2·refs comment 필수·children 경로 안전·파일 내 id 유일), `loadGraphTree`(중첩 조립, 자식 누락 시 해당 노드만 children 생략), `collectGraphChildFiles`(도달 가능 순회), `isSafeChildPath`(traversal 차단). `sections` API 제거.
+- persistence: `<base>-graph/` 경로 stageN 라우팅(stageSubdir), 회귀 시 루트 json + 서브디렉터리 `rm -r`, `promoteGraphTree`(도달 가능 파일만 복사 — 고아·잔여 자연 제외, 기존 대상 트리 삭제 후 작성).
+- gate-server: 루트에서 트리 조립해 `/api/state` `artifacts[].graph.tree`(중첩 레벨)로 서빙.
+- viewer: `lib/graphTree.js` 순수 로직(`refsToEdges` 가시 대상만·`toggleSelect`·`mergeChildLevels` 다중 선택 시 그룹 합성) + `GraphView.jsx` `LevelPanel` 재귀 드릴다운 + `GenericNode`(임의 레벨 폴백). `layoutGraph` 무변경(합성 섹션 재사용).
+- prompts: Stage 2 designPrompt 트리 규약(3레벨: 모듈→클래스→메서드, id 유일·참조 규칙) 전면 갱신, Stage 3 선택 그래프 규약 갱신, Feedback `structure` 체크리스트 갱신.
+- 테스트: 트리 파싱/조작/경로 안전·게이트 서빙(중첩 트리)·승격(자식 복사+고아 제외)·뷰어 로직(토글/병합/숨김/임의 깊이). 전체 109 pass. `bun run build` 통과 + 설치 확장 배포.
+
+**여담**: pi-goal 드래프팅 게이트에서 사용자 그릴(인터뷰)로 결정한 사항들 — 공통 조상 엣지 저장·지연 로딩 등 대안은 배제(ponytail).
+
 ### Feedback 수준 명령(none|low|medium|high|ultra) ([[ADR-017-feedback-levels]])
 
 **맥락**: 사용자 요청 — `/factorynote feedback <level>` 로 검토 강도 조절. none=피드백 없음(기존 Tier 0 동일), low=1개가 1~3 영역, medium=2~3개(현행), high=4~6개, ultra=9개. 라우터 호출 수 제한 시 3~4개씩 분할 재시도.

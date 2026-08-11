@@ -8,9 +8,14 @@ import {
 	rename,
 	copyFile,
 	unlink,
+	rm,
 } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { graphJsonNameFor } from "./graph.ts";
+import {
+	collectGraphChildFiles,
+	graphDirNameFor,
+	graphJsonNameFor,
+} from "./graph.ts";
 import { STAGES } from "./stages.ts";
 import type { PipelineState, ValidThrough } from "./types.ts";
 
@@ -23,13 +28,21 @@ export function statePath(root: string, feature: string): string {
 	return join(featureDir(root, feature), "state.json");
 }
 
-/** STAGES 에 등록된 단계 산출물 파일명(및 그 동반 그래프 json) → stageN/ 서브폴더.
- * 그 외(보조 파일)는 feature 루트. 동반 json: `<산출물명 base>-graph.json`(ADR-016). */
+/** STAGES 에 등록된 단계 산출물 파일명(및 그 동반 그래프 트리) → stageN/ 서브폴더.
+ * 그 외(보조 파일)는 feature 루트. 동반 그래프: 루트 `<base>-graph.json` +
+ * 자식 파일들이 사는 `<base>-graph/` 디렉터리(ADR-018). */
 function stageSubdir(file: string): string {
 	const stage = STAGES.find((s) => s.artifactFile === file);
 	if (stage) return `stage${stage.id}`;
 	if (file.endsWith("-graph.json")) {
 		const md = file.slice(0, -"-graph.json".length) + ".md";
+		const owner = STAGES.find((s) => s.artifactFile === md);
+		if (owner) return `stage${owner.id}`;
+	}
+	// 그래프 트리 경로: 첫 세그먼트(또는 이름 자체)가 `<산출물 base>-graph` 인 경우.
+	const firstSeg = file.split("/")[0]!;
+	if (firstSeg.endsWith("-graph")) {
+		const md = firstSeg.slice(0, -"-graph".length) + ".md";
 		const owner = STAGES.find((s) => s.artifactFile === md);
 		if (owner) return `stage${owner.id}`;
 	}
@@ -146,6 +159,38 @@ export async function readArtifact(
 	}
 }
 
+/** 게이트 오픈 시 그래프 트리 승격(ADR-018): 루트에서 도달 가능한 파일만
+ * 대상(stageN/)으로 복사 — 고아·잔여 파일 자연 제외. 기존 대상 트리는 삭제 후 쓴다.
+ * src 루트가 없으면(그래프 없는 산출물) 아무 일도 하지 않는다. */
+export async function promoteGraphTree(
+	root: string,
+	feature: string,
+	srcRootFile: string,
+	dstRootFile: string,
+): Promise<void> {
+	const raw = await readArtifact(root, feature, srcRootFile);
+	if (raw === undefined) return;
+	const srcDir = graphDirNameFor(srcRootFile);
+	const dstDir = graphDirNameFor(dstRootFile);
+	// 이전 사이클의 낡은 대상 트리 제거(도달 불가 잔여 파일 방지).
+	await rm(artifactPath(root, feature, dstDir), {
+		recursive: true,
+		force: true,
+	});
+	await writeArtifact(root, feature, dstRootFile, raw);
+	const readRel = async (rel: string): Promise<string | null> => {
+		const r = await readArtifact(root, feature, `${srcDir}/${rel}`);
+		return r ?? null;
+	};
+	const rels = await collectGraphChildFiles(raw, readRel);
+	for (const rel of rels) {
+		const content = await readRel(rel);
+		if (content !== null) {
+			await writeArtifact(root, feature, `${dstDir}/${rel}`, content);
+		}
+	}
+}
+
 /**
  * FR-7: afterStage 이후(id > afterStage) 산출물 best-effort 삭제(ENOENT 무시).
  * 회귀 시 대상 단계(revert target) 이후 산출물 자동 무효화 — 호출측(plan-tool)은
@@ -168,8 +213,12 @@ export async function invalidateArtifactsAfter(
 			const json = graphJsonNameFor(md);
 			return [
 				unlink(artifactPath(root, feature, md)).catch(ignoreEnoent),
-				// 동반 그래프 json 도 함께 무효화(ADR-016).
+				// 동반 그래프 트리(루트 json + 자식 디렉터리)도 함께 무효화(ADR-018).
 				unlink(artifactPath(root, feature, json)).catch(ignoreEnoent),
+				rm(artifactPath(root, feature, graphDirNameFor(json)), {
+					recursive: true,
+					force: true,
+				}).catch(ignoreEnoent),
 			];
 		}),
 	);

@@ -7,14 +7,15 @@ import { exec } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
 	STAGES,
+	graphDirNameFor,
 	graphRefFile,
+	loadGraphTree,
 	loadState,
-	parseGraphArtifact,
 	readArtifact,
 	type ArtifactFormat,
 	type ChatMessage,
 	type GateDecision,
-	type GraphArtifact,
+	type GraphLevel,
 } from "@factorynote/core";
 
 /** 게이트 대기 중 발생 이벤트: 사용자 최종 결정, 실시간 채팅, 또는 '검토 요청'(AI 재검토 +1 사이클). */
@@ -38,8 +39,8 @@ export interface ViewerState {
 		file: string;
 		format: ArtifactFormat;
 		md?: string;
-		/** md 의 `<!-- graph: ... -->` 참조가 가리키는 동반 그래프 JSON(ADR-016). 없으면 미포함. */
-		graph?: { file: string; artifact: GraphArtifact };
+		/** md 의 `<!-- graph: ... -->` 참조가 가리키는 계층 그래프 트리(ADR-018). 없으면 미포함. */
+		graph?: { file: string; tree: GraphLevel };
 	}[];
 }
 
@@ -58,20 +59,28 @@ async function buildViewerState(
 		if (state && s.id > state.stage) continue;
 		const raw = await readArtifact(root, feature, s.artifactFile);
 		if (raw === undefined) continue;
-		// 동반 그래프 JSON: md 참조 파일명을 산출물과 같은 stageN/ 폴더에서 읽는다.
+		// 계층 그래프 트리: 루트 json + 서브디렉터리 자식 파일들을 조립해 서빙(ADR-018).
 		const ref = graphRefFile(raw);
-		const graphJson = ref
-			? await readArtifact(root, feature, ref).catch(() => undefined)
-			: undefined;
-		const parsed =
-			graphJson !== undefined ? parseGraphArtifact(graphJson) : null;
+		let tree: GraphLevel | null = null;
+		if (ref) {
+			const rootRaw = await readArtifact(root, feature, ref).catch(
+				() => undefined,
+			);
+			if (rootRaw !== undefined) {
+				const refDir = graphDirNameFor(ref);
+				tree = await loadGraphTree(rootRaw, ref, async (rel) => {
+					const r = await readArtifact(root, feature, `${refDir}/${rel}`);
+					return r ?? null;
+				});
+			}
+		}
 		artifacts.push({
 			stage: s.id,
 			name: s.name,
 			file: s.artifactFile,
 			format: s.format,
 			md: raw,
-			...(ref && parsed ? { graph: { file: ref, artifact: parsed } } : {}),
+			...(ref && tree ? { graph: { file: ref, tree } } : {}),
 		});
 	}
 	return {

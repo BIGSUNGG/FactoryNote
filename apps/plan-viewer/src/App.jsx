@@ -103,14 +103,12 @@ export default function App() {
 	if (!state) return <Center>게이트 로딩 중…</Center>;
 
 	// reviewing: 현재 단계 산출물 렌더. 3단계 모두 동일 문서 경로(PlanPage) — 그래프는
-	// 동반 .json 을 참조하는 읽기 전용 자동 배치 블록(ADR-016).
+	// 계층 트리 .json 을 참조하는 읽기 전용 드릴다운 블록(ADR-018).
 	const cur = (state.artifacts || []).find((a) => a.stage === state.stage);
 	const stageLabels = {};
 	for (const a of state.artifacts || []) stageLabels[a.stage] = a.name;
 	stageLabels[state.stage] = state.stageName;
-	const graphData = cur?.graph
-		? { [cur.graph.file]: cur.graph.artifact.sections }
-		: {};
+	const graphData = cur?.graph ? { [cur.graph.file]: cur.graph.tree } : {};
 
 	const main = (
 		<PlanPage

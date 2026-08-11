@@ -61,7 +61,7 @@ Pi 와 코어를 잇는 유일한 계층. pi가 jiti로 TS 를 직접 로드한�
 
 - **`App.jsx`** — **폴링 상태머신**(loading/reviewing/preparing/closed). `/api/state` 의 `gateOpen` 으로 구동: `gateOpen=true` 면 현 단계 렌더(3단계 모두 `PlanPage` 동일 문서 경로) + 게이트 바, `false` 면 "다음 준비 중…" 화면으로 1초 폴링. 결정 POST 후 preparing 전환 → `gateOpen` 이 다시 true 가 되면(preparing→reviewing) **같은 탭에서 다음 단계로 교체 + 알림**(Web Notification + 타이틀 점멸 + `window.focus`, 백그라운드 탭 대응). 서버 종료/`done` 시 마감 화면.
 - **`PlanPage.jsx`** — 마크다운 단계(1/2/3 공통). 마크다운 → 블록(`mdToBlocks`) 렌더 + 블록/셀/드래그 영역 코멘트 + pending 큐([[core-features]] 사양). 게이트 버튼 → `onGate({verdict, comments})`. 그래프는 md 의 `<!-- graph: <파일명> -->` 참조 블록으로 렌더(아래 `GraphView`).
-- **`GraphView.jsx`** — 읽기 전용 자동 배치 그래프(react-flow). 동반 `.json`(`/api/state` 의 `artifacts[].graph`)의 sections 를 `layoutGraph`(layer/관계 방향 행 배치 + barycenter 정돈 + 그룹 포함)로 배치해 문서 속 블록으로 렌더. 드래그·연결·편집 없음 — 수정은 채팅으로([[ADR-016-graph-json-externalization]]).
+- **`GraphView.jsx`** — 읽기 전용 계층 드릴다운 그래프(react-flow). 게이트 서버가 조립한 트리(`/api/state` 의 `artifacts[].graph.tree`)의 루트 레벨을 기본 표시하고, 자식이 있는 노드 더블클릭 시 하단에 자식 레벨 패널을 스택(토글·다중 선택 병합·미선택 참조 숨김·임의 깊이). 배치는 `layoutGraph`(layer/관계 방향 행 배치 + barycenter 정돈 + 그룹 포함) — 드래그·연결·편집 없음, 수정은 채팅으로([[ADR-018-hierarchical-graph-tree]]).
 - **`GateBar.jsx`** — 하단 게이트 바: **✓ 확정**(confirm) / **✎ 수정 지시**(modify, pending 코멘트 전송) / **← 정정**(revert).
 
 ## 런타임 데이터 흐름
@@ -132,7 +132,7 @@ sequenceDiagram
     { "stage": 1, "name": "요청 이해 · 동작 시나리오", "file": "01-understanding-and-scenarios.md", "format": "markdown", "md": "# 요구사항·시나리오\n…" },
     { "stage": 2, "name": "모듈 · 클래스 설계", "file": "02-design.md", "format": "markdown",
       "md": "<!-- graph: 02-design-graph.json -->\n# 설계\n…",
-      "graph": { "file": "02-design-graph.json", "artifact": { "sections": [{ "id": "frontend", "title": "프론트엔드", "nodes": […], "edges": […] }] } } }
+      "graph": { "file": "02-design-graph.json", "tree": { "file": "02-design-graph.json", "childLevel": "modules", "nodes": [ { "id": "frontend", "children": { "file": "modules/frontend.json", "parentId": "frontend", "nodes": […] } }, … ] } } }
   ]
 }
 ```
@@ -152,23 +152,32 @@ sequenceDiagram
 - **입력**: `{ feature: string }` (도구 파라미터) + `designArtifact`·`feedbackResult`·`chatResponse`(경로/판정/답변). 내부적으로 `root`·`viewerDistDir`·`signal` 추가.
 - **출력(에이전트로)**: `{ done, stage, stageName, needArtifact, designPrompt, feedbackChecklist, gateResult, message }`. `message` 가 다음 행동을 직접 지시(modify→재작성, confirm→다음 산출물 작성, done→종료).
 
-### 그래프 산출물(Stage 2·선택 Stage 3) — md + 동반 `.json`
+### 그래프 산출물(Stage 2·선택 Stage 3) — md + 계층 트리 `.json`
 
-그래프 데이터는 산출물 md 옆 별도 JSON 파일(`stageN/<산출물 base>-graph.json`)에 저장하고, md 는 `<!-- graph: <파일명> -->` 참조 코멘트만 가진다([[ADR-016-graph-json-externalization]]):
+그래프 데이터는 산출물 md 옆 계층 파일 트리([[ADR-018-hierarchical-graph-tree]])로 저장하고, md 는 루트 파일 `<!-- graph: <파일명> -->` 참조 코멘트만 가진다([[ADR-016-graph-json-externalization]] 승계):
+
+```
+stage2/02-design-graph.json                # 루트 — 최상위(모듈) 레벨
+stage2/02-design-graph/modules/ui.json     # 모듈 ui 의 자식(클래스) 레벨
+stage2/02-design-graph/modules/ui/View.json  # 클래스 View 의 자식(메서드) 레벨
+```
 
 ```json
 {
-  "sections": [
-    { "id": "frontend", "title": "프론트엔드",
-      "nodes": [{ "id": "UI", "data": { "label": "UI", "layer": "API" } }],
-      "edges": [{ "id": "UI->API", "source": "UI", "target": "API", "data": { "desc": "호출" } }] }
+  "version": 2, "id": "ui", "childLevel": "classes",
+  "nodes": [
+    { "id": "View", "type": "class", "name": "View",
+      "refs": [{ "to": "AuthService", "comment": "인증 요청" }],
+      "children": "modules/ui/View.json" }
   ]
 }
 ```
 
-- 섹션 = 독립 그래프(모듈 관계도 + 클래스 구조도). **`position`·`width`·`height` 금지** — 좌표는 뷰어 `layoutGraph` 자동 배치가 유일한 출처.
-- `core/graph.ts`(`parseGraphArtifact`·`graphRefFile`·`graphJsonNameFor`)가 envelope/참조 검증; 노드/엣지는 렌더 필드를 불투명하게 담는다.
-- 게이트 오픈 시 `drivePlan` 이 draft 의 참조·json 을 산출물 폴더로 승격(참조를 최종 파일명으로 재작성). 회귀 시 md 와 동반 json 함께 무효화.
+- 레벨 파일 공통 envelope: `{version:2, id?, title?, childLevel?, nodes}`. 노드는 `{id, ...표시 필드, refs?, children?}` — `children` 은 루트 디렉터리 기준 상대경로.
+- 관계는 `refs: [{to, comment}]` **나가는 방향만 소스 노드 파일에** 작성. 단방향 한쪽·양방향 양쪽, comment 필수. 별도 edges 배열 없음.
+- **`position`·`width`·`height` 금지** — 좌표는 뷰어 `layoutGraph` 자동 배치가 유일한 출처.
+- `core/graph.ts`(`coerceGraphLevelFile`·`loadGraphTree`·`collectGraphChildFiles`·`isSafeChildPath`)가 envelope/경로 안전 검증; 표시 필드는 불투명.
+- 게이트 서버가 루트에서 도달 가능한 파일을 조립해 `artifacts[].graph.tree`(중첩 레벨)로 서빙. 게이트 오픈 시 `promoteGraphTree` 가 도달 가능 파일만 산출물 폴더로 승격(고아 제외, 참조를 최종 파일명으로 재작성). 회귀 시 루트 json + 서브디렉터리 전체 무효화.
 
 ## 설치 레이아웃 — `~/.pi/agent/extensions/factorynote/`
 
@@ -199,7 +208,7 @@ factorynote/
 | 에이전트 티어 | **Tier 1**(Design↔Feedback 자식 스폰 루프, 유일 경로) | [[ADR-009-tier-1-agent-orchestration]]; Tier 0·NFR-7 폐지 |
 | 제어 vs 판단 | 제어·영속=코드, 산출물=LLM | 하이브리드 원칙(NFR-4) |
 | 단계별 렌더 | 3단계 모두 동일 문서 경로(PlanPage), 그래프는 읽기 전용 자동 배치 블록(GraphView) | [[ADR-016-graph-json-externalization]] · [[ADR-008-3-stage-pipeline]] |
-| 그래프 데이터 | md 옆 동반 `.json` + `<!-- graph: -->` 참조, position 금지·자동 배치 | [[ADR-016-graph-json-externalization]] |
+| 그래프 데이터 | md 옆 계층 트리 `.json`(루트 + 자식 파일 서브디렉터리) + `<!-- graph: -->` 참조, 나가는 refs {to,comment}, position 금지·자동 배치·드릴다운 | [[ADR-018-hierarchical-graph-tree]] · [[ADR-016-graph-json-externalization]] |
 | 회귀(revert) | **다단계 점프**(`revertTo` + clamp `1..현단계-1`) + 대상 이후 산출물 무효화 | FR-7; 뷰어→gate-server→엔진 seam |
 | 반복 상한 | modify@ceiling 시 **경성 에스컬레이션**(잔존 이슈 + 재작성/회귀/재협의 옵션) | FR-2(`MAX_LOOPS`/`atLoopCeiling`) |
 | 게이트 만료 | `timeoutMs`(기본 30min) + `settled` 가드 → 좀비 게이트 자동 modify 복귀 | #4 신뢰성 |
