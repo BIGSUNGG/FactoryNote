@@ -1,11 +1,45 @@
 ---
-updated: 2026-08-11
+updated: 2026-08-12
 tags: [development, dev-log]
 ---
 
 # Dev-Log
 
 날짜별 작업 기록. 무엇을 했는지, 왜, 무엇이 남았는지. [[Changelog]]는 외부용 단위, 본 파일은 일일 흐름.
+
+## 2026-08-12
+
+### 그래프 드릴다운 미출력 수정 — ReactFlow pointer-events 주입 ([[graph-drilldown-pointer-events]])
+
+**맥락**: 사용자 보고 — 게이트 검토 페이지에서 모듈 노드 더블클릭 시 하위 그래프가 안 나옴. 힌트 문구는 표시(데이터 정상)되나 더블클릭 무반응.
+
+**특정 과정**: happy-dom 단위 재현은 통과(가양성) → 실제 Chrome headless(CDP) 재현 구성(`repro-drilldown.mjs`: bun 이 실데이터 게이트 서빙 + node 가 playwright 브라우저 구동) → `elementFromPoint` 가 노드 위치에서 pane 반환 + wrapper 인라인 `pointer-events: none` 발견. ReactFlow v11 `wrapNode` 가 클릭 계열 핸들러 없는 읽기 전용 노드에 `pointer-events: none` 을 주입하는데 `onDoubleClick` 은 그 조건에 없음.
+
+**작업**: `GraphView.jsx` no-op `onNodeClick` 1줄(주석 포함) · `GraphView.test.jsx` 드릴다운 DOM 테스트 3건(pointerEvents 가드 포함) · `repro-drilldown.mjs` + `repro-drilldown-browser.mjs` 실브라우저 회귀 체크. 117 pass + `bun run build`. 환경 메모: Windows 에서 playwright `launch()` 타임아웃 → Chrome 직접 실행 + `connectOverCDP`(node), bun 에서 `spawnSync` 는 서빙 루프 블록.
+
+### 그래프 미출력 근본 원인 수정 — 전이 시 지시 파일 갱신 ([[graph-output-stale-design-prompt]])
+
+**맥락**: 사용자 보고 — `chat-program` 피처에 그래프 정보가 있는데 뷰어 출력이 안 됨. 조사 결과 (1) 게이트 전이 후 Design 자식이 이전 단계의 낡은 `design-prompt.md`(Stage 1 지시, 그래프 프로토콜 없음)를 읽어 자유 형식 그래프를 출력, (2) md 참조가 경로 포함(`graph/...`)이라 `GRAPH_REF_RE` 매치 실패 → 뷰어가 그래프를 읽지 못함.
+
+**작업**:
+
+- `plan-gate.ts`: 게이트 결정 후 전이 시 다음 단계 `design-prompt.md` + `feedback-menu.md` 즉시 기록.
+- `plan-tool.ts`: 지시 파일 기록을 그래프 검증 앞으로 이동 — 반환 라운드 재작성 자식도 현 단계 지시를 읽는다.
+- `artifact.ts`: `checkRequiredGraph` 규약 위반(경로 포함 등) 구분 메시지.
+- 데이터: `graph/*.json` 자유 형식 → ADR-018 규격 변환(`draft-graph.json` + `draft-graph/`, 39 노드), draft.md 참조 규격화, 구 디렉터리 삭제. 미승인 draft 수동 승격은 하지 않음(5대 원칙 2).
+- 테스트: 전이 시 지시 파일 갱신 · 경로 포함 참조 반려. 114 pass + `bun run build`.
+
+### Stage 2 그래프 필수 강제 + 단계별 스폰 명령 ([[ADR-019-stage-2-graph-required]])
+
+**맥락**: 사용자 요청 — 2단계 그래프를 프롬프트 권장에서 코드로 강제하고, 이를 위해 1·2·3단계에 서로 다른 스폰 명령을 내려달라. 기존엔 `designTask` 가 전 단계 공통 문구(“지시에 그래프 작성이 포함되면…”)를 쓰고 검증 코드가 없어, 그래프 없이 md만 넘겨도 Feedback·게이트로 그대로 진행됐다.
+
+**작업**:
+
+- core `stages.ts`: `StageDefinition.graph: "none"|"optional"|"required"` 추가 — Stage 1 none · Stage 2 required · Stage 3 optional. 데이터가 명령·검증을 분기.
+- core `df-task.ts`: `designTask`·`designRevisionTask` 가 `def.graph` 로 그래프 지시 문구 분기(required = “필수·자동 반려” 명시, optional = 선택 규약, none = 언급 없음).
+- core `artifact.ts`: `checkRequiredGraph` — md 참조 코멘트 → 루트 json 존재 → `version:2` 파싱 3단 검증, 미충족 시 이슈 문자열.
+- pi `plan-tool.ts`: design 보고 + required 단계면 Feedback 전에 검증 — 미충족 시 `designRevisionTask` 로 재작성 지시(dfLoop+1), 상한 소진 시 게이트 에스컬레이션. 별도 카운터 없이 기존 상한 공유.
+- 테스트: 단계별 명령 분기(1=그래프 언급 없음·2=필수·3=선택), 그래프 없는 draft 자동 반려 → 완성 후 게이트 진행, 상한 소진 에스컬레이션. 112 pass + `bun run build` 통과.
 
 ## 2026-08-11
 

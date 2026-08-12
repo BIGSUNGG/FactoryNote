@@ -12,6 +12,7 @@ export {
 	saveState,
 } from "./state.ts";
 export {
+	checkRequiredGraph,
 	invalidateArtifactsAfter,
 	promoteGraphTree,
 	readArtifact,

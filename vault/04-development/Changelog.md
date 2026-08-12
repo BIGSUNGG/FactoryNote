@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-11
+updated: 2026-08-12
 tags: [development, changelog]
 ---
 
@@ -10,9 +10,19 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ## [Unreleased]
 
+### Added
+
+- **Stage 2 그래프 필수 강제 + 단계별 스폰 명령 분기** — `StageDefinition.graph: "none"|"optional"|"required"` 필드로 단계별 그래프 의무를 선언(Stage 1 없음 · Stage 2 필수 · Stage 3 선택)하고, `designTask`·`designRevisionTask` 스폰 명령이 이 필드로 분기한다. Stage 2는 프롬프트 요청에 그치지 않고 코드로 강제: `checkRequiredGraph` 가 design 보고 시 md 의 `<!-- graph: ... -->` 참조 + 루트 json 존재 + `version:2` envelope 파싱을 검증해, 미충족이면 Feedback 스폰 전에 재작성 지시(dfLoop 소진 시 게이트 에스컬레이션). 자체체크 112 pass. [[ADR-019-stage-2-graph-required]].
+
 ### Changed
 
 - **모듈화 리팩토링 — 기능별 단일 책임 모듈로 분해** — 9개 대형 파일을 책임 단위로 분해(원본은 barrel·재수출로 축소, import 경로·퍼블릭 API 불변). 코어: `types.ts` → `types/`(gate·feedback·graph·pipeline), `orchestration.ts` → `df-policy/parse/task/transition/loop`, `feedback-agents.ts` → 역량별 데이터(static·web·graph), `persistence.ts` → `paths/state/artifact`. 어댑터: `plan-tool.ts` → `plan-types/paths/directive/gate`, `gate-server.ts` → `gate-events/viewer-state/http/manager/browser`, `index.ts` → `command/prompt/viewer/format`. 뷰어: `App.jsx` → `Screens.jsx`·`lib/notify.js`, `styles.css`(1,639줄) → `styles/` 기능별 11파일 + `@import` barrel. 검증: `bun test` 109 통과, `bun run build` 0 종료.
+
+### Fixed
+
+- **그래프 드릴다운 미출력 — ReactFlow v11 노드 `pointer-events: none` 주입 차단** — 게이트 뷰어에서 모듈 노드 더블클릭이 무반응이던 문제. ReactFlow v11 은 클릭 계열 핸들러(`onClick`/`onMouseEnter`…)가 하나도 없고 selectable·draggable 이 아니면 노드 wrapper 에 인라인 `pointer-events: none` 을 주입하는데, 읽기 전용 GraphView 는 `onNodeDoubleClick` 만 전달하고 있었고 `onDoubleClick` 은 그 조건에 없어 히트테스팅에서 노드가 사라졌다. `GraphView.jsx` 에 의도적 no-op `onNodeClick` 1줄로 해결(CSS 해킹 대신). 회귀 체크: `GraphView.test.jsx`(happy-dom, 인라인 pointerEvents 가드 포함, 3건) + `bun repro-drilldown.mjs`(실제 Chrome headless CDP 로 게이트 페이지 재현·더블클릭 검증). 자체체크 117 pass. [[graph-drilldown-pointer-events]]
+
+- **그래프 미출력 — 낡은 `design-prompt.md` 주입 차단 + 참조 규약 위반 진단** — 게이트 전이(confirm/modify/revert) 직후 다음 단계의 `design-prompt.md`·`feedback-menu.md` 를 즉시 기록(`plan-gate.ts`)하고, `drivePlan` 의 지시 파일 기록을 그래프 검증·반려 앞으로 이동(`plan-tool.ts`) — 전이 직후·반환 라운드 재작성 자식이 이전 단계의 낡은 지시를 읽어 그래프 프로토콜([[ADR-018-hierarchical-graph-tree]])에서 이탈하던 사고 차단. `checkRequiredGraph` 가 참조 코멘트에 경로 포함 등 규약 위반을 "참조 없음"과 구분해 안내. 자체체크 114 pass. [[graph-output-stale-design-prompt]]
 
 ### Added
 

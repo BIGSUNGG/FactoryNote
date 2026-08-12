@@ -14,8 +14,11 @@
     "clean": "git clean -fdX packages apps"
   },
   "devDependencies": {
-    "typescript": "^5.6.0",
+    "@happy-dom/global-registrator": "^20.11.2",
+    "@types/node": "^22.0.0",
     "bun-types": "^1.1.0",
-    "@types/node": "^22.0.0"
+    "happy-dom": "^20.11.2",
+    "playwright-core": "^1.62.1",
+    "typescript": "^5.6.0"
   }
 }

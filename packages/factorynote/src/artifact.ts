@@ -6,6 +6,8 @@ import {
 	collectGraphChildFiles,
 	graphDirNameFor,
 	graphJsonNameFor,
+	graphRefFile,
+	parseGraphLevelFile,
 } from "./graph.ts";
 import { artifactPath, featureDir } from "./paths.ts";
 import { STAGES } from "./stages.ts";
@@ -72,6 +74,30 @@ export async function promoteGraphTree(
 			await writeArtifact(root, feature, `${dstDir}/${rel}`, content);
 		}
 	}
+}
+
+/** 그래프 필수 단계(Stage 2) 산출물 검증 — md 참조 코멘트 + 루트 json 존재·version:2 파싱.
+ * 미충족 시 이슈 문자열(재작성 지시용), 충족 시 null. */
+export async function checkRequiredGraph(
+	root: string,
+	feature: string,
+	mdFile: string,
+): Promise<string | null> {
+	const md = await readArtifact(root, feature, mdFile);
+	if (md === undefined) return "draft 산출물 파일이 없다";
+	const ref = graphRefFile(md);
+	if (!ref) {
+		// 참조 시도는 있으나 규약 위반(예: 경로 포함) — 원인 구분 메시지.
+		if (/<!--\s*graph:/i.test(md))
+			return "`<!-- graph: ... -->` 참조 코멘트가 규약과 다르다 — 루트 json **파일명만** 허용한다(경로·폴더 구분자 금지, 예: `<!-- graph: draft-graph.json -->`)";
+		return "md 에 `<!-- graph: <루트 json 파일명> -->` 참조 코멘트가 없다 — 이 단계는 계층 그래프 트리가 필수다";
+	}
+	const raw = await readArtifact(root, feature, ref);
+	if (raw === undefined)
+		return `참조 그래프 파일(${ref})이 없다 — 루트 json 을 draft 와 같은 폴더에 저장하라`;
+	if (!parseGraphLevelFile(raw))
+		return `참조 그래프 파일(${ref})가 유효한 version:2 레벨 파일이 아니다 — envelope 규약을 확인하라`;
+	return null;
 }
 
 /**

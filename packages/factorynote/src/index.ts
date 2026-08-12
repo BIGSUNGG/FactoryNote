@@ -51,6 +51,7 @@ export {
 } from "./engine.ts";
 export {
 	artifactPath,
+	checkRequiredGraph,
 	featureDir,
 	invalidateArtifactsAfter,
 	loadState,
@@ -79,6 +80,7 @@ export {
 	MAX_REPORT_INPUT_CHARS,
 	aggregateFeedback,
 	clampReportInput,
+	designRevisionTask,
 	designTask,
 	feedbackAgentTask,
 	feedbackLevelCountSpec,

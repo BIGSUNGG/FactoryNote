@@ -173,6 +173,12 @@ function LevelPanel({ level, depth }) {
 						nodesConnectable={false}
 						elementsSelectable={false}
 						zoomOnDoubleClick={false}
+						onNodeClick={() => {
+							/* 의도적 no-op: ReactFlow v11 은 onClick/onMouseEnter 등 클릭 계열 핸들러가
+							   하나도 없고 selectable·draggable 이 아니면 노드 wrapper 에 인라인
+							   pointer-events:none 을 주입해 onNodeDoubleClick 이 영원히 unreachable.
+							   읽기 전용 뷰여도 히트테스팅 유지를 위해 이 핸들러가 필요하다. */
+						}}
 						onNodeDoubleClick={(_e, node) => {
 							if (expandable.has(node.id)) {
 								setSelected((s) => toggleSelect(s, node.id));

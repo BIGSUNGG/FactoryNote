@@ -283,6 +283,135 @@ test("ADR-018: 그래프 트리 승격 — draft 루트+자식 파일 → stage2
 	).toBeUndefined();
 });
 
+test("단계별 스폰 명령 분기: Stage 1 그래프 언급 없음 · Stage 2 필수 · Stage 3 선택", async () => {
+	const b = { root, viewerDistDir: VIEWER_DIST, open: false } as const;
+	const out1 = await drivePlan({ ...b, feature: "graphcmd1" });
+	expect(out1.spawnTask).not.toContain("그래프");
+	await saveState(root, { ...initialState("graphcmd2"), stage: 2 });
+	const out2 = await drivePlan({ ...b, feature: "graphcmd2" });
+	expect(out2.spawnTask).toContain("필수");
+	expect(out2.spawnTask).toContain("draft-graph.json");
+	await saveState(root, { ...initialState("graphcmd3"), stage: 3 });
+	const out3 = await drivePlan({ ...b, feature: "graphcmd3" });
+	expect(out3.spawnTask).toContain("선택");
+	expect(out3.spawnTask).not.toContain("필수");
+});
+
+test("Stage 2 그래프 강제: 그래프 없는 draft → 자동 반려(재작성 지시) → 그래프 완성 → 게이트 진행", async () => {
+	const feat = "graphreq";
+	await saveState(root, { ...initialState(feat), stage: 2 });
+	const base = {
+		root,
+		viewerDistDir: VIEWER_DIST,
+		feature: feat,
+		open: false,
+	} as const;
+	const onReady = postDecision("confirm");
+
+	let out = await drivePlan({ ...base, onReady });
+	expect(out.nextAction).toBe("spawn-design");
+
+	// v1: 그래프 없음 → Feedback 가지 않고 재작성 반려(spawn-design)
+	await writeFile(out.draftPath!, "# 설계\n\n그래프 없음.\n", "utf8");
+	out = await drivePlan({ ...base, designArtifact: out.draftPath!, onReady });
+	expect(out.nextAction).toBe("spawn-design");
+	expect(out.spawnTask).toContain("그래프");
+	expect(out.spawnTask).toContain("필수");
+
+	// v2: 참조 코멘트 + 유효 루트 json → 진행(dfLoop 소진으로 게이트 직행 → confirm)
+	await writeFile(
+		out.draftPath!,
+		"<!-- graph: draft-graph.json -->\n# 설계\n",
+		"utf8",
+	);
+	await writeFile(
+		join(root, feat, "draft-graph.json"),
+		JSON.stringify({ version: 2, childLevel: "modules", nodes: [] }),
+		"utf8",
+	);
+	out = await drivePlan({ ...base, designArtifact: out.draftPath!, onReady });
+	expect(out.gateResult?.verdict).toBe("confirm");
+	expect(out.stage).toBe(3);
+});
+
+test("Stage 2 그래프 강제: 재작성 상한 소진 → 게이트 에스컬레이션", async () => {
+	const feat = "graphesc";
+	await saveState(root, { ...initialState(feat), stage: 2 });
+	const base = {
+		root,
+		viewerDistDir: VIEWER_DIST,
+		feature: feat,
+		open: false,
+	} as const;
+	const onReady = postDecision("confirm");
+
+	let out = await drivePlan({ ...base, onReady });
+	await writeFile(out.draftPath!, "# v1 그래프 없음", "utf8");
+	out = await drivePlan({ ...base, designArtifact: out.draftPath!, onReady });
+	expect(out.nextAction).toBe("spawn-design"); // 반려 1회(수정 지시)
+	await writeFile(out.draftPath!, "# v2 여전히 그래프 없음", "utf8");
+	out = await drivePlan({ ...base, designArtifact: out.draftPath!, onReady });
+	// 상한 소진 → 게이트 에스컬레이션 안내(잔존 이슈에 그래프 필수 명시)
+	expect(out.message).toContain("필수");
+	expect(out.message).toContain("그래프");
+});
+
+test("게이트 전이 시 design-prompt.md 갱신: Stage 1 confirm → Stage 2 지시(그래프 프로토콜 포함)", async () => {
+	const feat = "promptcarry";
+	const base = {
+		root,
+		viewerDistDir: VIEWER_DIST,
+		feature: feat,
+		open: false,
+	} as const;
+	const onReady = postDecision("confirm");
+
+	let out = await drivePlan({ ...base, onReady });
+	expect(out.nextAction).toBe("spawn-design");
+	await writeFile(out.draftPath!, "# 요구사항 v1\n", "utf8");
+	out = await drivePlan({ ...base, designArtifact: out.draftPath!, onReady });
+	expect(out.nextAction).toBe("spawn-feedback");
+	out = await drivePlan({
+		...base,
+		designArtifact: out.draftPath!,
+		feedbackResult: "CLEAN",
+		onReady,
+	});
+	expect(out.gateResult?.verdict).toBe("confirm");
+	expect(out.stage).toBe(2);
+	// 전이 직후 자식 스폰 전에 작성 지시가 Stage 2 것으로 갱신돼야 한다.
+	const prompt = await readArtifact(root, feat, "design-prompt.md");
+	expect(prompt).toContain("계층 그래프");
+});
+
+test("Stage 2 그래프 강제: 참조 코멘트에 경로 포함(규약 위반) → 파일명 전용 안내로 반려 + 반려 라운드에도 지시 파일 갱신", async () => {
+	const feat = "graphpath";
+	await saveState(root, { ...initialState(feat), stage: 2 });
+	const base = {
+		root,
+		viewerDistDir: VIEWER_DIST,
+		feature: feat,
+		open: false,
+	} as const;
+	const onReady = postDecision("confirm");
+
+	let out = await drivePlan({ ...base, onReady });
+	expect(out.nextAction).toBe("spawn-design");
+	// 이전 단계 잔여 지시 시뮬레이션 — 반려 라운드에도 현 단계 지시로 갱신돼야 한다.
+	await writeArtifact(root, feat, "design-prompt.md", "STALE stage1 prompt");
+	await writeFile(
+		out.draftPath!,
+		"<!-- graph: graph/chat.graph.json -->\n# 설계\n",
+		"utf8",
+	);
+	out = await drivePlan({ ...base, designArtifact: out.draftPath!, onReady });
+	expect(out.nextAction).toBe("spawn-design"); // 반려(재작성 지시)
+	expect(out.spawnTask).toContain("파일명만");
+	expect(await readArtifact(root, feat, "design-prompt.md")).toContain(
+		"계층 그래프",
+	);
+});
+
 test("#3 gateOpen resume: 게이트 열린 채 재시작 → 산출물 보존 + 재오픈", async () => {
 	const feat = "resumefeat";
 	const md = "# 요구사항(이미 저장됨)\n\n데모.";

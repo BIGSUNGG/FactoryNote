@@ -21,7 +21,7 @@ import {
 	type PipelineState,
 } from "@factorynote/core";
 import type { DrivePlanInput, DrivePlanOutput } from "./plan-types.ts";
-import { resolvePaths } from "./plan-paths.ts";
+import { buildMenuMarkdown, resolvePaths } from "./plan-paths.ts";
 import { spawnDirective } from "./plan-directive.ts";
 import {
 	appendAgentChat,
@@ -157,6 +157,16 @@ export async function runOpenGate(
 		base = `Stage ${state.stage}(${nextDef.name}) 승인. 다음 단계로 진행 — Design 자식 스폰부터 새 내부 사이클을 시작한다.`;
 	}
 	const message = (resume ? "[게이트 재오픈(인터럽트 복구)] " : "") + base;
+
+	// 전이 직후 자식이 읽을 작성 지시·메뉴를 다음 단계 것으로 갱신 — 낡은 이전 단계
+	// 파일을 읽은 자식이 규격 이탈(예: 그래프 프로토콜 누락)하는 것을 차단한다.
+	await writeArtifact(root, feature, "design-prompt.md", nextDef.designPrompt);
+	await writeArtifact(
+		root,
+		feature,
+		"feedback-menu.md",
+		buildMenuMarkdown(nextDef, input.feedbackLevel ?? DEFAULT_FEEDBACK_LEVEL),
+	);
 
 	const nextPaths = resolvePaths(root, feature, nextDef).paths;
 	return {

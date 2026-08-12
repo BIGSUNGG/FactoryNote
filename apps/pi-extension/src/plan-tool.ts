@@ -13,6 +13,8 @@ import {
 	CHILD_SPAWN_OPTIONS,
 	DEFAULT_FEEDBACK_LEVEL,
 	DEFAULT_MAX_LOOPS,
+	checkRequiredGraph,
+	designRevisionTask,
 	designTask,
 	initialState,
 	loadState,
@@ -69,6 +71,7 @@ export async function drivePlan(
 		const draft = input.designArtifact;
 		const { paths, draftFile } = resolvePaths(root, feature, def);
 		// designPrompt(불변) + feedback 메뉴(현 단계) 파일 기록 — 자식/Director 가 읽도록.
+		// 그래프 검증·반려보다 먼저: 반려 라운드 재작성 자식도 현 단계 지시를 읽어야 한다.
 		await writeArtifact(root, feature, "design-prompt.md", def.designPrompt);
 		await writeArtifact(
 			root,
@@ -76,6 +79,36 @@ export async function drivePlan(
 			"feedback-menu.md",
 			buildMenuMarkdown(def, feedbackLevel),
 		);
+		// 그래프 강제(Stage 2 required): design 보고의 필수 그래프 트리가 없으면 Feedback 전 재작성 반려.
+		if (report?.role === "design" && def.graph === "required") {
+			const graphIssue = await checkRequiredGraph(root, feature, draftFile);
+			if (graphIssue) {
+				if (state.dfLoop < DEFAULT_MAX_LOOPS) {
+					state = { ...state, dfLoop: state.dfLoop + 1 };
+					await saveState(root, state);
+					return spawnDirective(
+						state,
+						def,
+						{
+							action: "spawn-design",
+							task: designRevisionTask(def, [graphIssue], paths),
+							loop: state.dfLoop,
+							spawnOptions: CHILD_SPAWN_OPTIONS.design,
+						},
+						paths,
+						feedbackLevel,
+					);
+				}
+				// 상한 소진: 게이트로 에스컬레이션해 사용자 판단에 맡긴다(Feedback 미수렴과 동일 기제).
+				state = { ...state, dfPhase: "design", dfLoop: 0 };
+				const gateArtifact =
+					(await readArtifact(root, feature, draftFile)) ?? "";
+				return await runOpenGate(input, state, def, gateArtifact, false, {
+					issues: [graphIssue],
+					loops: DEFAULT_MAX_LOOPS,
+				});
+			}
+		}
 		const t = nextDesignFeedbackStep(
 			def,
 			{ dfPhase: state.dfPhase, dfLoop: state.dfLoop },
