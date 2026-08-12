@@ -7,7 +7,7 @@ import {
 	graphDirNameFor,
 	graphRefAttemptCount,
 	graphRefFiles,
-	parseGraphLevelFile,
+	parseAnyGraphKind,
 } from "./graph.ts";
 import { artifactPath } from "./paths.ts";
 import { STAGES } from "./stages.ts";
@@ -104,8 +104,8 @@ export async function checkRequiredGraph(
 		const raw = await readArtifact(root, feature, ref);
 		if (raw === undefined)
 			return `참조 그래프 파일(${ref})이 없다 — 루트 json 을 draft 와 같은 폴더에 저장하라`;
-		if (!parseGraphLevelFile(raw))
-			return `참조 그래프 파일(${ref})가 유효한 version:2 레벨 파일이 아니다 — envelope 규약을 확인하라`;
+		if (!parseAnyGraphKind(raw))
+			return `참조 그래프 파일(${ref})이 유효한 그래프 파일이 아니다 — envelope 규약을 확인하라(계층 트리·sequence·flowchart)`;
 	}
 	return null;
 }
@@ -137,9 +137,9 @@ export async function invalidateArtifactsAfter(
 		for (const ref of refs) {
 			targets.push(
 				// 동반 그래프 트리(루트 json + 자식 디렉터리) 무효화(ADR-018).
-				unlink(
-					artifactPath(root, feature, `stage${s.id}/${ref}`),
-				).catch(ignoreEnoent),
+				unlink(artifactPath(root, feature, `stage${s.id}/${ref}`)).catch(
+					ignoreEnoent,
+				),
 				rm(
 					artifactPath(root, feature, `stage${s.id}/${graphDirNameFor(ref)}`),
 					{ recursive: true, force: true },

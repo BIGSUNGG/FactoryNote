@@ -9,7 +9,10 @@ import {
 	isSafeChildPath,
 	isSafeGraphName,
 	loadGraphTree,
+	parseAnyGraphKind,
+	parseGraphFlowchartFile,
 	parseGraphLevelFile,
+	parseGraphSequenceFile,
 } from "./graph.ts";
 
 // 루트(모듈) + 자식(클래스) + 손자(메서드) 3단계 샘플 트리.
@@ -203,4 +206,160 @@ test("graphDirNameFor", () => {
 	expect(graphDirNameFor("draft-graph.json")).toBe("draft-graph");
 	expect(graphDirNameFor("02-design-graph.json")).toBe("02-design-graph");
 	expect(graphDirNameFor("module-deps.json")).toBe("module-deps");
+});
+
+// --- ADR-021: sequence·flowchart envelope ---
+
+const seqOk = JSON.stringify({
+	version: 2,
+	type: "sequence",
+	title: "로그인",
+	participants: [
+		{ id: "ui", name: "UI" },
+		{ id: "auth", name: "Auth" },
+	],
+	body: [
+		{ from: "ui", to: "auth", label: "요청" },
+		{
+			kind: "alt",
+			label: "성공/실패",
+			body: [
+				{ from: "auth", to: "ui", label: "토큰", kind: "reply" },
+				{
+					kind: "loop",
+					label: "재시도",
+					body: [{ from: "ui", to: "auth", label: "다시" }],
+				},
+			],
+		},
+	],
+});
+
+const flowOk = JSON.stringify({
+	version: 2,
+	type: "flowchart",
+	nodes: [
+		{ id: "start", label: "시작", shape: "terminal" },
+		{ id: "build", label: "빌드" },
+		{ id: "check", label: "검사", shape: "decision" },
+	],
+	edges: [
+		{ from: "start", to: "build" },
+		{ from: "build", to: "check", label: "완료" },
+	],
+});
+
+test("parseGraphSequenceFile: 유효 envelope + fragment 중첩 파싱", () => {
+	const seq = parseGraphSequenceFile(seqOk);
+	expect(seq?.participants).toHaveLength(2);
+	expect(seq?.body).toHaveLength(2);
+	const alt = seq?.body[1] as { kind: string; body: unknown[] };
+	expect(alt.kind).toBe("alt");
+	expect(alt.body).toHaveLength(2);
+});
+
+test("parseGraphSequenceFile: 불량 거부", () => {
+	const base = JSON.parse(seqOk);
+	expect(parseGraphSequenceFile("not json")).toBeNull();
+	// version 불량 · type 불일치 · 참여자 없음 · 존재하지 않는 참여자 참조 · fragment kind 위반.
+	expect(
+		parseGraphSequenceFile(JSON.stringify({ ...base, version: 1 })),
+	).toBeNull();
+	expect(
+		parseGraphSequenceFile(JSON.stringify({ ...base, type: "flowchart" })),
+	).toBeNull();
+	expect(
+		parseGraphSequenceFile(JSON.stringify({ ...base, participants: [] })),
+	).toBeNull();
+	expect(
+		parseGraphSequenceFile(
+			JSON.stringify({
+				...base,
+				body: [{ from: "ui", to: "ghost", label: "?" }],
+			}),
+		),
+	).toBeNull();
+	expect(
+		parseGraphSequenceFile(
+			JSON.stringify({ ...base, body: [{ kind: "break", body: [] }] }),
+		),
+	).toBeNull();
+	// 중복 참여자 id 거부.
+	expect(
+		parseGraphSequenceFile(
+			JSON.stringify({
+				...base,
+				participants: [
+					{ id: "ui", name: "A" },
+					{ id: "ui", name: "B" },
+				],
+				body: [],
+			}),
+		),
+	).toBeNull();
+});
+
+test("parseGraphFlowchartFile: 유효 envelope 파싱", () => {
+	const flow = parseGraphFlowchartFile(flowOk);
+	expect(flow?.nodes).toHaveLength(3);
+	expect(flow?.edges).toHaveLength(2);
+	expect(flow?.nodes[1]?.shape).toBeUndefined(); // shape 생략 허용
+});
+
+test("parseGraphFlowchartFile: 불량 거부", () => {
+	const base = JSON.parse(flowOk);
+	expect(parseGraphFlowchartFile("not json")).toBeNull();
+	expect(
+		parseGraphFlowchartFile(JSON.stringify({ ...base, type: "sequence" })),
+	).toBeNull();
+	// 노드 label 누락 · shape 열거형 위반 · 중복 id · 엣지의 미존재 노드 참조.
+	expect(
+		parseGraphFlowchartFile(
+			JSON.stringify({
+				...base,
+				nodes: [{ id: "a" }],
+				edges: [],
+			}),
+		),
+	).toBeNull();
+	expect(
+		parseGraphFlowchartFile(
+			JSON.stringify({
+				...base,
+				nodes: [{ id: "a", label: "A", shape: "hexagon" }],
+				edges: [],
+			}),
+		),
+	).toBeNull();
+	expect(
+		parseGraphFlowchartFile(
+			JSON.stringify({
+				...base,
+				nodes: [
+					{ id: "a", label: "A" },
+					{ id: "a", label: "B" },
+				],
+				edges: [],
+			}),
+		),
+	).toBeNull();
+	expect(
+		parseGraphFlowchartFile(
+			JSON.stringify({ ...base, edges: [{ from: "start", to: "ghost" }] }),
+		),
+	).toBeNull();
+});
+
+test("parseAnyGraphKind: type 필드로 종류 판별 — type 없음 = 계층 트리(하위 호환)", () => {
+	expect(parseAnyGraphKind(seqOk)).toBe("sequence");
+	expect(parseAnyGraphKind(flowOk)).toBe("flowchart");
+	expect(
+		parseAnyGraphKind(JSON.stringify({ version: 2, nodes: [{ id: "a" }] })),
+	).toBe("tree");
+	// 유효하지 않으면 null — kind 추측 없음.
+	expect(
+		parseAnyGraphKind('{"version":2,"type":"sequence","participants":[]}'),
+	).toBeNull();
+	expect(parseAnyGraphKind('{"version":2,"type":"unknown"}')).toBeNull();
+	expect(parseAnyGraphKind("bad")).toBeNull();
 });

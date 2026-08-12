@@ -217,9 +217,9 @@ test("ADR-018·020: 그래프 트리 승격 — 에이전트 이름 그대로 �
 		feature: feat,
 		open: false,
 	} as const;
-	// 에이전트가 지은 자유 이름 2개(ADR-020) — 본문 각 위치에 인라인 참조.
+	// 에이전트가 지은 자유 이름 3종(ADR-020·021) — 본문 각 위치에 인라인 참조.
 	const draftMd =
-		"# 설계\n\n<!-- graph: module-deps.json -->\n\n아키텍처 설명.\n\n<!-- graph: data-flow.json -->\n\n데이터 흐름.\n";
+		"# 설계\n\n<!-- graph: module-deps.json -->\n\n아키텍처 설명.\n\n<!-- graph: data-flow.json -->\n\n데이터 흐름.\n\n<!-- graph: login-seq.json -->\n\n<!-- graph: build-flow.json -->\n";
 	const rootJson = JSON.stringify({
 		version: 2,
 		childLevel: "modules",
@@ -264,6 +264,27 @@ test("ADR-018·020: 그래프 트리 승격 — 에이전트 이름 그대로 �
 		"utf8",
 	);
 	await writeFile(join(root, feat, "data-flow.json"), flowJson, "utf8");
+	// sequence·flowchart 는 단일 파일 그래프(자식 디렉터리 없음, ADR-021).
+	await writeFile(
+		join(root, feat, "login-seq.json"),
+		JSON.stringify({
+			version: 2,
+			type: "sequence",
+			participants: [{ id: "a", name: "A" }],
+			body: [{ from: "a", to: "a", label: "자체 호출" }],
+		}),
+		"utf8",
+	);
+	await writeFile(
+		join(root, feat, "build-flow.json"),
+		JSON.stringify({
+			version: 2,
+			type: "flowchart",
+			nodes: [{ id: "s", label: "시작", shape: "terminal" }],
+			edges: [],
+		}),
+		"utf8",
+	);
 
 	out = await drivePlan({ ...base, designArtifact: out.draftPath!, onReady });
 	expect(out.nextAction).toBe("spawn-feedback");
@@ -280,6 +301,8 @@ test("ADR-018·020: 그래프 트리 승격 — 에이전트 이름 그대로 �
 	const promoted = await readArtifact(root, feat, "02-design.md");
 	expect(promoted).toContain("<!-- graph: module-deps.json -->");
 	expect(promoted).toContain("<!-- graph: data-flow.json -->");
+	expect(promoted).toContain("<!-- graph: login-seq.json -->");
+	expect(promoted).toContain("<!-- graph: build-flow.json -->");
 	expect(await readArtifact(root, feat, "stage2/module-deps.json")).toBe(
 		rootJson,
 	);
@@ -289,6 +312,11 @@ test("ADR-018·020: 그래프 트리 승격 — 에이전트 이름 그대로 �
 	expect(await readArtifact(root, feat, "stage2/data-flow.json")).toBe(
 		flowJson,
 	);
+	// 단일 파일 그래프도 이름 그대로 승격된다.
+	const seqPromoted = await readArtifact(root, feat, "stage2/login-seq.json");
+	expect(seqPromoted).toContain('"type":"sequence"');
+	const flowPromoted = await readArtifact(root, feat, "stage2/build-flow.json");
+	expect(flowPromoted).toContain('"type":"flowchart"');
 	// 고아 파일은 승격되지 않는다.
 	expect(
 		await readArtifact(root, feat, "stage2/module-deps/modules/orphan.json"),

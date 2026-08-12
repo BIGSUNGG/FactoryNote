@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import GraphView from "./GraphView";
+import SequenceView from "./SequenceView";
+import FlowchartView from "./FlowchartView";
 
 // 마크다운 블록 타입별 내용 렌더링. inline 포맷은 html로 변환 → dangerouslySetInnerHTML.
 function BlockContent({
@@ -59,26 +61,36 @@ function BlockContent({
 				</div>
 			);
 		case "graph": {
-			// md 의 `<!-- graph: <파일명> -->` 참조 → 계층 그래프 트리(ADR-018)를
-			// 읽기 전용 드릴다운 뷰로 렌더. 캔버스 조작은 상위(Document) 코멘트
-			// 핸들러로 전파되지 않게 막고, 헤더만 블록 코멘트 활성화에 쓴다.
-			const tree = graphData?.[block.graphFile];
+			// md 의 `<!-- graph: <파일명> -->` 참조 → 종류별 렌더(ADR-021):
+			// tree = 계층 드릴다운(GraphView), sequence·flowchart = 읽기 전용 SVG.
+			// 캔버스 조작은 상위(Document) 코멘트 핸들러로 전파되지 않게 막고, 헤더만 블록 코멘트 활성화에 쓴다.
+			const entry = graphData?.[block.graphFile];
+			const label =
+				entry?.type === "sequence"
+					? "📈 시퀀스 다이어그램 · 클릭하여 코멘트"
+					: entry?.type === "flowchart"
+						? "📈 플로우차트 · 클릭하여 코멘트"
+						: "📈 관계도 · 클릭하여 코멘트";
 			return (
 				<div className="block-content block-graph">
 					<div className="block-graph-head" title="클릭하여 코멘트">
-						📈 관계도 · 클릭하여 코멘트
+						{label}
 					</div>
 					<div
 						className="block-graph-canvas"
 						onClick={(e) => e.stopPropagation()}
 						onMouseUp={(e) => e.stopPropagation()}
 					>
-						{tree ? (
-							<GraphView tree={tree} />
-						) : (
+						{!entry ? (
 							<div className="empty">
 								그래프 데이터({block.graphFile})를 찾을 수 없습니다.
 							</div>
+						) : entry.type === "sequence" ? (
+							<SequenceView data={entry.data} />
+						) : entry.type === "flowchart" ? (
+							<FlowchartView data={entry.data} />
+						) : (
+							<GraphView tree={entry.data} />
 						)}
 					</div>
 				</div>

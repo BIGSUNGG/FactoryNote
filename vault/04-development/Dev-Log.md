@@ -9,6 +9,20 @@ tags: [development, dev-log]
 
 ## 2026-08-12
 
+### 그래프 종류 확장 — Sequence · Flowchart ([[ADR-021-sequence-flowchart-graphs]])
+
+**맥락**: 사용자 요구 — 계층 트리 외에 시퀀스 다이어그램·플로우차트 추가. 문답 확정: 전용 JSON + 커스텀 렌더러(mermaid 아님) · 종류는 파일 envelope type 필드 · 모든 단계 허용 · 렌더러는 둘 다 신규 SVG · 시퀀스에 alt/loop/opt fragment 포함.
+
+**작업**:
+
+- 코어: `types/graph.ts` envelope 2종 + `GraphKind` · `graph.ts` coerce/parse(`coerceGraphSequenceFile`·`coerceGraphFlowchartFile`·`parseAnyGraphKind`·`graphKindOf`) · `artifact.ts` `checkRequiredGraph` 가 종류 무관 유효성 판정. 참조 추출·승격·무효화 무변경(sequence·flowchart 단일 파일은 `collectGraphChildFiles` 빈 목록으로 자연 승격).
+- 서빙/뷰어: `viewer-state.ts` `graphs[].{file,type,data}` 타입 분기 · `App.jsx`·`Block.jsx` 분기 · 신규 `SequenceView.jsx`·`FlowchartView.jsx` + 순수 배치 `lib/layoutSequence.js`(컬럼·시간축·fragment 중첩 박스)·`lib/layoutFlowchart.js`(Kahn 랭크 + barycenter, 사이클 폴백, 백엣지 플래그) + `graph.css`.
+- 지시: `df-task.ts` graphLine 3종 규약 명시 · `feedback-agents-graph.ts` structure 체크리스트 3종 envelope 갱신 + 에이전트 md 재생성(32개).
+- 테스트: envelope 유효/불량 파싱 · `parseAnyGraphKind` 하위 호환 · checkRequiredGraph 종류 수락 · 3종 혼합 게이트 서빙 · 3종 혼합 승격(drivePlan 전체) · 배치 순수 함수(컬럼 순서·시간축·fragment 포함 관계·겹침 0·결정성) · happy-dom 렌더(요소 개수·shape·읽기 전용). 142 pass + `bun run build`.
+- 문서: [[ADR-021-sequence-flowchart-graphs]] 신규, [[Changelog]]·[[Home]]·[[implementation-architecture]] 갱신.
+
+**메모**: fragment 판별을 `kind` 필드가 아닌 `body` 배열 존재 여부로 — 메시지 `kind:"reply"` 와 충돌(테스트에서 적발 후 수정). flowchart 백엣지 테스트에서 `find(e.to==="build")` 가 정방향 엣지를 먼저 잡아 실패 — from·to 동시 매칭으로 수정.
+
 ### 다중 그래프 + 에이전트 자유 네이밍 ([[ADR-020-multi-named-graphs]])
 
 **맥락**: 사용자 요구 — 그래프를 여러 개 둘 수 있게, 이름은 고정(`02-design-graph.json`)하지 말고 에이전트가 내용에 맞게 짓게. 문답으로 확정: (1) 폴더는 루트 json 이름에서 파생 (2) 승격 시 이름 그대로 유지 (3) Stage 2 필수 = 1개 이상·상한 없음.

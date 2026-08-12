@@ -132,7 +132,7 @@ sequenceDiagram
     { "stage": 1, "name": "요청 이해 · 동작 시나리오", "file": "01-understanding-and-scenarios.md", "format": "markdown", "md": "# 요구사항·시나리오\n…" },
     { "stage": 2, "name": "모듈 · 클래스 설계", "file": "02-design.md", "format": "markdown",
       "md": "# 설계\n\n<!-- graph: module-deps.json -->\n\n…",
-      "graphs": [ { "file": "module-deps.json", "tree": { "file": "module-deps.json", "childLevel": "modules", "nodes": [ { "id": "frontend", "children": { "file": "modules/frontend.json", "parentId": "frontend", "nodes": […] } }, … ] } } ] }
+      "graphs": [ { "file": "module-deps.json", "type": "tree", "data": { "file": "module-deps.json", "childLevel": "modules", "nodes": [ { "id": "frontend", "children": { "file": "modules/frontend.json", "parentId": "frontend", "nodes": […] } }, … ] } }, { "file": "login-seq.json", "type": "sequence", "data": { "version": 2, "type": "sequence", "participants": […], "body": […] } } ] }
   ]
 }
 ```
@@ -152,9 +152,11 @@ sequenceDiagram
 - **입력**: `{ feature: string }` (도구 파라미터) + `designArtifact`·`feedbackResult`·`chatResponse`(경로/판정/답변). 내부적으로 `root`·`viewerDistDir`·`signal` 추가.
 - **출력(에이전트로)**: `{ done, stage, stageName, needArtifact, designPrompt, feedbackChecklist, gateResult, message }`. `message` 가 다음 행동을 직접 지시(modify→재작성, confirm→다음 산출물 작성, done→종료).
 
-### 그래프 산출물(Stage 2·선택 Stage 3) — md + 계층 트리 `.json`
+### 그래프 산출물(Stage 2·선택 Stage 3) — md + 종류별 그래프 파일
 
-그래프 데이터는 산출물 md 옆 계층 파일 트리([[ADR-018-hierarchical-graph-tree]])로 저장하고, md 는 루트 파일 `<!-- graph: <파일명> -->` 참조 코멘트를 가진다([[ADR-016-graph-json-externalization]] 승계). 산출물당 그래프 여러 개·에이전트 자유 네이밍 허용([[ADR-020-multi-named-graphs]]):
+그래프 데이터는 산출물 md 옆 파일([[ADR-018-hierarchical-graph-tree]])로 저장하고, md 는 `<!-- graph: <파일명> -->` 참조 코멘트를 가진다([[ADR-016-graph-json-externalization]] 승계). 산출물당 그래프 여러 개·에이전트 자유 네이밍([[ADR-020-multi-named-graphs]]), 종류 3종 — 파일 envelope 의 `type` 필드로 판별, type 없음 = 계층 트리([[ADR-021-sequence-flowchart-graphs]]):
+
+**계층 트리**(루트 + 자식 파일 서브디렉터리):
 
 ```
 stage2/module-deps.json                # 루트 — 최상위(모듈) 레벨, 이름은 에이전트 결정
@@ -175,9 +177,14 @@ stage2/module-deps/modules/ui/View.json  # 클래스 View 의 자식(메서드) 
 
 - 레벨 파일 공통 envelope: `{version:2, id?, title?, childLevel?, nodes}`. 노드는 `{id, ...표시 필드, refs?, children?}` — `children` 은 루트 디렉터리 기준 상대경로.
 - 관계는 `refs: [{to, comment}]` **나가는 방향만 소스 노드 파일에** 작성. 단방향 한쪽·양방향 양쪽, comment 필수. 별도 edges 배열 없음.
-- **`position`·`width`·`height` 금지** — 좌표는 뷰어 `layoutGraph` 자동 배치가 유일한 출처.
-- `core/graph.ts`(`coerceGraphLevelFile`·`loadGraphTree`·`collectGraphChildFiles`·`isSafeChildPath`)가 envelope/경로 안전 검증; 표시 필드는 불투명.
-- 게이트 서버가 참조마다 루트에서 도달 가능한 파일을 조립해 `artifacts[].graphs[]`(파일별 중첩 레벨)로 서빙. 게이트 오픈 시 `promoteGraphTree` 가 각 참조 트리를 에이전트 이름 그대로 `stageN/` 에 승격(고아 제외, md 재작성 없음). 회귀 시 md 참조를 읽어 루트 json + 서브디렉터리 전체 무효화.
+- **`position`·`width`·`height` 금지** — 좌표는 뷰어 자동 배치가 유일한 출처(3종 공통).
+
+**Sequence**(단일 파일, ADR-021): `{version:2, type:"sequence", id?, title?, participants:[{id, name?, ...}], body:[...]}` — body 는 메시지 `{from, to, label, kind?:"call"|"reply"}` 와 fragment `{kind:"alt"|"loop"|"opt", label?, body:[중첩]}` 의 순서 목록(임의 깊이). 뷰어 `SequenceView` SVG: 참여자 컬럼·라이프라인·시간축 화살표(reply 점선)·fragment 구간 박스.
+
+**Flowchart**(단일 파일, ADR-021): `{version:2, type:"flowchart", id?, title?, nodes:[{id, label, shape?:"terminal"|"process"|"decision"}], edges:[{from, to, label?}]}`. 뷰어 `FlowchartView` SVG: Kahn 랭크 + barycenter 자동 배치, shape 구분, 백엣지 점선.
+
+- `core/graph.ts` 가 종류별 envelope 검증(`coerceGraphLevelFile`·`coerceGraphSequenceFile`·`coerceGraphFlowchartFile`·`parseAnyGraphKind`·경로 안전); 표시 필드는 불투명.
+- 게이트 서버가 참조마다 종류를 판별해 서빙 — tree 는 도달 가능 파일 조립 `graphs[].data`, sequence·flowchart 는 단일 파일 파싱 그대로. 게이트 오픈 시 `promoteGraphTree` 가 각 참조 트리를 에이전트 이름 그대로 `stageN/` 에 승격(고아 제외, md 재작성 없음; 단일 파일 그래프는 루트 1개 복사). 회귀 시 md 참조를 읽어 동반 파일·디렉터리 무효화.
 
 ## 설치 레이아웃 — `~/.pi/agent/extensions/factorynote/`
 

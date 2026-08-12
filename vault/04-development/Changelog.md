@@ -12,6 +12,10 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ### Added
 
+- **그래프 종류 확장 — Sequence 다이어그램 · Flowchart** — 그래프 파일 envelope 에 `type` 필드로 종류 판별(type 없음 = 기존 계층 트리, 무변경 호환). sequence: `{version:2, type:"sequence", participants, body}` — 메시지 `{from,to,label,kind?}` + alt/loop/opt fragment(중첩, 메시지와 fragment 판별은 `body` 배열 존재 여부). flowchart: `{version:2, type:"flowchart", nodes:[{id,label,shape?}], edges:[{from,to,label?}]}`. 둘 다 단일 파일(자식 트리 없음 — 승격 경로 무변경). 렌더러는 읽기 전용 SVG 신규 2종(SequenceView: 참여자 컬럼·시간축 화살표·fragment 구간 박스 / FlowchartView: Kahn 랭크 + barycenter 자동 배치·shape 구분·백엣지 점선), 배치 순수 함수 분리·결정적·노드 겹침 0·좌표 필드 금지. `checkRequiredGraph` 종류 무관 유효 그래프 1개 이상, 서빙 `graphs[].{file,type,data}`, 뷰어 블록 타입 분기. 3단계 모두 허용. 자체체크 142 pass. [[ADR-021-sequence-flowchart-graphs]]
+
+### Added
+
 - **산출물당 다중 그래프 + 에이전트 자유 네이밍** — md 안 `<!-- graph: <루트 json 파일명> -->` 참조를 여러 개 허용하고, 루트 json 이름을 에이전트가 내용에 맞게 자유롭게 짓는다(자식 폴더는 루트 이름에서 `.json` 뺀 값으로 파생 규칙 유지, 같은 산출물 내 이름 유일·`.json` 끝 단일 파일명 강제). 승격은 에이전트 이름 그대로 `stageN/` 에 — 고정 이름 rename·md 참조 재작성 폐지(`graphJsonNameFor` 제거, `paths.ts` 이름 추론 라우팅을 `stageN/` 명시 접두 통과로 교체). 서빙은 참조별 트리 배열(`artifacts[].graphs`), 뷰어는 각 참조 위치에 인라인 블록 렌더. `checkRequiredGraph` 는 Stage 2 에서 참조 1개 이상 + 각 파일 존재·유효 + 이름 유일을 구분 메시지로 검증(상한 없음). 회귀 무효화는 md 참조를 읽고 동반 트리 삭제. 기존 고정 이름 산출물 무변경 호환. 자체체크 122 pass. [[ADR-020-multi-named-graphs]]
 
 ### Added

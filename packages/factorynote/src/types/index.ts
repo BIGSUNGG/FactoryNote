@@ -25,9 +25,19 @@ export type {
 } from "./feedback.ts";
 export type {
 	GraphFileNode,
+	GraphFlowchartEdge,
+	GraphFlowchartFile,
+	GraphFlowchartNode,
+	GraphFlowchartShape,
+	GraphKind,
 	GraphLevel,
 	GraphLevelFile,
 	GraphRef,
+	GraphSequenceFile,
+	GraphSequenceFragment,
+	GraphSequenceItem,
+	GraphSequenceMessage,
+	GraphSequenceParticipant,
 	GraphTreeNode,
 } from "./graph.ts";
 export type { PipelineState } from "./pipeline.ts";

@@ -70,11 +70,11 @@ test("gate server serves viewer, state, and accepts decision", async () => {
 	if (event.kind === "decision") expect(event.decision.verdict).toBe("confirm");
 });
 
-test("gate /api/state returns Stage 2 design md + 계층 그래프 트리 다중 서빙(ADR-018·020)", async () => {
-	// Stage 2 산물: md 는 참조 코멘트만, 노드 데이터는 계층 트리(루트 + 자식 파일).
-	// 에이전트 자유 이름(module-map.json) + 기존 고정 이름(02-design-graph.json, 구 산출물 호환).
+test("gate /api/state returns Stage 2 design md + 그래프 3종 혼합 서빙(ADR-018·020·021)", async () => {
+	// Stage 2 산물: md 는 참조 코멘트만, 그래프는 종류별 파일(트리·sequence·flowchart).
+	// 에이전트 자유 이름 + 기존 고정 이름(02-design-graph.json, 구 산출물 호환).
 	const designMd =
-		"# 설계\n\n<!-- graph: module-map.json -->\n\n## 아키텍처 설명\n\n프론트 계층.\n\n<!-- graph: 02-design-graph.json -->\n";
+		"# 설계\n\n<!-- graph: module-map.json -->\n\n## 아키텍처 설명\n\n프론트 계층.\n\n<!-- graph: login-seq.json -->\n\n<!-- graph: build-flow.json -->\n\n<!-- graph: 02-design-graph.json -->\n";
 	const rootJson = JSON.stringify({
 		version: 2,
 		title: "모듈 관계도",
@@ -109,7 +109,51 @@ test("gate /api/state returns Stage 2 design md + 계층 그래프 트리 다중
 		root,
 		"graphdemo",
 		"stage2/02-design-graph.json",
-		JSON.stringify({ version: 2, nodes: [{ id: "legacy", label: "구 그래프" }] }),
+		JSON.stringify({
+			version: 2,
+			nodes: [{ id: "legacy", label: "구 그래프" }],
+		}),
+	);
+	// sequence·flowchart 단일 파일 그래프(ADR-021).
+	await writeArtifact(
+		root,
+		"graphdemo",
+		"stage2/login-seq.json",
+		JSON.stringify({
+			version: 2,
+			type: "sequence",
+			title: "로그인 흐름",
+			participants: [
+				{ id: "ui", name: "UI" },
+				{ id: "auth", name: "Auth" },
+			],
+			body: [
+				{ from: "ui", to: "auth", label: "로그인 요청" },
+				{
+					kind: "loop",
+					label: "재시도",
+					body: [{ from: "auth", to: "ui", label: "응답", kind: "reply" }],
+				},
+			],
+		}),
+	);
+	await writeArtifact(
+		root,
+		"graphdemo",
+		"stage2/build-flow.json",
+		JSON.stringify({
+			version: 2,
+			type: "flowchart",
+			nodes: [
+				{ id: "start", label: "시작", shape: "terminal" },
+				{ id: "build", label: "빌드" },
+				{ id: "check", label: "검사", shape: "decision" },
+			],
+			edges: [
+				{ from: "start", to: "build" },
+				{ from: "build", to: "check", label: "완료" },
+			],
+		}),
 	);
 	await saveState(root, { ...initialState("graphdemo"), stage: 2 });
 
@@ -118,28 +162,41 @@ test("gate /api/state returns Stage 2 design md + 계층 그래프 트리 다중
 		childLevel?: string;
 		nodes: Array<{ id: string; children?: TreeResp }>;
 	};
+	type GraphResp = {
+		file: string;
+		type: string;
+		data: TreeResp | Record<string, unknown>;
+	};
 	type StateResp = {
 		artifacts: Array<{
 			file: string;
 			format: string;
 			md?: string;
-			graphs?: { file: string; tree: TreeResp }[];
+			graphs?: GraphResp[];
 		}>;
 	};
 	const captured: {
 		md: string | undefined;
 		format: string | undefined;
 		graphFiles: string[];
+		graphTypes: Record<string, string>;
 		rootNodes: number | undefined;
 		uiClassCount: number | undefined;
 		legacyNodes: number | undefined;
+		seqParticipants: number | undefined;
+		seqFragmentKind: string | undefined;
+		flowNodes: number | undefined;
 	} = {
 		md: undefined,
 		format: undefined,
 		graphFiles: [],
+		graphTypes: {},
 		rootNodes: undefined,
 		uiClassCount: undefined,
 		legacyNodes: undefined,
+		seqParticipants: undefined,
+		seqFragmentKind: undefined,
+		flowNodes: undefined,
 	};
 
 	await runGate({
@@ -155,14 +212,30 @@ test("gate /api/state returns Stage 2 design md + 계층 그래프 트리 다중
 				captured.md = art.md;
 				captured.format = art.format;
 				captured.graphFiles = (art.graphs ?? []).map((g) => g.file);
+				for (const g of art.graphs ?? []) captured.graphTypes[g.file] = g.type;
 				const main = art.graphs?.find((g) => g.file === "module-map.json");
-				captured.rootNodes = main?.tree.nodes.length;
-				captured.uiClassCount = main?.tree.nodes.find(
+				const mainTree = main?.data as TreeResp | undefined;
+				captured.rootNodes = mainTree?.nodes.length;
+				captured.uiClassCount = mainTree?.nodes.find(
 					(n) => n.id === "UI",
 				)?.children?.nodes.length;
-				captured.legacyNodes = art.graphs?.find(
+				const legacy = art.graphs?.find(
 					(g) => g.file === "02-design-graph.json",
-				)?.tree.nodes.length;
+				);
+				captured.legacyNodes = (
+					legacy?.data as TreeResp | undefined
+				)?.nodes.length;
+				const seq = art.graphs?.find((g) => g.file === "login-seq.json")
+					?.data as
+					| { participants: unknown[]; body: Array<{ kind?: string }> }
+					| undefined;
+				captured.seqParticipants = seq?.participants.length;
+				captured.seqFragmentKind = seq?.body.find((it) => it.kind)?.kind;
+				captured.flowNodes = (
+					art.graphs?.find((g) => g.file === "build-flow.json")?.data as
+						| { nodes: unknown[] }
+						| undefined
+				)?.nodes.length;
 			}
 			await fetch(`${url}/api/decision`, {
 				method: "POST",
@@ -176,11 +249,22 @@ test("gate /api/state returns Stage 2 design md + 계층 그래프 트리 다중
 	expect(captured.md).toContain("<!-- graph: module-map.json -->");
 	expect(captured.graphFiles).toEqual([
 		"module-map.json",
+		"login-seq.json",
+		"build-flow.json",
 		"02-design-graph.json",
 	]);
+	expect(captured.graphTypes).toEqual({
+		"module-map.json": "tree",
+		"login-seq.json": "sequence",
+		"build-flow.json": "flowchart",
+		"02-design-graph.json": "tree",
+	});
 	expect(captured.rootNodes).toBe(2);
 	expect(captured.uiClassCount).toBe(1);
 	expect(captured.legacyNodes).toBe(1);
+	expect(captured.seqParticipants).toBe(2);
+	expect(captured.seqFragmentKind).toBe("loop");
+	expect(captured.flowNodes).toBe(3);
 });
 
 test("gate /api/state hides artifacts past current stage on revert", async () => {

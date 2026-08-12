@@ -6,9 +6,17 @@ import {
 	graphRefFiles,
 	loadGraphTree,
 	loadState,
+	parseGraphFlowchartFile,
+	parseGraphSequenceFile,
 	readArtifact,
 } from "@factorynote/core";
-import type { ArtifactFormat, GraphLevel } from "@factorynote/core";
+import type {
+	ArtifactFormat,
+	GraphFlowchartFile,
+	GraphKind,
+	GraphLevel,
+	GraphSequenceFile,
+} from "@factorynote/core";
 
 export interface ViewerState {
 	feature: string;
@@ -25,8 +33,13 @@ export interface ViewerState {
 		file: string;
 		format: ArtifactFormat;
 		md?: string;
-		/** md 의 `<!-- graph: ... -->` 참조들이 가리키는 계층 그래프 트리들(ADR-018·020). 없으면 미포함. */
-		graphs?: { file: string; tree: GraphLevel }[];
+		/** md 의 `<!-- graph: ... -->` 참조들이 가리키는 그래프들(ADR-018·020·021). 없으면 미포함.
+		 * type: tree = 중첩 조립 트리, sequence·flowchart = 단일 파일 데이터. */
+		graphs?: {
+			file: string;
+			type: GraphKind;
+			data: GraphLevel | GraphSequenceFile | GraphFlowchartFile;
+		}[];
 	}[];
 }
 
@@ -45,15 +58,25 @@ export async function buildViewerState(
 		if (state && s.id > state.stage) continue;
 		const raw = await readArtifact(root, feature, s.artifactFile);
 		if (raw === undefined) continue;
-		// 계층 그래프 트리: 참조마다 루트 json + 서브디렉터리 자식 파일들을 조립해 서빙(ADR-018·020).
-		// 그래프는 승격 시 stageN/ 에 에이전트 이름 그대로 저장됨 — 단계 접두로 읽기(ADR-020).
-		const graphs: { file: string; tree: GraphLevel }[] = [];
+		// 그래프 서빙(ADR-018·020·021): 참조마다 stageN/ 에서 읽어 종류별 파싱·조립.
+		// tree 는 자식 파일 트리 조립, sequence·flowchart 는 단일 파일 파싱.
+		const graphs: NonNullable<ViewerState["artifacts"][number]["graphs"]> = [];
 		for (const ref of graphRefFiles(raw)) {
 			const staged = `stage${s.id}/${ref}`;
 			const rootRaw = await readArtifact(root, feature, staged).catch(
 				() => undefined,
 			);
 			if (rootRaw === undefined) continue;
+			const seq = parseGraphSequenceFile(rootRaw);
+			if (seq) {
+				graphs.push({ file: ref, type: "sequence", data: seq });
+				continue;
+			}
+			const flow = parseGraphFlowchartFile(rootRaw);
+			if (flow) {
+				graphs.push({ file: ref, type: "flowchart", data: flow });
+				continue;
+			}
 			const refDir = graphDirNameFor(ref);
 			const tree = await loadGraphTree(rootRaw, ref, async (rel) => {
 				const r = await readArtifact(
@@ -63,7 +86,7 @@ export async function buildViewerState(
 				);
 				return r ?? null;
 			});
-			if (tree) graphs.push({ file: ref, tree });
+			if (tree) graphs.push({ file: ref, type: "tree", data: tree });
 		}
 		artifacts.push({
 			stage: s.id,

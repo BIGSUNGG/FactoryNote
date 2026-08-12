@@ -308,6 +308,35 @@ test("checkRequiredGraph: 다중 그래프 허용·이름 중복 거부(ADR-020)
 	await rm(r, { recursive: true, force: true });
 });
 
+test("checkRequiredGraph: sequence·flowchart 도 유효 그래프로 수락(ADR-021)", async () => {
+	const r = await mkdtemp(join(tmpdir(), "fn-kinds-"));
+	const seq = JSON.stringify({
+		version: 2,
+		type: "sequence",
+		participants: [{ id: "a", name: "A" }],
+		body: [{ from: "a", to: "a", label: "self" }],
+	});
+	const flow = JSON.stringify({
+		version: 2,
+		type: "flowchart",
+		nodes: [{ id: "s", label: "시작" }],
+		edges: [],
+	});
+	await writeArtifact(r, "f", "seq.json", seq);
+	await writeArtifact(r, "f", "flow.json", flow);
+	await writeArtifact(
+		r,
+		"f",
+		"draft.md",
+		"# 설계\n<!-- graph: seq.json -->\n<!-- graph: flow.json -->\n",
+	);
+	expect(await checkRequiredGraph(r, "f", "draft.md")).toBeNull();
+	// 불량 sequence envelope → envelope 안내로 거부.
+	await writeArtifact(r, "f", "seq.json", '{"version":2,"type":"sequence"}');
+	expect(await checkRequiredGraph(r, "f", "draft.md")).toContain("envelope");
+	await rm(r, { recursive: true, force: true });
+});
+
 // --- FR-7 validThrough 마이그레이션(D4) ---
 
 test("loadState migrates legacy state.json missing validThrough → 0", async () => {

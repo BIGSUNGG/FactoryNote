@@ -49,3 +49,72 @@ export interface GraphLevel {
 	childLevel?: string;
 	nodes: GraphTreeNode[];
 }
+
+// --- Sequence 다이어그램(ADR-021): 단일 파일, 참여자 + 시간축 메시지/fragment. ---
+
+/** 시퀀스 참여자(컬럼). */
+export interface GraphSequenceParticipant {
+	id: string;
+	[k: string]: unknown;
+}
+
+/** 시퀀스 메시지 — kind 생략 시 call. */
+export interface GraphSequenceMessage {
+	from: string;
+	to: string;
+	label: string;
+	kind?: "call" | "reply";
+	[k: string]: unknown;
+}
+
+/** 시퀀스 fragment — alt/loop/opt 구간, body 에 메시지·중첩 fragment(임의 깊이). */
+export interface GraphSequenceFragment {
+	kind: "alt" | "loop" | "opt";
+	label?: string;
+	body: GraphSequenceItem[];
+	[k: string]: unknown;
+}
+
+export type GraphSequenceItem = GraphSequenceMessage | GraphSequenceFragment;
+
+/** 시퀀스 그래프 파일 envelope. */
+export interface GraphSequenceFile {
+	version: 2;
+	type: "sequence";
+	id?: string;
+	title?: string;
+	participants: GraphSequenceParticipant[];
+	body: GraphSequenceItem[];
+}
+
+// --- Flowchart(ADR-021): 단일 파일, 노드 + 엣지, 뷰어 자동 배치. ---
+
+/** 플로우차트 노드 모양 — 생략 시 process. */
+export type GraphFlowchartShape = "terminal" | "process" | "decision";
+
+export interface GraphFlowchartNode {
+	id: string;
+	label: string;
+	shape?: GraphFlowchartShape;
+	[k: string]: unknown;
+}
+
+export interface GraphFlowchartEdge {
+	from: string;
+	to: string;
+	label?: string;
+	[k: string]: unknown;
+}
+
+/** 플로우차트 그래프 파일 envelope. */
+export interface GraphFlowchartFile {
+	version: 2;
+	type: "flowchart";
+	id?: string;
+	title?: string;
+	nodes: GraphFlowchartNode[];
+	edges: GraphFlowchartEdge[];
+}
+
+/** 그래프 파일 종류 판별 — type 필드 없음 = 계층 트리(ADR-018 하위 호환). */
+export type GraphKind = "tree" | "sequence" | "flowchart";

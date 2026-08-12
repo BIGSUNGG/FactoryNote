@@ -6,9 +6,18 @@
 // 노드 표시 필드는 불투명하게 취급한다.
 import type {
 	GraphFileNode,
+	GraphFlowchartEdge,
+	GraphFlowchartFile,
+	GraphFlowchartNode,
+	GraphFlowchartShape,
+	GraphKind,
 	GraphLevel,
 	GraphLevelFile,
 	GraphRef,
+	GraphSequenceFile,
+	GraphSequenceFragment,
+	GraphSequenceItem,
+	GraphSequenceMessage,
 	GraphTreeNode,
 } from "./types/index.ts";
 
@@ -145,6 +154,222 @@ export function parseGraphLevelFile(raw: string): GraphLevelFile | null {
 	} catch {
 		return null;
 	}
+}
+
+// --- Sequence·Flowchart envelope(ADR-021) — 단일 파일 그래프. ---
+
+const FLOWCHART_SHAPES: readonly GraphFlowchartShape[] = [
+	"terminal",
+	"process",
+	"decision",
+];
+const FRAGMENT_KINDS = ["alt", "loop", "opt"] as const;
+const MAX_SEQ_DEPTH = 16; // fragment 중첩 상한 — 불량 입력 스택 보호.
+
+function coerceId(value: unknown, ctx: string): string {
+	if (typeof value !== "string" || value.length === 0)
+		throw new Error(`${ctx}: id missing`);
+	return value;
+}
+
+function coerceUniqueIds(ids: string[], ctx: string): void {
+	const seen = new Set<string>();
+	for (const id of ids) {
+		if (seen.has(id)) throw new Error(`${ctx}: duplicate id: ${id}`);
+		seen.add(id);
+	}
+}
+
+function coerceSeqItem(
+	value: unknown,
+	ids: Set<string>,
+	depth: number,
+	ctx: string,
+): GraphSequenceItem {
+	if (depth > MAX_SEQ_DEPTH)
+		throw new Error(`${ctx}: fragment nesting too deep`);
+	if (typeof value !== "object" || value === null)
+		throw new Error(`${ctx}: item not an object`);
+	const o = value as Record<string, unknown>;
+	// fragment 판별은 body 배열 존재 여부 — 메시지 kind(call/reply)와 충돌 방지.
+	if (Array.isArray(o.body)) {
+		if (!FRAGMENT_KINDS.includes(o.kind as (typeof FRAGMENT_KINDS)[number]))
+			throw new Error(`${ctx}: fragment kind must be alt|loop|opt`);
+		if (!Array.isArray(o.body))
+			throw new Error(`${ctx}: fragment body missing`);
+		const fragment: GraphSequenceFragment = {
+			kind: o.kind as GraphSequenceFragment["kind"],
+			body: o.body.map((it, i) =>
+				coerceSeqItem(it, ids, depth + 1, `${ctx} fragment[${i}]`),
+			),
+		};
+		if (typeof o.label === "string") fragment.label = o.label;
+		return fragment;
+	}
+	const from = coerceId(o.from, ctx);
+	const to = coerceId(o.to, ctx);
+	if (typeof o.label !== "string" || o.label.length === 0)
+		throw new Error(`${ctx}: message label missing`);
+	for (const p of [from, to]) {
+		if (!ids.has(p)) throw new Error(`${ctx}: unknown participant: ${p}`);
+	}
+	const msg: GraphSequenceMessage = { from, to, label: o.label };
+	if (o.kind === "reply") msg.kind = "reply";
+	return msg;
+}
+
+/** unknown → GraphSequenceFile. envelope 검증: version=2 · type · 참여자 id 유일 ·
+ * 메시지/fragment 가 참여자 참조 · fragment kind·중첩 상한. 불량 시 throw. */
+export function coerceGraphSequenceFile(value: unknown): GraphSequenceFile {
+	if (typeof value !== "object" || value === null)
+		throw new Error("invalid sequence graph: not an object");
+	const o = value as {
+		version?: unknown;
+		type?: unknown;
+		id?: unknown;
+		title?: unknown;
+		participants?: unknown;
+		body?: unknown;
+	};
+	if (o.version !== 2)
+		throw new Error("invalid sequence graph: version must be 2");
+	if (o.type !== "sequence")
+		throw new Error("invalid sequence graph: type must be 'sequence'");
+	if (!Array.isArray(o.participants) || o.participants.length === 0)
+		throw new Error("invalid sequence graph: participants missing");
+	if (!Array.isArray(o.body))
+		throw new Error("invalid sequence graph: body missing");
+	const participants = o.participants.map((p, i) => {
+		if (typeof p !== "object" || p === null)
+			throw new Error(`participant #${i}: not an object`);
+		return {
+			...(p as Record<string, unknown>),
+			id: coerceId((p as Record<string, unknown>).id, `participant #${i}`),
+		};
+	});
+	coerceUniqueIds(
+		participants.map((p) => p.id),
+		"sequence graph",
+	);
+	const ids = new Set(participants.map((p) => p.id));
+	return {
+		version: 2,
+		type: "sequence",
+		...(typeof o.id === "string" && o.id.length > 0 ? { id: o.id } : {}),
+		...(typeof o.title === "string" ? { title: o.title } : {}),
+		participants,
+		body: o.body.map((it, i) => coerceSeqItem(it, ids, 0, `body[${i}]`)),
+	};
+}
+
+/** unknown → GraphFlowchartFile. envelope 검증: version=2 · type · 노드 id 유일·label 필수 ·
+ * 엣지가 존재 노드 참조 · shape 열거형. 불량 시 throw. */
+export function coerceGraphFlowchartFile(value: unknown): GraphFlowchartFile {
+	if (typeof value !== "object" || value === null)
+		throw new Error("invalid flowchart graph: not an object");
+	const o = value as {
+		version?: unknown;
+		type?: unknown;
+		id?: unknown;
+		title?: unknown;
+		nodes?: unknown;
+		edges?: unknown;
+	};
+	if (o.version !== 2)
+		throw new Error("invalid flowchart graph: version must be 2");
+	if (o.type !== "flowchart")
+		throw new Error("invalid flowchart graph: type must be 'flowchart'");
+	if (!Array.isArray(o.nodes) || o.nodes.length === 0)
+		throw new Error("invalid flowchart graph: nodes missing");
+	if (!Array.isArray(o.edges))
+		throw new Error("invalid flowchart graph: edges missing");
+	const nodes: GraphFlowchartNode[] = o.nodes.map((n, i) => {
+		if (typeof n !== "object" || n === null)
+			throw new Error(`node #${i}: not an object`);
+		const no = n as Record<string, unknown>;
+		if (typeof no.label !== "string" || no.label.length === 0)
+			throw new Error(`node #${i}: label missing`);
+		const node: GraphFlowchartNode = {
+			...no,
+			id: coerceId(no.id, `node #${i}`),
+			label: no.label,
+		};
+		if (no.shape !== undefined) {
+			if (!FLOWCHART_SHAPES.includes(no.shape as GraphFlowchartShape))
+				throw new Error(`node #${i}: shape must be terminal|process|decision`);
+			node.shape = no.shape as GraphFlowchartShape;
+		}
+		return node;
+	});
+	coerceUniqueIds(
+		nodes.map((n) => n.id),
+		"flowchart graph",
+	);
+	const ids = new Set(nodes.map((n) => n.id));
+	const edges: GraphFlowchartEdge[] = o.edges.map((e, i) => {
+		if (typeof e !== "object" || e === null)
+			throw new Error(`edge #${i}: not an object`);
+		const eo = e as Record<string, unknown>;
+		const from = coerceId(eo.from, `edge #${i}`);
+		const to = coerceId(eo.to, `edge #${i}`);
+		for (const p of [from, to]) {
+			if (!ids.has(p)) throw new Error(`edge #${i}: unknown node: ${p}`);
+		}
+		const edge: GraphFlowchartEdge = { ...eo, from, to };
+		if (typeof eo.label === "string") edge.label = eo.label;
+		return edge;
+	});
+	return {
+		version: 2,
+		type: "flowchart",
+		...(typeof o.id === "string" && o.id.length > 0 ? { id: o.id } : {}),
+		...(typeof o.title === "string" ? { title: o.title } : {}),
+		nodes,
+		edges,
+	};
+}
+
+/** 그래프 파일 종류 판별 — type 필드 없음 = 계층 트리(ADR-018 하위 호환). 불량 시 null. */
+export function graphKindOf(raw: string): GraphKind | null {
+	try {
+		const o = JSON.parse(raw) as { type?: unknown; nodes?: unknown };
+		if (o.type === "sequence") return "sequence";
+		if (o.type === "flowchart") return "flowchart";
+		if (o.type === undefined) return "tree";
+		return null;
+	} catch {
+		return null;
+	}
+}
+
+/** JSON 문자열 → 종류별 파싱. sequence·flowchart 는 단일 파일(자식 트리 없음). */
+export function parseGraphSequenceFile(raw: string): GraphSequenceFile | null {
+	try {
+		return coerceGraphSequenceFile(JSON.parse(raw));
+	} catch {
+		return null;
+	}
+}
+
+export function parseGraphFlowchartFile(
+	raw: string,
+): GraphFlowchartFile | null {
+	try {
+		return coerceGraphFlowchartFile(JSON.parse(raw));
+	} catch {
+		return null;
+	}
+}
+
+/** 아무 종류든 유효한 그래프 파일이면 종류 반환 — checkRequiredGraph 등 공통 검증용. */
+export function parseAnyGraphKind(raw: string): GraphKind | null {
+	const kind = graphKindOf(raw);
+	if (kind === "sequence")
+		return parseGraphSequenceFile(raw) ? "sequence" : null;
+	if (kind === "flowchart")
+		return parseGraphFlowchartFile(raw) ? "flowchart" : null;
+	if (kind === "tree") return parseGraphLevelFile(raw) ? "tree" : null;
+	return null;
 }
 
 /** 루트 raw + 자식 파일 리더 → 조립된 트리. 루트 불량 → null.
