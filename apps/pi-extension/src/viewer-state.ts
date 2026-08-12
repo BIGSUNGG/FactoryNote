@@ -3,7 +3,7 @@
 import {
 	STAGES,
 	graphDirNameFor,
-	graphRefFile,
+	graphRefFiles,
 	loadGraphTree,
 	loadState,
 	readArtifact,
@@ -25,8 +25,8 @@ export interface ViewerState {
 		file: string;
 		format: ArtifactFormat;
 		md?: string;
-		/** md 의 `<!-- graph: ... -->` 참조가 가리키는 계층 그래프 트리(ADR-018). 없으면 미포함. */
-		graph?: { file: string; tree: GraphLevel };
+		/** md 의 `<!-- graph: ... -->` 참조들이 가리키는 계층 그래프 트리들(ADR-018·020). 없으면 미포함. */
+		graphs?: { file: string; tree: GraphLevel }[];
 	}[];
 }
 
@@ -45,20 +45,25 @@ export async function buildViewerState(
 		if (state && s.id > state.stage) continue;
 		const raw = await readArtifact(root, feature, s.artifactFile);
 		if (raw === undefined) continue;
-		// 계층 그래프 트리: 루트 json + 서브디렉터리 자식 파일들을 조립해 서빙(ADR-018).
-		const ref = graphRefFile(raw);
-		let tree: GraphLevel | null = null;
-		if (ref) {
-			const rootRaw = await readArtifact(root, feature, ref).catch(
+		// 계층 그래프 트리: 참조마다 루트 json + 서브디렉터리 자식 파일들을 조립해 서빙(ADR-018·020).
+		// 그래프는 승격 시 stageN/ 에 에이전트 이름 그대로 저장됨 — 단계 접두로 읽기(ADR-020).
+		const graphs: { file: string; tree: GraphLevel }[] = [];
+		for (const ref of graphRefFiles(raw)) {
+			const staged = `stage${s.id}/${ref}`;
+			const rootRaw = await readArtifact(root, feature, staged).catch(
 				() => undefined,
 			);
-			if (rootRaw !== undefined) {
-				const refDir = graphDirNameFor(ref);
-				tree = await loadGraphTree(rootRaw, ref, async (rel) => {
-					const r = await readArtifact(root, feature, `${refDir}/${rel}`);
-					return r ?? null;
-				});
-			}
+			if (rootRaw === undefined) continue;
+			const refDir = graphDirNameFor(ref);
+			const tree = await loadGraphTree(rootRaw, ref, async (rel) => {
+				const r = await readArtifact(
+					root,
+					feature,
+					`stage${s.id}/${refDir}/${rel}`,
+				);
+				return r ?? null;
+			});
+			if (tree) graphs.push({ file: ref, tree });
 		}
 		artifacts.push({
 			stage: s.id,
@@ -66,7 +71,7 @@ export async function buildViewerState(
 			file: s.artifactFile,
 			format: s.format,
 			md: raw,
-			...(ref && tree ? { graph: { file: ref, tree } } : {}),
+			...(graphs.length > 0 ? { graphs } : {}),
 		});
 	}
 	return {

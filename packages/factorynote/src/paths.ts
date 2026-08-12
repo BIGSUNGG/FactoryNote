@@ -12,24 +12,13 @@ export function statePath(root: string, feature: string): string {
 	return join(featureDir(root, feature), "state.json");
 }
 
-/** STAGES 에 등록된 단계 산출물 파일명(및 그 동반 그래프 트리) → stageN/ 서브폴더.
- * 그 외(보조 파일)는 feature 루트. 동반 그래프: 루트 `<base>-graph.json` +
- * 자식 파일들이 사는 `<base>-graph/` 디렉터리(ADR-018). */
+/** STAGES 에 등록된 단계 산출물 파일명 → stageN/ 서브폴더.
+ * `stageN/` 접두 경로는 그대로 통과 — 그래프 등 동반 파일은 이름에서 단계를 추론하지 않고
+ * 호출측이 단계 접두를 붙여 명시 전달(ADR-020 에이전트 자유 네이밍). 그 외(보조 파일·draft)는 feature 루트. */
 function stageSubdir(file: string): string {
+	if (/^stage\d+\//.test(file)) return "";
 	const stage = STAGES.find((s) => s.artifactFile === file);
 	if (stage) return `stage${stage.id}`;
-	if (file.endsWith("-graph.json")) {
-		const md = file.slice(0, -"-graph.json".length) + ".md";
-		const owner = STAGES.find((s) => s.artifactFile === md);
-		if (owner) return `stage${owner.id}`;
-	}
-	// 그래프 트리 경로: 첫 세그먼트(또는 이름 자체)가 `<산출물 base>-graph` 인 경우.
-	const firstSeg = file.split("/")[0]!;
-	if (firstSeg.endsWith("-graph")) {
-		const md = firstSeg.slice(0, -"-graph".length) + ".md";
-		const owner = STAGES.find((s) => s.artifactFile === md);
-		if (owner) return `stage${owner.id}`;
-	}
 	return "";
 }
 

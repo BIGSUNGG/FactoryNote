@@ -13,7 +13,7 @@ FactoryNote 개발 문서의 중앙 인덱스(MOC)다. 모든 영역과 주요 �
 | ------ | ------ | ------ |
 | `00-vision/` | 정체성 · 목표 · 5대 원칙 · 용어집 | [[project-identity]] |
 | `01-architecture/` | 3단계 파이프라인 · 에이전트 역할 · 구현 아키텍처 | [[multi-agent-pipeline]] · [[implementation-architecture]] |
-| `02-decisions/` | ADR (정해진 사항) | [[ADR-001-documentation-system]] · [[ADR-002-hybrid-harness-and-graph-git]] · [[ADR-003-viewer-architecture]] · [[ADR-004-monorepo-structure]] · [[ADR-005-mvp-implementation]] · [[ADR-006-graph-editor]] · [[ADR-007-pipeline-hardening]] · [[ADR-008-3-stage-pipeline]] · [[ADR-009-tier-1-agent-orchestration]] · [[ADR-009-realtime-chat-loop]] · [[ADR-010-context-overflow-file-protocol]] · [[ADR-010-md-design-stage]] · [[ADR-011-comment-to-chat-consolidation]] · [[ADR-012-child-tool-allowlist-spawn]] · [[ADR-013-parallel-feedback-pipeline]] · [[ADR-014-dynamic-feedback-agents]] · [[ADR-015-stage-artifact-folders]] · [[ADR-016-graph-json-externalization]] · [[ADR-017-feedback-levels]] · [[ADR-018-hierarchical-graph-tree]] · [[ADR-019-stage-2-graph-required]] |
+| `02-decisions/` | ADR (정해진 사항) | [[ADR-001-documentation-system]] · [[ADR-002-hybrid-harness-and-graph-git]] · [[ADR-003-viewer-architecture]] · [[ADR-004-monorepo-structure]] · [[ADR-005-mvp-implementation]] · [[ADR-006-graph-editor]] · [[ADR-007-pipeline-hardening]] · [[ADR-008-3-stage-pipeline]] · [[ADR-009-tier-1-agent-orchestration]] · [[ADR-009-realtime-chat-loop]] · [[ADR-010-context-overflow-file-protocol]] · [[ADR-010-md-design-stage]] · [[ADR-011-comment-to-chat-consolidation]] · [[ADR-012-child-tool-allowlist-spawn]] · [[ADR-013-parallel-feedback-pipeline]] · [[ADR-014-dynamic-feedback-agents]] · [[ADR-015-stage-artifact-folders]] · [[ADR-016-graph-json-externalization]] · [[ADR-017-feedback-levels]] · [[ADR-018-hierarchical-graph-tree]] · [[ADR-019-stage-2-graph-required]] · [[ADR-020-multi-named-graphs]] |
 | `03-design/` | 기능별 설계 산출물 | [[03-design/plan-page/core-features | plan-page]] · [[03-design/module-design/features | 모듈 설계]] · [[03-design/classes/features | 클래스]] · [[03-design/plan-viewer/ui-mapping | UI 매핑]] · [[03-design/workflow-core/06-viewer-ui | 뷰어 사양]] |
 | `04-development/` | Changelog · Dev-Log (수정 사항) | [[Changelog]] · [[Dev-Log]] |
 | `05-problems/` | 이슈 · 블로커 · 포스트모템 | [[parallel-worktree-seam-defects]] · [[graph-output-stale-design-prompt]] · [[graph-drilldown-pointer-events]] |
@@ -41,6 +41,7 @@ FactoryNote 개발 문서의 중앙 인덱스(MOC)다. 모든 영역과 주요 �
 - [[ADR-017-feedback-levels]] — Feedback 수준(none|low|medium|high|ultra)으로 검토 에이전트 수 조절(none = 게이트 직행 opt-in Tier 0, 리밋 시 3-4개 배치 분할)
 - [[ADR-018-hierarchical-graph-tree]] — 그래프 단일 파일을 계층 트리(루트 + 자식 파일 서브디렉터리, 나가는 refs {to,comment})로 재구조화 + 임의 깊이 드릴다운 뷰어(더블클릭 토글·다중 선택 병합·미선택 참조 숨김)
 - [[ADR-019-stage-2-graph-required]] — Stage 2 그래프 작성 필수(코드 검증·Feedback 전 반려) + 단계별 스폰 명령 분기(none/required/optional)
+- [[ADR-020-multi-named-graphs]] — 산출물당 다중 그래프 + 에이전트 자유 네이밍(이름 그대로 승격, 고정 이름·md 재작성 폐지, stageN/ 명시 접두 라우팅)
 - [[parallel-worktree-seam-defects]] — 병렬 워크트리 seam 결함 + gate-server `revertTo` drop 포스트모템
 - [[graph-output-stale-design-prompt]] — 그래프 미출력: 낡은 design-prompt.md 주입 + 참조 규약 위반 포스트모템
 - [[graph-drilldown-pointer-events]] — 그래프 드릴다운 미출력: ReactFlow v11 pointer-events:none 주입 포스트모템

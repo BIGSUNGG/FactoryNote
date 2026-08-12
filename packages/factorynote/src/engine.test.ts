@@ -7,6 +7,7 @@ import { test, expect } from "bun:test";
 import {
 	applyVerdict,
 	atLoopCeiling,
+	checkRequiredGraph,
 	initialState,
 	invalidateArtifactsAfter,
 	isComplete,
@@ -253,6 +254,57 @@ test("invalidateArtifactsAfter deletes artifacts after stage (FR-7)", async () =
 	expect(
 		await readArtifact(r, "f", "03-implementation-plan.md"),
 	).toBeUndefined();
+	await rm(r, { recursive: true, force: true });
+});
+
+test("invalidateArtifactsAfter: 에이전트 자유 이름 그래프 트리도 함께 삭제(ADR-020)", async () => {
+	const r = await mkdtemp(join(tmpdir(), "fn-invg-"));
+	await writeArtifact(
+		r,
+		"f",
+		"02-design.md",
+		"# 설계\n\n<!-- graph: module-deps.json -->\n",
+	);
+	await writeArtifact(r, "f", "stage2/module-deps.json", '{"version":2}');
+	await writeArtifact(
+		r,
+		"f",
+		"stage2/module-deps/modules/ui.json",
+		'{"version":2}',
+	);
+	await invalidateArtifactsAfter(r, "f", 1);
+	expect(await readArtifact(r, "f", "02-design.md")).toBeUndefined();
+	expect(await readArtifact(r, "f", "stage2/module-deps.json")).toBeUndefined();
+	expect(
+		await readArtifact(r, "f", "stage2/module-deps/modules/ui.json"),
+	).toBeUndefined();
+	await rm(r, { recursive: true, force: true });
+});
+
+test("checkRequiredGraph: 다중 그래프 허용·이름 중복 거부(ADR-020)", async () => {
+	const r = await mkdtemp(join(tmpdir(), "fn-reqg-"));
+	const ok = JSON.stringify({ version: 2, nodes: [{ id: "a" }] });
+	await writeArtifact(r, "f", "a.json", ok);
+	await writeArtifact(r, "f", "b.json", ok);
+	// 2개 유효 참조 → 통과.
+	await writeArtifact(
+		r,
+		"f",
+		"draft.md",
+		"# 설계\n<!-- graph: a.json -->\n<!-- graph: b.json -->\n",
+	);
+	expect(await checkRequiredGraph(r, "f", "draft.md")).toBeNull();
+	// 중복 이름 → 거부.
+	await writeArtifact(
+		r,
+		"f",
+		"draft.md",
+		"# 설계\n<!-- graph: a.json -->\n<!-- graph: a.json -->\n",
+	);
+	expect(await checkRequiredGraph(r, "f", "draft.md")).toContain("중복");
+	// 참조 파일 누락 → 거부.
+	await writeArtifact(r, "f", "draft.md", "<!-- graph: missing.json -->\n");
+	expect(await checkRequiredGraph(r, "f", "draft.md")).toContain("없다");
 	await rm(r, { recursive: true, force: true });
 });
 

@@ -1,6 +1,6 @@
 ---
 status: accepted
-updated: 2026-08-11
+updated: 2026-08-12
 tags: [adr, graph, viewer, stage-2, data-model, drilldown]
 ---
 
@@ -9,6 +9,8 @@ tags: [adr, graph, viewer, stage-2, data-model, drilldown]
 ## 상태
 
 accepted ([[ADR-016-graph-json-externalization]] 를 확장 — 외부 파일화·자동 배치·읽기 전용 원칙은 승계하고, 단일 파일 `sections` 모델을 계층 파일 트리로 교체)
+
+> **갱신(2026-08-12)**: "루트는 `<산출물>-graph.json` 고정 이름 그대로" 규약은 [[ADR-020-multi-named-graphs]] 로 변경 — 루트 json 이름은 에이전트 자유 결정, 산출물당 여러 개 허용, 자식 폴더는 루트 이름에서 `.json`을 뗀 값으로 파생 규칙 유지. 계층 트리 형태·나가는 refs·드릴다운 뷰어 규약은 불변.
 
 ## 날짜
 

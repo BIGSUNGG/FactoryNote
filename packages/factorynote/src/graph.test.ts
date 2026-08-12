@@ -4,9 +4,10 @@ import {
 	collectGraphChildFiles,
 	coerceGraphLevelFile,
 	graphDirNameFor,
-	graphJsonNameFor,
 	graphRefFile,
+	graphRefFiles,
 	isSafeChildPath,
+	isSafeGraphName,
 	loadGraphTree,
 	parseGraphLevelFile,
 } from "./graph.ts";
@@ -175,9 +176,31 @@ test("graphRefFile: 참조 코멘트에서 json 파일명 추출", () => {
 	expect(graphRefFile("")).toBeUndefined();
 });
 
-test("graphJsonNameFor / graphDirNameFor", () => {
-	expect(graphJsonNameFor("02-design.md")).toBe("02-design-graph.json");
-	expect(graphJsonNameFor("draft.md")).toBe("draft-graph.json");
+test("graphRefFiles: 다중 참조를 문서 순서대로 추출(ADR-020)", () => {
+	const md =
+		"# 설계\n\n<!-- graph: module-deps.json -->\n본문\n\n<!--graph: data-flow.json-->\n끝";
+	expect(graphRefFiles(md)).toEqual(["module-deps.json", "data-flow.json"]);
+	// 중복도 그대로 나열(호출측이 유일성 검증) — 안전하지 않은 이름은 제외.
+	expect(
+		graphRefFiles("<!-- graph: a.json -->\n<!-- graph: a.json -->"),
+	).toEqual(["a.json", "a.json"]);
+	expect(graphRefFiles("<!-- graph: ../up.json -->")).toEqual([]);
+	expect(graphRefFiles("<!-- graph: noext -->")).toEqual([]);
+	expect(graphRefFiles("")).toEqual([]);
+});
+
+test("isSafeGraphName: .json 끝 단일 파일명만 허용", () => {
+	expect(isSafeGraphName("module-deps.json")).toBe(true);
+	expect(isSafeGraphName("02-design-graph.json")).toBe(true);
+	expect(isSafeGraphName("noext")).toBe(false);
+	expect(isSafeGraphName("..")).toBe(false);
+	expect(isSafeGraphName("..x.json")).toBe(false);
+	expect(isSafeGraphName("")).toBe(false);
+	expect(isSafeGraphName(".json")).toBe(false);
+});
+
+test("graphDirNameFor", () => {
 	expect(graphDirNameFor("draft-graph.json")).toBe("draft-graph");
 	expect(graphDirNameFor("02-design-graph.json")).toBe("02-design-graph");
+	expect(graphDirNameFor("module-deps.json")).toBe("module-deps");
 });

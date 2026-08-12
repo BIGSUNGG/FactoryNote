@@ -108,12 +108,14 @@ Stage 1→2→3 산출물 작성 + 각 게이트 통과 → Stage 3 게이트 �
     ├── design-prompt.md        # 현 단계 Design 작성 지시(보조)
     ├── feedback-menu.md        # 현 단계 Feedback 메뉴(보조)
     ├── draft.md                # 현 단계 초안(게이트 교환 파일)
-    ├── draft-graph.json        # 그래프 단계 초안의 동반 그래프 데이터(선택)
+    ├── <그래프 이름>.json       # 초안 동반 그래프 루트(에이전트 자유 네이밍·여러 개 허용, ADR-020)
+    ├── <그래프 이름>/          # 해당 그래프 자식 파일 서브디렉터리
     ├── stage1/
     │   └── 01-understanding-and-scenarios.md   # Stage 1
     ├── stage2/
     │   ├── 02-design.md        # Stage 2(<!-- graph: ... --> 참조 포함)
-    │   └── 02-design-graph.json # Stage 2 그래프 노드·관계(자동 배치)
+    │   ├── <그래프 이름>.json   # 승격된 그래프 루트(이름 그대로, 자동 배치)
+    │   └── <그래프 이름>/       # 그래프 자식 파일들
     └── stage3/
         └── 03-implementation-plan.md           # Stage 3
 ```

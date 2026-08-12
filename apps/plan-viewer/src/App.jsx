@@ -111,7 +111,8 @@ export default function App() {
 	const stageLabels = {};
 	for (const a of state.artifacts || []) stageLabels[a.stage] = a.name;
 	stageLabels[state.stage] = state.stageName;
-	const graphData = cur?.graph ? { [cur.graph.file]: cur.graph.tree } : {};
+	const graphData = {};
+	for (const g of cur?.graphs || []) graphData[g.file] = g.tree;
 
 	const main = (
 		<PlanPage

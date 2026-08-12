@@ -208,7 +208,7 @@ test("Tier 1: feedback 이슈 → Design 수정 1회 → gate(개선판 저장, 
 	).toBe(drafts[1]);
 });
 
-test("ADR-018: 그래프 트리 승격 — draft 루트+자식 파일 → stage2/ 트리 + 참조 재작성 + 고아 제외 + confirm → stage 3", async () => {
+test("ADR-018·020: 그래프 트리 승격 — 에이전트 이름 그대로 다중 승격 + 고아 제외 + confirm → stage 3", async () => {
 	const feat = "graphfeat";
 	await saveState(root, { ...initialState(feat), stage: 2 });
 	const base = {
@@ -217,8 +217,9 @@ test("ADR-018: 그래프 트리 승격 — draft 루트+자식 파일 → stage2
 		feature: feat,
 		open: false,
 	} as const;
+	// 에이전트가 지은 자유 이름 2개(ADR-020) — 본문 각 위치에 인라인 참조.
 	const draftMd =
-		"<!-- graph: draft-graph.json -->\n# 설계\n\n아키텍처 설명.\n";
+		"# 설계\n\n<!-- graph: module-deps.json -->\n\n아키텍처 설명.\n\n<!-- graph: data-flow.json -->\n\n데이터 흐름.\n";
 	const rootJson = JSON.stringify({
 		version: 2,
 		childLevel: "modules",
@@ -237,26 +238,32 @@ test("ADR-018: 그래프 트리 승격 — draft 루트+자식 파일 → stage2
 		childLevel: "classes",
 		nodes: [{ id: "View", type: "class", name: "View" }],
 	});
+	const flowJson = JSON.stringify({
+		version: 2,
+		childLevel: "steps",
+		nodes: [{ id: "ingest", label: "수집" }],
+	});
 	const onReady = postDecision("confirm");
 
 	let out = await drivePlan({ ...base, onReady });
 	expect(out.nextAction).toBe("spawn-design");
 	await writeFile(out.draftPath!, draftMd, "utf8");
-	await writeFile(join(root, feat, "draft-graph.json"), rootJson, "utf8");
-	await mkdir(join(root, feat, "draft-graph", "modules"), {
+	await writeFile(join(root, feat, "module-deps.json"), rootJson, "utf8");
+	await mkdir(join(root, feat, "module-deps", "modules"), {
 		recursive: true,
 	});
 	await writeFile(
-		join(root, feat, "draft-graph", "modules", "ui.json"),
+		join(root, feat, "module-deps", "modules", "ui.json"),
 		uiJson,
 		"utf8",
 	);
 	// 고아 파일: 이전 사이클 잔여 — 어떤 children 에도 참조되지 않아 승격에서 제외돼야 함.
 	await writeFile(
-		join(root, feat, "draft-graph", "modules", "orphan.json"),
+		join(root, feat, "module-deps", "modules", "orphan.json"),
 		"{}",
 		"utf8",
 	);
+	await writeFile(join(root, feat, "data-flow.json"), flowJson, "utf8");
 
 	out = await drivePlan({ ...base, designArtifact: out.draftPath!, onReady });
 	expect(out.nextAction).toBe("spawn-feedback");
@@ -269,17 +276,22 @@ test("ADR-018: 그래프 트리 승격 — draft 루트+자식 파일 → stage2
 	expect(out.gateResult?.verdict).toBe("confirm");
 	expect(out.stage).toBe(3);
 
-	// 산출물 md 는 최종 루트 json 파일명을 참조하고, 트리가 stage2/ 에 승격.
+	// md 는 에이전트 이름을 그대로 유지(rewrite 없음)하고, 두 트리가 stage2/ 에 승격.
 	const promoted = await readArtifact(root, feat, "02-design.md");
-	expect(promoted).toContain("<!-- graph: 02-design-graph.json -->");
-	expect(promoted).not.toContain("draft-graph.json");
-	expect(await readArtifact(root, feat, "02-design-graph.json")).toBe(rootJson);
+	expect(promoted).toContain("<!-- graph: module-deps.json -->");
+	expect(promoted).toContain("<!-- graph: data-flow.json -->");
+	expect(await readArtifact(root, feat, "stage2/module-deps.json")).toBe(
+		rootJson,
+	);
 	expect(
-		await readArtifact(root, feat, "02-design-graph/modules/ui.json"),
+		await readArtifact(root, feat, "stage2/module-deps/modules/ui.json"),
 	).toBe(uiJson);
+	expect(await readArtifact(root, feat, "stage2/data-flow.json")).toBe(
+		flowJson,
+	);
 	// 고아 파일은 승격되지 않는다.
 	expect(
-		await readArtifact(root, feat, "02-design-graph/modules/orphan.json"),
+		await readArtifact(root, feat, "stage2/module-deps/modules/orphan.json"),
 	).toBeUndefined();
 });
 
@@ -290,7 +302,7 @@ test("단계별 스폰 명령 분기: Stage 1 그래프 언급 없음 · Stage 2
 	await saveState(root, { ...initialState("graphcmd2"), stage: 2 });
 	const out2 = await drivePlan({ ...b, feature: "graphcmd2" });
 	expect(out2.spawnTask).toContain("필수");
-	expect(out2.spawnTask).toContain("draft-graph.json");
+	expect(out2.spawnTask).toContain("module-deps.json");
 	await saveState(root, { ...initialState("graphcmd3"), stage: 3 });
 	const out3 = await drivePlan({ ...b, feature: "graphcmd3" });
 	expect(out3.spawnTask).toContain("선택");

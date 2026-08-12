@@ -3,12 +3,15 @@ import type { ArtifactPaths } from "./types/index.ts";
 import type { StageDefinition } from "./stages.ts";
 import type { FeedbackAgent } from "./feedback-agents.ts";
 
-/** 단계별 그래프 지시 문구 — Stage 1 없음 · Stage 2 필수(코드 강제) · Stage 3 선택. */
+/** 단계별 그래프 지시 문구 — Stage 1 없음 · Stage 2 필수(코드 강제) · Stage 3 선택.
+ * 그래프 이름은 에이전트가 내용 맞게 자유 결정·여러 개 허용(ADR-020). */
 function graphLine(def: StageDefinition): string {
+	const naming =
+		"그래프 이름은 내용에 맞게 자유롭게 짓되(예: module-deps.json + module-deps/) 같은 산출물 안에서 유일해야 하고, 루트 json 파일명만 `.json`으로 끝나는 단일 파일명이어야 한다(경로 금지). 여러 그래프를 둘 수 있다.";
 	if (def.graph === "required")
-		return "계층 그래프 파일 트리는 **필수**: 작성 지시대로 루트 json + 자식 파일 서브디렉터리를 draft 와 같은 폴더에 저장(예: draft-graph.json + draft-graph/)하고 md 앞에 `<!-- graph: draft-graph.json -->` 참조 코멘트를 둔다. 그래프가 없거나 불량하면 이 산출물은 자동 반려된다.";
+		return `계층 그래프 파일 트리는 **필수**(1개 이상): 각 그래프를 루트 json + 자식 파일 서브디렉터리로 draft 와 같은 폴더에 저장하고, md 본문에서 해당 그래프가 보여질 위치에 \`<!-- graph: <루트 json 파일명> -->\` 참조 코멘트를 둔다. ${naming} 그래프가 없거나 불량하면 이 산출물은 자동 반려된다.`;
 	if (def.graph === "optional")
-		return "그래프를 동반하면(선택) draft 와 같은 폴더에 계층 트리(루트 json + 자식 파일 서브디렉터리, 예: draft-graph.json + draft-graph/)로 저장하고 md 앞에 `<!-- graph: <루트 json 파일명> -->` 참조 코멘트를 둔다.";
+		return `그래프를 동반하면(선택) 각 그래프를 draft 와 같은 폴더에 계층 트리(루트 json + 자식 파일 서브디렉터리)로 저장하고, md 본문에서 보여질 위치에 \`<!-- graph: <루트 json 파일명> -->\` 참조 코멘트를 둔다. ${naming}`;
 	return "";
 }
 

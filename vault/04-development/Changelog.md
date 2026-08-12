@@ -12,6 +12,10 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ### Added
 
+- **산출물당 다중 그래프 + 에이전트 자유 네이밍** — md 안 `<!-- graph: <루트 json 파일명> -->` 참조를 여러 개 허용하고, 루트 json 이름을 에이전트가 내용에 맞게 자유롭게 짓는다(자식 폴더는 루트 이름에서 `.json` 뺀 값으로 파생 규칙 유지, 같은 산출물 내 이름 유일·`.json` 끝 단일 파일명 강제). 승격은 에이전트 이름 그대로 `stageN/` 에 — 고정 이름 rename·md 참조 재작성 폐지(`graphJsonNameFor` 제거, `paths.ts` 이름 추론 라우팅을 `stageN/` 명시 접두 통과로 교체). 서빙은 참조별 트리 배열(`artifacts[].graphs`), 뷰어는 각 참조 위치에 인라인 블록 렌더. `checkRequiredGraph` 는 Stage 2 에서 참조 1개 이상 + 각 파일 존재·유효 + 이름 유일을 구분 메시지로 검증(상한 없음). 회귀 무효화는 md 참조를 읽고 동반 트리 삭제. 기존 고정 이름 산출물 무변경 호환. 자체체크 122 pass. [[ADR-020-multi-named-graphs]]
+
+### Added
+
 - **Stage 2 그래프 필수 강제 + 단계별 스폰 명령 분기** — `StageDefinition.graph: "none"|"optional"|"required"` 필드로 단계별 그래프 의무를 선언(Stage 1 없음 · Stage 2 필수 · Stage 3 선택)하고, `designTask`·`designRevisionTask` 스폰 명령이 이 필드로 분기한다. Stage 2는 프롬프트 요청에 그치지 않고 코드로 강제: `checkRequiredGraph` 가 design 보고 시 md 의 `<!-- graph: ... -->` 참조 + 루트 json 존재 + `version:2` envelope 파싱을 검증해, 미충족이면 Feedback 스폰 전에 재작성 지시(dfLoop 소진 시 게이트 에스컬레이션). 자체체크 112 pass. [[ADR-019-stage-2-graph-required]].
 
 ### Changed

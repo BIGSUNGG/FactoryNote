@@ -1,6 +1,6 @@
 ---
 status: accepted
-updated: 2026-08-11
+updated: 2026-08-12
 tags: [adr, graph, viewer, stage-2, data-model, layout]
 ---
 
@@ -9,6 +9,8 @@ tags: [adr, graph, viewer, stage-2, data-model, layout]
 ## 상태
 
 accepted ([[ADR-006-graph-editor]]·[[ADR-010-md-design-stage]] 를 대체 — 그래프 직접편집·인라인 펜스·수동 배치 폐지)
+
+> **갱신(2026-08-12)**: 고정 이름(`<산출물 base>-graph.json`)·게이트 오픈 시 참조 재작성·승격 이름 규약은 [[ADR-020-multi-named-graphs]] 로 폐지 — 그래프는 에이전트 자유 이름, 여러 개 허용, 이름 그대로 승격. 외부 파일화·참조 코멘트 프로토콜·전 단계 동일 문서 렌더·자동 배치 원칙은 유지.
 
 ## 날짜
 

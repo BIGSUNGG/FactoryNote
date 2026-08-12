@@ -131,8 +131,8 @@ sequenceDiagram
   "artifacts": [
     { "stage": 1, "name": "요청 이해 · 동작 시나리오", "file": "01-understanding-and-scenarios.md", "format": "markdown", "md": "# 요구사항·시나리오\n…" },
     { "stage": 2, "name": "모듈 · 클래스 설계", "file": "02-design.md", "format": "markdown",
-      "md": "<!-- graph: 02-design-graph.json -->\n# 설계\n…",
-      "graph": { "file": "02-design-graph.json", "tree": { "file": "02-design-graph.json", "childLevel": "modules", "nodes": [ { "id": "frontend", "children": { "file": "modules/frontend.json", "parentId": "frontend", "nodes": […] } }, … ] } } }
+      "md": "# 설계\n\n<!-- graph: module-deps.json -->\n\n…",
+      "graphs": [ { "file": "module-deps.json", "tree": { "file": "module-deps.json", "childLevel": "modules", "nodes": [ { "id": "frontend", "children": { "file": "modules/frontend.json", "parentId": "frontend", "nodes": […] } }, … ] } } ] }
   ]
 }
 ```
@@ -154,12 +154,12 @@ sequenceDiagram
 
 ### 그래프 산출물(Stage 2·선택 Stage 3) — md + 계층 트리 `.json`
 
-그래프 데이터는 산출물 md 옆 계층 파일 트리([[ADR-018-hierarchical-graph-tree]])로 저장하고, md 는 루트 파일 `<!-- graph: <파일명> -->` 참조 코멘트만 가진다([[ADR-016-graph-json-externalization]] 승계):
+그래프 데이터는 산출물 md 옆 계층 파일 트리([[ADR-018-hierarchical-graph-tree]])로 저장하고, md 는 루트 파일 `<!-- graph: <파일명> -->` 참조 코멘트를 가진다([[ADR-016-graph-json-externalization]] 승계). 산출물당 그래프 여러 개·에이전트 자유 네이밍 허용([[ADR-020-multi-named-graphs]]):
 
 ```
-stage2/02-design-graph.json                # 루트 — 최상위(모듈) 레벨
-stage2/02-design-graph/modules/ui.json     # 모듈 ui 의 자식(클래스) 레벨
-stage2/02-design-graph/modules/ui/View.json  # 클래스 View 의 자식(메서드) 레벨
+stage2/module-deps.json                # 루트 — 최상위(모듈) 레벨, 이름은 에이전트 결정
+stage2/module-deps/modules/ui.json     # 모듈 ui 의 자식(클래스) 레벨
+stage2/module-deps/modules/ui/View.json  # 클래스 View 의 자식(메서드) 레벨
 ```
 
 ```json
@@ -177,7 +177,7 @@ stage2/02-design-graph/modules/ui/View.json  # 클래스 View 의 자식(메서�
 - 관계는 `refs: [{to, comment}]` **나가는 방향만 소스 노드 파일에** 작성. 단방향 한쪽·양방향 양쪽, comment 필수. 별도 edges 배열 없음.
 - **`position`·`width`·`height` 금지** — 좌표는 뷰어 `layoutGraph` 자동 배치가 유일한 출처.
 - `core/graph.ts`(`coerceGraphLevelFile`·`loadGraphTree`·`collectGraphChildFiles`·`isSafeChildPath`)가 envelope/경로 안전 검증; 표시 필드는 불투명.
-- 게이트 서버가 루트에서 도달 가능한 파일을 조립해 `artifacts[].graph.tree`(중첩 레벨)로 서빙. 게이트 오픈 시 `promoteGraphTree` 가 도달 가능 파일만 산출물 폴더로 승격(고아 제외, 참조를 최종 파일명으로 재작성). 회귀 시 루트 json + 서브디렉터리 전체 무효화.
+- 게이트 서버가 참조마다 루트에서 도달 가능한 파일을 조립해 `artifacts[].graphs[]`(파일별 중첩 레벨)로 서빙. 게이트 오픈 시 `promoteGraphTree` 가 각 참조 트리를 에이전트 이름 그대로 `stageN/` 에 승격(고아 제외, md 재작성 없음). 회귀 시 md 참조를 읽어 루트 json + 서브디렉터리 전체 무효화.
 
 ## 설치 레이아웃 — `~/.pi/agent/extensions/factorynote/`
 

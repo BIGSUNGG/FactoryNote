@@ -20,6 +20,22 @@ test("참조가 문서 중간에 있어도 블록 순서 보존", () => {
 	expect(blocks.filter((b) => b.type === "paragraph")).toHaveLength(2);
 });
 
+test("다중 그래프 참조 → 각 위치에 별도 블록(ADR-020)", () => {
+	const md =
+		"# 설계\n\n<!-- graph: module-deps.json -->\n\n설명 A.\n\n<!-- graph: data-flow.json -->\n\n설명 B.\n";
+	const blocks = mdToBlocks(md);
+	const graphs = blocks.filter((b) => b.type === "graph");
+	expect(graphs).toHaveLength(2);
+	expect(graphs[0].graphFile).toBe("module-deps.json");
+	expect(graphs[1].graphFile).toBe("data-flow.json");
+	// 두 그래프 블록 사이에 본문 단락 유지 — 참조 위치 인라인 렌더링 보장.
+	const seq = blocks.map((b) => b.type);
+	expect(seq.indexOf("graph")).toBeLessThan(seq.lastIndexOf("graph"));
+	expect(seq.slice(seq.indexOf("graph"), seq.lastIndexOf("graph"))).toContain(
+		"paragraph",
+	);
+});
+
 test("인라인 코드 펜스는 전부 code 블록(그래프 특례 없음)", () => {
 	const md =
 		"텍스트\n\n```js\nconsole.log(1)\n```\n\n```some-legacy-fence\n{}\n```\n";

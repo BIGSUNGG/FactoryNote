@@ -65,10 +65,12 @@ export {
 	collectGraphChildFiles,
 	coerceGraphLevelFile,
 	graphDirNameFor,
-	graphJsonNameFor,
+	graphRefAttemptCount,
 	graphRefFile,
+	graphRefFiles,
 	GRAPH_REF_RE,
 	isSafeChildPath,
+	isSafeGraphName,
 	loadGraphTree,
 	parseGraphLevelFile,
 } from "./graph.ts";

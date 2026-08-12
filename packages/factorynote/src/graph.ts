@@ -16,15 +16,35 @@ import type {
  * 파일명은 안전한 문자만 허용(경로 분리자 금지 — traversal 차단). */
 export const GRAPH_REF_RE = /<!--\s*graph:\s*([\w.-]+)\s*-->/;
 
-/** md 에서 그래프 JSON 참조 파일명 추출. 참조 없으면 undefined. */
-export function graphRefFile(md: string): string | undefined {
-	const m = (md ?? "").match(GRAPH_REF_RE);
-	return m?.[1];
+/** 그래프 이름은 에이전트가 자유롭게 결정(ADR-020) — 루트 json 파일명 하나만 참조.
+ * 안전 검사: 경로 분리자는 정규식이 이미 차단, `..`(상승 traversal)·`.json` 아닌 이름 거부. */
+export function isSafeGraphName(name: string): boolean {
+	return (
+		name.length > 0 &&
+		name.endsWith(".json") &&
+		!name.includes("..") &&
+		name !== ".json"
+	);
 }
 
-/** 산출물 md 파일명에 대응하는 그래프 루트 JSON 파일명(`02-design.md` → `02-design-graph.json`). */
-export function graphJsonNameFor(mdFile: string): string {
-	return mdFile.replace(/\.md$/i, "") + "-graph.json";
+/** md 의 그래프 JSON 참조 파일명 **전부**를 문서 순서대로 추출(ADR-020 다중 그래프).
+ * 안전하지 않은 이름(`..`·`.json` 아님)은 제외 — 호출측이 개수 비교로 규약 위반 감지. */
+export function graphRefFiles(md: string): string[] {
+	const out: string[] = [];
+	for (const m of (md ?? "").matchAll(new RegExp(GRAPH_REF_RE, "g"))) {
+		if (m[1] && isSafeGraphName(m[1])) out.push(m[1]);
+	}
+	return out;
+}
+
+/** md 에서 첫 그래프 JSON 참조 파일명 추출(하위 호환 편의). 참조 없으면 undefined. */
+export function graphRefFile(md: string): string | undefined {
+	return graphRefFiles(md)[0];
+}
+
+/** md 안 `<!-- graph:` 시도 총 개수(규약 위반 감지용 — 엄밀 정규식과 별개). */
+export function graphRefAttemptCount(md: string): number {
+	return (md ?? "").match(/<!--\s*graph:/gi)?.length ?? 0;
 }
 
 /** 루트 json 파일명 → 자식 파일들이 사는 서브디렉터리명(`draft-graph.json` → `draft-graph`). */

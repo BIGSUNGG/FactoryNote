@@ -9,6 +9,22 @@ tags: [development, dev-log]
 
 ## 2026-08-12
 
+### 다중 그래프 + 에이전트 자유 네이밍 ([[ADR-020-multi-named-graphs]])
+
+**맥락**: 사용자 요구 — 그래프를 여러 개 둘 수 있게, 이름은 고정(`02-design-graph.json`)하지 말고 에이전트가 내용에 맞게 짓게. 문답으로 확정: (1) 폴더는 루트 json 이름에서 파생 (2) 승격 시 이름 그대로 유지 (3) Stage 2 필수 = 1개 이상·상한 없음.
+
+**작업**:
+
+- 코어 `graph.ts`: `graphRefFiles`(전체 참조 추출)·`isSafeGraphName`(`.json` 끝·`..` 금지)·`graphRefAttemptCount`(규약 위반 감지). `graphJsonNameFor` 제거(고정 이름 파생 폐지).
+- 코어 `paths.ts`: `stageSubdir` 이름 추론(`-graph.json`→소유 md 역추적) 폐지 → `stageN/` 접두 경로 통과. 그래프 승격·서빙·무효화가 단계를 명시 전달.
+- 코어 `artifact.ts`: `checkRequiredGraph` 다중화(1개 이상·파일 존재·envelope·이름 중복 거부, 구분 메시지) · `promoteGraphTree` 수집-후-쓰기로 src·dst 동일 안전 · `invalidateArtifactsAfter` md 읽어 참조별 트리 삭제.
+- 어댂터 `plan-gate.ts`: `promoteGraphArtifact` 가 참조마다 `stage<id>/<이름>`으로 승격 — md 재작성 없음. `viewer-state.ts`: `artifacts[].graphs` 배열 서빙. 뷰어 `App.jsx`: 참조별 `graphData` 맵 조립.
+- 프롬프트 `df-task.ts`: 자유 네이밍·여러 개 허용·본문 표시 위치 코멘트 지시로 갱신.
+- 테스트: 다중 참조 추출·안전 이름·다중 승격(이름 보존·고아 제외)·다중 서빙(신규 이름+구 고정 이름 호환)·무효화·중복 거부·mdToBlocks 다중 블록. 122 pass + `bun run build` 0 종료. 부수: 미설치던 `@happy-dom/global-registrator` 등 16개 패키지 `bun install` 로 복구(기존 GraphView 테스트 실패 요인).
+- 문서: [[ADR-020-multi-named-graphs]] 신규, [[ADR-016-graph-json-externalization]]·[[ADR-018-hierarchical-graph-tree]] 갱신 주석, [[Home]] 링크.
+
+**메모**: draft 그래프는 feature 루트에 남아 재작성 재료가 됨(승격은 복사) — 자유 네이밍 후 잔여 파일 누적 가능성은 기존 고정 이름 시절과 동일 수준이라 정리 로직 추가 안 함(YAGNI).
+
 ### 그래프 드릴다운 미출력 수정 — ReactFlow pointer-events 주입 ([[graph-drilldown-pointer-events]])
 
 **맥락**: 사용자 보고 — 게이트 검토 페이지에서 모듈 노드 더블클릭 시 하위 그래프가 안 나옴. 힌트 문구는 표시(데이터 정상)되나 더블클릭 무반응.

@@ -3,12 +3,10 @@
 import {
 	CHILD_SPAWN_OPTIONS,
 	DEFAULT_FEEDBACK_LEVEL,
-	GRAPH_REF_RE,
 	STAGES,
 	applyVerdict,
 	atLoopCeiling,
-	graphJsonNameFor,
-	graphRefFile,
+	graphRefFiles,
 	invalidateArtifactsAfter,
 	isComplete,
 	markArtifactReady,
@@ -56,7 +54,7 @@ export async function runOpenGate(
 			await promoteGraphArtifact(
 				root,
 				feature,
-				def.artifactFile,
+				def.id,
 				artifactToWrite,
 			),
 		);
@@ -186,21 +184,19 @@ export async function runOpenGate(
 	};
 }
 
-/** 게이트 오픈 시 draft 그래프 트리를 산출물과 같은 stageN/ 폴더로 승격(ADR-018).
- * md 의 참조 코멘트를 최종 루트 json 파일명으로 다시 쓰고, 도달 가능한 트리 파일을
- * 동반 승격한다. 참조 없으면 md 만 반환(그래프 없는 산출물 안전). */
+/** 게이트 오픈 시 draft 그래프 트리들을 산출물과 같은 stageN/ 폴더로 승격(ADR-018).
+ * 그래프 이름은 에이전트가 지은 그대로 승격 — rewrite 없음(ADR-020). 참조마다
+ * 도달 가능한 트리 파일을 동반 승격한다. 참조 없으면 md 만 반환(그래프 없는 산출물 안전). */
 async function promoteGraphArtifact(
 	root: string,
 	feature: string,
-	artifactFile: string,
+	stageId: number,
 	md: string,
 ): Promise<string> {
-	const ref = graphRefFile(md);
-	if (!ref) return md;
-	const finalJson = graphJsonNameFor(artifactFile);
-	const rewritten = md.replace(GRAPH_REF_RE, `<!-- graph: ${finalJson} -->`);
-	await promoteGraphTree(root, feature, ref, finalJson);
-	return rewritten;
+	for (const ref of graphRefFiles(md)) {
+		await promoteGraphTree(root, feature, ref, `stage${stageId}/${ref}`);
+	}
+	return md;
 }
 
 function complete(stage: number): DrivePlanOutput {
