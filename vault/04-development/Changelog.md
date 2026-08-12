@@ -10,6 +10,10 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ## [Unreleased]
 
+### Fixed
+
+- **그래프 쇼케이스 미출력 — 낡은 뷰어 dist 서빙** — `bun repro-graph-kinds.mjs` 실행 시 그래프 블록 자리는 나오나 "그래프 데이터(...)를 찾을 수 없습니다" 빈 상태만 표시되던 문제. `/api/state` 는 4종 그래프를 정상 내려줬으나(curl 확인), 서빙된 dist 가 다중 그래프 API(`artifacts[].graphs`) 이전의 단일 API(`artifact.graph`) 를 소비하도록 빌드된 구 버전이라 `graphData={}` 가 된 것이 원인. `ensure-viewer-dist.ts` 를 staleness 인식으로 일반화(dist 가 없거나 소스보다 낡으면 vite 재빌드, 순결정 `viewerDistIsStale` 분리) 하고, repro 가 서빙 전 이를 import 해 항상 최신 dist 를 보장하게 수정. 백엔드·코어 무변경. 자체체크 140 pass(신규 4). [[graph-showcase-stale-dist]]
+
 ### Added
 
 - **그래프 종류 확장 — Sequence 다이어그램 · Flowchart** — 그래프 파일 envelope 에 `type` 필드로 종류 판별(type 없음 = 기존 계층 트리, 무변경 호환). sequence: `{version:2, type:"sequence", participants, body}` — 메시지 `{from,to,label,kind?}` + alt/loop/opt fragment(중첩, 메시지와 fragment 판별은 `body` 배열 존재 여부). flowchart: `{version:2, type:"flowchart", nodes:[{id,label,shape?}], edges:[{from,to,label?}]}`. 둘 다 단일 파일(자식 트리 없음 — 승격 경로 무변경). 렌더러는 읽기 전용 SVG 신규 2종(SequenceView: 참여자 컬럼·시간축 화살표·fragment 구간 박스 / FlowchartView: Kahn 랭크 + barycenter 자동 배치·shape 구분·백엣지 점선), 배치 순수 함수 분리·결정적·노드 겹침 0·좌표 필드 금지. `checkRequiredGraph` 종류 무관 유효 그래프 1개 이상, 서빙 `graphs[].{file,type,data}`, 뷰어 블록 타입 분기. 3단계 모두 허용. 자체체크 142 pass. [[ADR-021-sequence-flowchart-graphs]]

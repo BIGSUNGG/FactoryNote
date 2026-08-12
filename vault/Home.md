@@ -16,7 +16,7 @@ FactoryNote 개발 문서의 중앙 인덱스(MOC)다. 모든 영역과 주요 �
 | `02-decisions/` | ADR (정해진 사항) | [[ADR-001-documentation-system]] · [[ADR-002-hybrid-harness-and-graph-git]] · [[ADR-003-viewer-architecture]] · [[ADR-004-monorepo-structure]] · [[ADR-005-mvp-implementation]] · [[ADR-006-graph-editor]] · [[ADR-007-pipeline-hardening]] · [[ADR-008-3-stage-pipeline]] · [[ADR-009-tier-1-agent-orchestration]] · [[ADR-009-realtime-chat-loop]] · [[ADR-010-context-overflow-file-protocol]] · [[ADR-010-md-design-stage]] · [[ADR-011-comment-to-chat-consolidation]] · [[ADR-012-child-tool-allowlist-spawn]] · [[ADR-013-parallel-feedback-pipeline]] · [[ADR-014-dynamic-feedback-agents]] · [[ADR-015-stage-artifact-folders]] · [[ADR-016-graph-json-externalization]] · [[ADR-017-feedback-levels]] · [[ADR-018-hierarchical-graph-tree]] · [[ADR-019-stage-2-graph-required]] · [[ADR-020-multi-named-graphs]] · [[ADR-021-sequence-flowchart-graphs]] |
 | `03-design/` | 기능별 설계 산출물 | [[03-design/plan-page/core-features | plan-page]] · [[03-design/module-design/features | 모듈 설계]] · [[03-design/classes/features | 클래스]] · [[03-design/plan-viewer/ui-mapping | UI 매핑]] · [[03-design/workflow-core/06-viewer-ui | 뷰어 사양]] |
 | `04-development/` | Changelog · Dev-Log (수정 사항) | [[Changelog]] · [[Dev-Log]] |
-| `05-problems/` | 이슈 · 블로커 · 포스트모템 | [[parallel-worktree-seam-defects]] · [[graph-output-stale-design-prompt]] · [[graph-drilldown-pointer-events]] |
+| `05-problems/` | 이슈 · 블로커 · 포스트모템 | [[parallel-worktree-seam-defects]] · [[graph-output-stale-design-prompt]] · [[graph-drilldown-pointer-events]] · [[graph-showcase-stale-dist]] |
 | `06-research/` | 조사 노트 | [[graphify]] · [[plannotator-plan-page]] |
 | `90-meta/` | 컨벤션 · 템플릿 · 매뉴얼 · 가이드 | [[Doc-Conventions]] · [[How-To-Update-Docs]] · [[usage-guide]] · [[development-guide]] |
 
@@ -46,6 +46,7 @@ FactoryNote 개발 문서의 중앙 인덱스(MOC)다. 모든 영역과 주요 �
 - [[parallel-worktree-seam-defects]] — 병렬 워크트리 seam 결함 + gate-server `revertTo` drop 포스트모템
 - [[graph-output-stale-design-prompt]] — 그래프 미출력: 낡은 design-prompt.md 주입 + 참조 규약 위반 포스트모템
 - [[graph-drilldown-pointer-events]] — 그래프 드릴다운 미출력: ReactFlow v11 pointer-events:none 주입 포스트모템
+- [[graph-showcase-stale-dist]] — 그래프 쇼케이스 미출력: 낡은 뷰어 dist 서빙(staleness 인식 재빌드) 포스트모템
 - [[usage-guide]] · [[development-guide]] — 설치/사용법 · 빌드/테스트/확장 가이드
 - [[ADR-001-documentation-system]] — 이 볼트 구조와 도구를 왜 이렇게 정했는가
 - [[Changelog]] · [[Dev-Log]] — 변경 이력과 일일 작업 기록

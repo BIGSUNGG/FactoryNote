@@ -14,6 +14,10 @@ import {
 } from "./packages/factorynote/src/index.ts";
 import { buildViewerState } from "./apps/pi-extension/src/viewer-state.ts";
 
+// 서빙 전 최신 dist 보장 — 소스 변경 후 낡은 dist 로 그래프가 안 보이는 회귀 방지.
+// 모듈 로드 시 ensureViewerDist() 가(stale 이면) vite 빌드를 실행한다.
+import "./ensure-viewer-dist.ts";
+
 const DIST = join(process.cwd(), "apps", "plan-viewer", "dist");
 const FEATURE = "graph-showcase";
 

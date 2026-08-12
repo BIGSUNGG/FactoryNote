@@ -9,6 +9,22 @@ tags: [development, dev-log]
 
 ## 2026-08-12
 
+### 그래프 쇼케이스 미출력 수정 — 낡은 뷰어 dist 서빙 ([[graph-showcase-stale-dist]])
+
+**맥락**: 사용자 보고 — `bun repro-graph-kinds.mjs` 실행 시 그래프 박스는 나오나 "그래프 데이터(...)를 찾을 수 없습니다" 빈 상태. 그래프 파일을 못 찾았다며 안 보인다.
+
+**조사**: (1) repro 서버의 `/api/state` 를 curl — stage-2 산물의 `graphs` 배열에 4종(tree·sequence·flowchart·legacy) 이 모두 정상 인라인. 백엔드/코어는 정상. (2) 그런데 게이트가 서빙하는 dist(`apps/plan-viewer/dist`, gitignore) 의 graphData 조립 로직이 구 버전 — `f?.graph ? {[f.graph.file]: f.graph.tree} : {}` (단일 그래프 API). 현재 state 는 `graphs`(배열). 그래서 `graphData={}`. (3) dist 빌드 시각(08-11) 이 소스 App.jsx 커밋(08-12) 보다 **이전** — dist 가 stale. (4) `gate-server.test.ts` 는 통과하지만 /api/state JSON(백엔드)만 검증하고 렌더링(dist 소비)은 안 돌려서 이 클래스를 못 잡음. `ensure-viewer-dist.ts` preload 도 dist 가 없을 때만 빌드하고 stale 일 때는 빌드 안 함.
+
+**작업**:
+
+- `ensure-viewer-dist.ts` 재작성: staleness 인식 — dist 가 없거나 `apps/plan-viewer` 소스(node_modules·dist 제외) 보다 낡았으면 `vite build` 재빌드. 순결정 helper `viewerDistIsStale(distMtimeMs, srcMtimeMs)` 추출. `bun:test` preload 도 같이 개선(소스 변경 후 테스트 시 자동 재빌드). `import.meta.dir` → `fileURLToPath(import.meta.url)`(루트 파일은 tsconfig 밖이라 pi-lens 기본 TS 가 bun-types 미인지).
+- `repro-graph-kinds.mjs`: 서빙 전 `import "./ensure-viewer-dist.ts"`(모듈 로드 시 ensureViewerDist 사이드이펙트 → stale 이면 재빌드).
+- 테스트 `ensure-viewer-dist.test.ts`: `viewerDistIsStale` 결정 4케이스(null→stale / fresh / stale / 동일-순간→fresh).
+
+**검증**: repro 재기동 → /api/state 4종 그래프 정상 + dist fresh 로 `cur.graphs` 소비 → 빈 박스 없음. `gate-server.test.ts` 12 pass. `bun test` 140 pass(기존 @happy-dom 2 실패는 무관 유지). `bun run build` 0 종료. `bun test` 실행 자체가 stale dist 를 재빌드하는 것도 확인(수정이 런타임에 작동).
+
+**메모**: 이 버그는 백엔드 state 가 맞고 dist 가 낡은 비대칭이어서 정적 분석만으론 '경로가 다 맞는데 왜 안 되지' 였음 — 실제 /api/state 덤프가 결정적. 루트 툴링 파일(ensure-viewer-dist.ts, repro-*.mjs) 은 tsc -b 대상이 아니라 pi-lens 가 bun-types 없이 검사 → `bun:test`/`import.meta.dir` 계열 false-positive.
+
 ### 그래프 종류 확장 — Sequence · Flowchart ([[ADR-021-sequence-flowchart-graphs]])
 
 **맥락**: 사용자 요구 — 계층 트리 외에 시퀀스 다이어그램·플로우차트 추가. 문답 확정: 전용 JSON + 커스텀 렌더러(mermaid 아님) · 종류는 파일 envelope type 필드 · 모든 단계 허용 · 렌더러는 둘 다 신규 SVG · 시퀀스에 alt/loop/opt fragment 포함.
