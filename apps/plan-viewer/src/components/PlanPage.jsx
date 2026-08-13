@@ -78,6 +78,7 @@ export default function PlanPage({
 	const [activeTargetId, setActiveTargetId] = useState(null);
 	const [activeRange, setActiveRange] = useState(null);
 	const [rangeDraft, setRangeDraft] = useState("");
+	const [fontScale, setFontScale] = useState(1); // md 본문 글자 배율(−/+ 버튼)
 
 	// 코멘트를 로컬(인라인 표시용)에 추가함과 동시에 실시간 에이전트 채팅으로 즉시 전달.
 	// 게이트를 유지한 채 chatPending 루프로 에이전트에게 닿는다(ADR-009).
@@ -192,6 +193,7 @@ export default function PlanPage({
 					onRangeComment={onRangeComment}
 					activeTargetId={activeTargetId}
 					graphData={graphData}
+					fontScale={fontScale}
 				/>
 			</div>
 			<GateBar
@@ -202,6 +204,30 @@ export default function PlanPage({
 				onRevert={sendRevert}
 				onReview={onReview}
 			/>
+			<div className="fs-control" role="group" aria-label="글자 크기">
+				<button
+					type="button"
+					className="fs-btn"
+					onClick={() =>
+						setFontScale((v) => Math.max(0.8, Math.round((v - 0.1) * 10) / 10))
+					}
+					aria-label="글자 크기 작게"
+					title="글자 작게"
+				>
+					−
+				</button>
+				<button
+					type="button"
+					className="fs-btn"
+					onClick={() =>
+						setFontScale((v) => Math.min(1.6, Math.round((v + 0.1) * 10) / 10))
+					}
+					aria-label="글자 크기 크게"
+					title="글자 크게"
+				>
+					+
+				</button>
+			</div>
 			{rangePopover}
 		</>
 	);

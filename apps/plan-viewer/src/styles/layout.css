@@ -129,6 +129,10 @@
 .doc {
 	--doc-ratio: 0.75; /* 16:9에서 가시 그리드 폭(G) 대비 .doc 차지 비율. 세로(9:16)는 항상 100%. 이 값만 바꾸면 16:9 폭 조절됨. */
 	grid-column: 2 / -1; /* col2 + col3 = 가시 그리드 배경 폭(G) 전체 차지 → 100%=G */
+	font-size: calc(
+		1rem *
+		var(--fs, 1)
+	); /* 본문 단락은 여기서 상속 → --fs 로 확대/축소 */
 	padding: var(--s5) var(--s5) 120px;
 	/* 화면 비율에 따라 연속 변화(16:9·9:16 하드코딩 없음):
 	   16:9 → --doc-ratio·G, 9:16 → 100%(min() 클램프).
@@ -143,9 +147,38 @@
 	background: var(--surface);
 }
 .doc h1 {
-	font-size: 1.75rem;
+	font-size: calc(1.75rem * var(--fs, 1));
 	letter-spacing: -0.02em;
 	margin-bottom: var(--s3);
+}
+
+/* 글자 크기 조절 −/+ : md 렌더링 영역 우측 하단, 브라우저 고정(스크롤·드래그 영향 없음) */
+.fs-control {
+	position: fixed;
+	right: calc(340px + 16px); /* 채팅 사이드바(340px) 좌측 */
+	bottom: calc(65px + 16px); /* 게이트 바(65px) 상단 */
+	display: flex;
+	gap: 6px;
+	z-index: 50;
+}
+.fs-btn {
+	width: 32px;
+	height: 32px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: 1px solid var(--border-strong);
+	background: var(--surface);
+	border-radius: var(--radius-sm);
+	color: var(--text);
+	font-size: 18px;
+	line-height: 1;
+	cursor: pointer;
+	box-shadow: var(--shadow);
+	transition: background 0.12s;
+}
+.fs-btn:hover {
+	background: var(--primary-tint);
 }
 .meta-quote {
 	border-left: 2px solid var(--primary);

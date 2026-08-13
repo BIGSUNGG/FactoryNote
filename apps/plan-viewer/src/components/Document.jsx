@@ -13,6 +13,7 @@ export default function Document({
 	onRangeComment,
 	activeTargetId,
 	graphData,
+	fontScale = 1,
 }) {
 	const skipRef = useRef(false); // 직전 mouseup 이 드래그였으면 뒤따르는 click 무시
 	const mainRef = useRef(null);
@@ -48,6 +49,7 @@ export default function Document({
 		<main
 			ref={mainRef}
 			className="doc"
+			style={{ "--fs": String(fontScale) }}
 			onMouseUp={handleMouseUp}
 			onClick={handleClick}
 		>
