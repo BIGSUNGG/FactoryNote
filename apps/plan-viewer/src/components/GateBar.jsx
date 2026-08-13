@@ -10,6 +10,7 @@ export default function GateBar({
 	onConfirm,
 	onRevert,
 	onReview,
+	loading = false, // 확정/검토 요청 제출 후 다음 산출물 준비 중(확정 버튼 로딩, 전체 화면 전환 없음)
 }) {
 	const isLast = stage >= 3;
 	// 회귀 대상 후보 = 현재 단계보다 앞선 Stage(1..stage-1).
@@ -29,6 +30,7 @@ export default function GateBar({
 					value={revertTo}
 					onChange={(e) => setRevertTo(Number(e.target.value))}
 					title="회귀 대상 Stage 선택"
+					disabled={loading}
 				>
 					{targets.map((s) => (
 						<option key={s} value={s}>
@@ -42,6 +44,7 @@ export default function GateBar({
 				className="btn"
 				onClick={() => onRevert(revertTo)}
 				title="선택한 Stage로 회귀"
+				disabled={loading}
 			>
 				← 정정{targets.length > 1 ? ` → Stage ${revertTo}` : " (이전 Stage)"}
 			</button>
@@ -50,12 +53,22 @@ export default function GateBar({
 					className="btn"
 					onClick={onReview}
 					title="AI가 산출물을 한 번 더 검토·수정합니다 (+1 사이클)"
+					disabled={loading}
 				>
 					🔁 검토 요청
 				</button>
 			)}
-			<button className="btn primary" onClick={onConfirm}>
-				{isLast ? "✓ 최종 확정 (완료)" : `✓ 확정 → Stage ${stage + 1}`}
+			<button className="btn primary" onClick={onConfirm} disabled={loading}>
+				{loading ? (
+					<>
+						<span className="spinner" aria-hidden="true" />
+						{isLast ? " 완료 처리 중…" : " 다음 단계 작성 중…"}
+					</>
+				) : isLast ? (
+					"✓ 최종 확정 (완료)"
+				) : (
+					`✓ 확정 → Stage ${stage + 1}`
+				)}
 			</button>
 		</div>
 	);

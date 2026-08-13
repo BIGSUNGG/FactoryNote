@@ -13,11 +13,25 @@ const STAGE_DEFS = [
 	{ n: 2, label: "모듈·클래스 설계", route: "design" },
 	{ n: 3, label: "구현 계획", route: "impl" },
 ];
-const stagesFor = (cur) =>
-	STAGE_DEFS.map((s) => ({
-		...s,
-		state: s.n === cur ? "current" : s.n < cur ? "done" : "locked",
-	}));
+const stagesFor = (viewed, real) =>
+	STAGE_DEFS.map((s) => {
+		// 두 축을 분리(F2): '작성 여부'는 실제 서버 단계(real) 기준, '지금 보는 단계'는 viewed.
+		// - s.n > real: 아직 작성 안 됨(잠금·선택 불가)
+		// - s.n === viewed: 지금 보고 있는 단계(현재 편집=current, 이전 단계 읽기 전용=view)
+		// - 그 외(작성됨·선택 가능): 클릭으로 해당 단계 이동/이전 단계 복귀
+		const locked = s.n > real;
+		const viewing = s.n === viewed;
+		return {
+			...s,
+			state: locked
+				? "locked"
+				: viewing
+					? real === viewed
+						? "current"
+						: "view"
+					: "done",
+		};
+	});
 
 const stripHtml = (html) => html.replace(/<[^>]+>/g, "").trim();
 
@@ -59,13 +73,21 @@ function highlightRange(range, className) {
 export default function PlanPage({
 	mdSource,
 	stage,
+	activeStage, // 실제 서버 단계(state.stage) — 스테퍼 작성여부 기준
 	onGate,
 	onReview,
 	stageLabels = {},
 	onActiveBlock,
 	graphData = {},
+	readOnly = false, // 이전 단계 보기: 코멘트·게이트·채팅 비활성
+	loading = false, // 게이트 결정 제출 후 다음 산출물 준비 중(확정 버튼 로딩)
+	onSelectStage, // 읽기 전용 이전 단계 선택/복귀(단계 전환 이벤트)
 }) {
 	const label = STAGE_DEFS[stage - 1].label;
+	// 스테퍼: 작성 여부는 실제 서버 단계(activeStage)로, 강조(현재/읽기전용)는 보고 있는 단계(stage)로.
+	// 읽기 전용으로 이전 단계를 봐도 뒤의 실제 작성 단계는 'done'(작성됨)으로 유지되어
+	// '아직 안 쓴 단계(locked)'처럼 보이지 않는다. onSelectStage 없으면 레거시 해시 라우팅.
+	const stages = stagesFor(stage, activeStage ?? stage);
 	const blocks = useMemo(() => mdToBlocks(mdSource), [mdSource]);
 
 	const toc = useMemo(() => {
@@ -140,6 +162,12 @@ export default function PlanPage({
 	const sendRevert = (target) =>
 		onGate({ verdict: "revert", comments: [], revertTo: target });
 
+	// 읽기 전용 모드: 코멘트 생성·범위 코멘트·블록 활성화를 모두 무시(잠금).
+	// 핸들러를 no-op 으로 대체해 코멘트 작성 채널을 완전히 잠근다(쓰기 금지).
+	const commentFreeze = readOnly
+		? { onAddComment() {}, onActivate() {}, onRangeComment() {} }
+		: {};
+
 	const rangePopover = activeRange
 		? createPortal(
 				<div
@@ -183,28 +211,44 @@ export default function PlanPage({
 	return (
 		<>
 			<Topbar stage={stage} total={3} />
-			<Stepper stages={stagesFor(stage)} />
+			<Stepper stages={stages} onSelect={onSelectStage} />
+			{readOnly && (
+				<div className="readonly-banner" role="status">
+					🔒 Stage {stage} 이전 단계(읽기 전용) — 코멘트·채팅·게이트가
+					비활성화됐습니다.
+					<button
+						type="button"
+						className="readonly-exit"
+						onClick={() => onSelectStage?.(null)}
+					>
+						현재 단계로 돌아가기
+					</button>
+				</div>
+			)}
 			<div className="layout">
 				<Toc items={toc} />
 				<Document
 					blocks={blocks}
 					comments={comments}
-					onAddComment={addComment}
-					onActivate={activate}
-					onRangeComment={onRangeComment}
-					activeTargetId={activeTargetId}
+					onAddComment={commentFreeze.onAddComment ?? addComment}
+					onActivate={commentFreeze.onActivate ?? activate}
+					onRangeComment={commentFreeze.onRangeComment ?? onRangeComment}
+					activeTargetId={readOnly ? null : activeTargetId}
 					graphData={graphData}
 					fontScale={fontScale}
 				/>
 			</div>
-			<GateBar
-				stage={stage}
-				label={label}
-				stageLabels={stageLabels}
-				onConfirm={sendConfirm}
-				onRevert={sendRevert}
-				onReview={onReview}
-			/>
+			{!readOnly && (
+				<GateBar
+					stage={stage}
+					label={label}
+					stageLabels={stageLabels}
+					onConfirm={sendConfirm}
+					onRevert={sendRevert}
+					onReview={onReview}
+					loading={loading}
+				/>
+			)}
 			<div className="fs-control" role="group" aria-label="글자 크기">
 				<button
 					type="button"

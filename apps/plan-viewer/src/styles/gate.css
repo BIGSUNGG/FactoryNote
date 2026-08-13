@@ -126,3 +126,20 @@ button.btn:disabled {
 	font-family: var(--mono);
 	pointer-events: none;
 }
+
+/* F2: 확정 버튼 로딩 스피너 — 전체 화면 전환 없이 페이지 유지하며 대기. */
+.spinner {
+	display: inline-block;
+	width: 13px;
+	height: 13px;
+	border: 2px solid currentColor;
+	border-top-color: transparent;
+	border-radius: 50%;
+	vertical-align: -1px;
+	animation: fn-spin 0.7s linear infinite;
+}
+@keyframes fn-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}

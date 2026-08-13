@@ -9,6 +9,41 @@ tags: [development, dev-log]
 
 ## 2026-08-13
 
+### 읽기 전용 이전 단계 뷰 버그 2건 수정 ([[ADR-023-viewer-transition-ux]])
+
+**맥락**: 사용자 리포트 — (1) 이전 단계로 전환한 뒤 스테퍼에서 원래(현재) 단계로 돌아와도 상단 읽기 전용 배너가 사라지지 않음. (2) 이전 단계로 전환하면 이미 작성된(승인된) 단계들도 '아직 안 쓴 단계'처럼 보여 헷갈림.
+
+**조사**:
+
+- 버그1: `App` 의 `readOnly = viewStage !== null`. 스테퍼 클릭은 `onSelect(s.n)` → `setViewStage(s.n)` 만 호출. '현재 단계' 스텝을 클릭해도 `viewStage = state.stage`(null 아님) 가 되어 readOnly 가 해제되지 않았다. 배너의 '현재 단계로 돌아가기' 버튼만 `setViewStage(null)` 을 호출해 기능했기 때문에, 스테퍼 경로로는 복귀가 불가능.
+- 버그2: `stagesFor(cur)`가 현재 보고 있는 단계(`curStage`) 기준으로 done/current/locked 를 매겼다. 이전 단계(예: 1)를 보면 2·3이 모두 locked(흐림·선택불가)로 렌더 → 실제로는 작성했는데 '미작성'처럼 보임. 작성 여부의 유일한 진실은 서버 `state.stage`(그 값 미만의 산출물은 존재/승인됨)인데 그걸 안 씀.
+
+**작업**:
+
+- `App.jsx`: `onSelectStage={(n) => n === state.stage ? setViewStage(null) : setViewStage(n)}` — 현재 단계 스테퍼 클릭 시 읽기 전용 해제. `PlanPage` 에 `activeStage={state.stage}` 전달.
+- `PlanPage.jsx`: `stagesFor(viewed, real)` 로 재작성 — `s.n > real`만 `locked`, `s.n === viewed`만(viewed===real 이면 `current`, 아니면 `view`), 그 외는 `done`(작성됨·선택 가능). 기존 `.map` 의 `view` 오버라이드 제거(함수 내 포함).
+- 테스트: `App.test.jsx` +2건 — (3) 읽기 전용에서 현재 단계 스테퍼 클릭 시 배너·게이트·채팅 재활성, (4) Stage 2 에서 Stage 3(미작성)만 locked·Stage 1 done·Stage 2 current. 자체체크 157 pass.
+
+### 단계 전환 UX — 대기 화면 제거 + 이전 단계 읽기 전용 보기 ([[ADR-023-viewer-transition-ux]])
+
+**맥락**: 사용자 요청 — (1) 확정 같은 게이트 결정 후 다음 단계로 넘어갈 때 전체 '다음 준비 중' 화면이 뜨지 않고 기존 뷰어 페이지(게이트 바 프레임 포함)를 그대로 유지한 채 확정 버튼이 로딩 연출하며, 다음 단계가 작성 완료되면 넘어간다. (2) 이전 단계 계획을 읽기 전용으로 볼 수 있고(기존 '정정' 기능과 무관), 읽기 전용이면 코멘트/채팅을 작성할 수 없다.
+
+**조사/설계 포인트**:
+
+- `applyState` 가 `gateOpen=false` 만 보면 전체 화면 `PreparingScreen` 으로 전환하던 것이 원인. 취지는 단계 전환 알림이지만, 이미 검토 페이지(reviewing)를 보는 중엔 전환할 필요가 없다.
+- 이전 단계 산출물은 `buildViewerState` 가 `stage <= state.stage` 를 전부 `state.artifacts` 에 담으므로 데이터·백엔드 변경 없이 뷰어 단에서 조회할 수 있었다.
+- 코멘트는 실시간 채팅(`/api/chat`)으로 즉시 전달되므로, 읽기 전용 잠금은 PlanPage 의 핸들러를 no-op(`commentFreeze`)으로 대체하는 것만으로 채널이 완전히 막혔다(GateBar 미렌더 + ChatSidebar.disabled 로 이중 안전).
+
+**작업**:
+
+- `App.jsx`: `onGate`/`onReview` 의 `setPhase("preparing")` 제거 → `setPending(true)`. `applyState` 의 `gateOpen=false` 분기에서 `reviewing` 이면 phase 유지. `viewStage` 상태로 읽기 전용 이전 단계 선택. `pickMarkdown`·그래프를 `curStage` 기준으로 재계산.
+- `GateBar.jsx`: `loading` prop — 확정 버튼 스피너 + '다음 단계 작성 중…', 액션 비활성.
+- `ChatSidebar.jsx`: `disabled` prop — 입력/전송/블록 스코프 체크박스 비활성.
+- `PlanPage.jsx`: `readOnly` prop — 코멘트 핸들러 no-op, GateBar 미렌더, `readonly-banner`(현재 단계로 돌아가기). Stepper 에 `onSelect` 연결.
+- `Stepper.jsx`: 클릭 → `onSelect(stage)`(레거시 해시 라우팅 유지). 이전 단계에 `view` 상태 스타일.
+- 스타일: `.spinner`(gate.css) · `.readonly-banner`(pages.css) · `.step.view`(layout.css).
+- 테스트: `App.test.jsx` 2건 신규 — 페이지 유지+확정 로딩 / 읽기 전용 전환·복귀. 자체체크 155 pass.
+
 ### 뷰어 갱신 폴링 → SSE push 전환 ([[ADR-022-viewer-sse-push]])
 
 **맥락**: 사용자 요청 — 뷰어가 md 를 2초 폴링으로 갱신하는 대신, 에이전트가 파일을 기록한 타이밍에만 갱신하게(이벤트 push). 사용자는 md 파일을 직접 건드리지 않으니 에이전트 수정·추가 시에만 갱신되는 게 낫다고 판단.

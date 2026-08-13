@@ -248,3 +248,28 @@
 	border: 1px solid var(--border-strong);
 	border-radius: 999px;
 }
+
+/* F2: 이전 단계 읽기 전용 배너 — 코멘트·채팅·게이트 비활성 안내. */
+.readonly-banner {
+	display: flex;
+	align-items: center;
+	gap: var(--s3);
+	padding: var(--s2) var(--s5);
+	background: #f3f4f6;
+	border-bottom: 1px solid var(--border);
+	font-size: 13px;
+	color: var(--muted);
+}
+.readonly-banner .readonly-exit {
+	margin-left: auto;
+	border: 1px solid var(--border-strong);
+	background: var(--surface);
+	border-radius: var(--radius);
+	padding: 4px 12px;
+	cursor: pointer;
+	font: inherit;
+	font-size: 13px;
+}
+.readonly-banner .readonly-exit:hover {
+	border-color: var(--text);
+}

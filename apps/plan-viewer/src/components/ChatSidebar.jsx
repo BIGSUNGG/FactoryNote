@@ -3,7 +3,11 @@ import { useState, useEffect, useRef } from "react";
 // 우측 실시간 에이전트 채팅 — 게이트 열린 동안 질문/수정요청을 에이전트에 전달.
 // GET /api/chat 폴링(2s)으로 대화 표시, POST /api/chat 으로 전송.
 // 부분 코멘트: 상위(PlanPage)가 선택한 블록(activeBlockId)에 한정해 전송 가능.
-export default function ChatSidebar({ stage, activeBlockId }) {
+export default function ChatSidebar({
+	stage,
+	activeBlockId,
+	disabled = false,
+}) {
 	const [messages, setMessages] = useState([]);
 	const [draft, setDraft] = useState("");
 	const [scopeBlock, setScopeBlock] = useState(false);
@@ -100,6 +104,7 @@ export default function ChatSidebar({ stage, activeBlockId }) {
 						type="checkbox"
 						checked={scopeBlock}
 						onChange={(e) => setScopeBlock(e.target.checked)}
+						disabled={disabled}
 					/>
 					블록 <code>{activeBlockId}</code>에 한정해 질문/수정
 				</label>
@@ -113,6 +118,7 @@ export default function ChatSidebar({ stage, activeBlockId }) {
 							: "질문 또는 수정 요청… (Shift+Enter 줄바꿈)"
 					}
 					rows={2}
+					disabled={disabled}
 					onChange={(e) => setDraft(e.target.value)}
 					onKeyDown={(e) => {
 						if (e.key === "Enter" && !e.shiftKey) {
@@ -121,7 +127,7 @@ export default function ChatSidebar({ stage, activeBlockId }) {
 						}
 					}}
 				/>
-				<button className="chat-send" onClick={send}>
+				<button className="chat-send" onClick={send} disabled={disabled}>
 					전송
 				</button>
 			</div>

@@ -56,6 +56,12 @@
 .step.done {
 	color: var(--success);
 }
+.step.view {
+	color: var(--primary);
+}
+.step.view:hover {
+	background: var(--primary-tint);
+}
 .step.current {
 	color: var(--primary);
 	font-weight: 600;
