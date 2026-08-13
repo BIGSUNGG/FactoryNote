@@ -58,7 +58,9 @@ export async function getOrCreateGate(opts: {
 		pendingChats: [],
 		sseClients: new Set(),
 	};
-	const server = createServer(makeGateHandler(gate));
+	const server = createServer(
+		makeGateHandler(gate, (type, data) => broadcastSse(gate, type, data)),
+	);
 	gate.server = server;
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
 	const addr = server.address();

@@ -7,7 +7,11 @@
 //  - gate-http.ts     — /api/* 라우팅 HTTP 핸들러 + 정적 SPA 서빙
 //  - gate-manager.ts  — 기능별 영속 게이트 서버 풀(생성/재사용/종료/채팅 로그)
 //  - gate-browser.ts  — 브라우저 오픈·모듈 경로 유틸
-import { getOrCreateGate, BROWSER_REOPEN_AFTER_MS } from "./gate-manager.ts";
+import {
+	getOrCreateGate,
+	BROWSER_REOPEN_AFTER_MS,
+	broadcastSse,
+} from "./gate-manager.ts";
 import { openBrowser } from "./gate-browser.ts";
 import type { GateEvent } from "./gate-events.ts";
 
@@ -73,12 +77,15 @@ export async function runGate(opts: RunGateOptions): Promise<GateEvent> {
 
 	await onReady?.(gate.url);
 
-	// 채팅 루프 재진입 보호: runGate 가 chat 로 resolve 된 뒤 에이전트가 응답·재진입하는
-	// 사이에 쌓인 pendingChats 를 즉시 전달(채팅 유실 방지).
+	// 채팅 루프 재진입 보호 + 큐 승급: runGate 가 chat 로 resolve 된 뒤 에이전트가
+	// 응답·재진입하는 사이에 쌓인 pendingChats(가시 큐)를 에이전트에 넘기는 순간이 '읽기'다.
+	// 이때 큐 메시지를 chatLog 로 승격시켜 '전송됨'으로 확정 후 chat 이벤트로 전달한다.
 	if (gate.pendingChats.length > 0) {
+		for (const m of gate.pendingChats) gate.chatLog.push(m);
 		const r = gate.currentResolver;
 		gate.currentResolver = null;
 		r?.({ kind: "chat", messages: gate.pendingChats.splice(0) });
+		broadcastSse(gate, "chat");
 	}
 
 	const onAbort = () => {

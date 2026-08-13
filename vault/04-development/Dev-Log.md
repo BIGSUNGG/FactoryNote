@@ -9,6 +9,22 @@ tags: [development, dev-log]
 
 ## 2026-08-13
 
+### 채팅 전송 대기 큐 도입 — 에이전트 응답 중 큐 적재·취소·승격·read-wins ([[ADR-024-chat-send-queue]])
+
+**맥락**: 사용자 요청 — 에이전트가 채팅을 바로 읽지 못할 때(응답 중) 메시지를 가시 대기 큐에 두고, 각 메시지를 전송 취소할 수 있어야 한다. 단 읽기와 취소가 동시에 일어나는 경쟁에선 '읽힌 것'을 우선(취소 거부).
+
+**조사**: 기존 `POST /api/chat`(gate-http.ts)는 `chatLog.push` + `pendingChats.push` 를 같은 순간에 하고 대기 중 resolver 를 즉시 발화시켰다 → 메시지가 곧바로 '전송됨'으로 표시되어 취소 불가. 단, 에이전트 응답 중(resolver null)엔 `pendingChats` 버퍼에 쌓이고 재진입 시 splice 되는 '보이지 않는 큐' 가 이미 존재했다(gate-server.ts 재진입 보호). 이를 가시 큐로 승격시키면 된다.
+
+**작업**:
+
+- `gate-http.ts`: `POST /api/chat` 전송 경로를 `currentResolver` 유무로 분기 — 있으면(에이전트 대기) 즉시 전송(`chatLog`+전달), 없으면(응답 중) `pendingChats` 에만 적재(`chatLog` 미진입 → 취소 시 완전 삭제). `POST /api/chat/cancel {id}` 추가 — 큐에 있으면 제거(`ok:true`), 없으면 거부(`ok:false already-sent` = read-wins). `GET /api/chat` 응답에 `queue` 추가. `makeGateHandler` 시그니처에 `broadcast` 주입 추가(순환 import 회피).
+- `gate-manager.ts`: `getOrCreateGate` 가 `makeGateHandler(gate, (type,data)=>broadcastSse(gate,type,data))` 로 호출.
+- `gate-server.ts`: 재진입 보호 블록에서 `pendingChats.splice` 전에 큐 메시지를 `chatLog` 로 승격(= '읽기' 시 전송됨 확정) + `broadcastSse("chat")`.
+- `ChatSidebar.jsx`: `queue` state + `cancelQueued`, 본 채팅과 분리된 '전송 대기 중' 영역(✕ 버튼) 렌더. `chat.css` 대기 영역 스타일.
+- 테스트: `gate-server.test.ts` +1(즉시전송·큐적재·취소·승격·read-wins 한 흐름), `ChatSidebar.test.jsx` 신규 +2(대기 렌더·취소 POST).
+
+**남음**: 없음. `bun run build`(tsc -b + viewer 빌드 + install.mjs) 종료 0, `bun test` 167 pass(신규 3).
+
 ### 읽기 전용 이전 단계 뷰 버그 2건 수정 ([[ADR-023-viewer-transition-ux]])
 
 **맥락**: 사용자 리포트 — (1) 이전 단계로 전환한 뒤 스테퍼에서 원래(현재) 단계로 돌아와도 상단 읽기 전용 배너가 사라지지 않음. (2) 이전 단계로 전환하면 이미 작성된(승인된) 단계들도 '아직 안 쓴 단계'처럼 보여 헷갈림.

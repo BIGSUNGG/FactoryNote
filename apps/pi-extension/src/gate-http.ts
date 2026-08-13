@@ -47,16 +47,20 @@ function readBody(req: import("node:http").IncomingMessage): Promise<string> {
 }
 
 /** 영속 게이트의 HTTP 핸들러(게이트 객체를 클로저로 잡는다). */
-export function makeGateHandler(gate: {
-	root: string;
-	feature: string;
-	viewerDistDir: string;
-	lastSeen: number;
-	chatLog: import("@factorynote/core").ChatMessage[];
-	pendingChats: import("@factorynote/core").ChatMessage[];
-	currentResolver: ((e: GateEvent) => void) | null;
-	sseClients: Set<import("node:http").ServerResponse>;
-}) {
+export function makeGateHandler(
+	gate: {
+		root: string;
+		feature: string;
+		viewerDistDir: string;
+		lastSeen: number;
+		chatLog: import("@factorynote/core").ChatMessage[];
+		pendingChats: import("@factorynote/core").ChatMessage[];
+		currentResolver: ((e: GateEvent) => void) | null;
+		sseClients: Set<import("node:http").ServerResponse>;
+	},
+	// SSE push — gate-manager 가 broadcastSse 를 주입(gate-http↔gate-manager 순환 import 회피).
+	broadcast: (type: string, data?: unknown) => void,
+) {
 	return async (
 		req: import("node:http").IncomingMessage,
 		res: import("node:http").ServerResponse,
@@ -116,6 +120,24 @@ export function makeGateHandler(gate: {
 				});
 				return;
 			}
+			if (url === "/api/chat/cancel" && req.method === "POST") {
+				// 전송 대기 큐에서 취소. 아직 에이전트에 넘겨지지 않은(pendingChats 에 있는)
+				// 메시지만 제거 → 완전 삭제(chatLog 미진입). 이미 넘겨졌으면 거부(read-wins).
+				const body = await readBody(req);
+				const parsed = JSON.parse(body) as { id?: unknown };
+				const id = typeof parsed.id === "string" ? parsed.id : "";
+				const idx = gate.pendingChats.findIndex((m) => m.id === id);
+				if (idx >= 0) {
+					gate.pendingChats.splice(idx, 1);
+					broadcast("chat");
+					res.writeHead(200, { "Content-Type": "application/json" });
+					res.end(JSON.stringify({ ok: true }));
+				} else {
+					res.writeHead(200, { "Content-Type": "application/json" });
+					res.end(JSON.stringify({ ok: false, reason: "already-sent" }));
+				}
+				return;
+			}
 			if (url === "/api/chat") {
 				if (req.method === "POST") {
 					const body = await readBody(req);
@@ -138,22 +160,32 @@ export function makeGateHandler(gate: {
 								: {}),
 							at: Date.now(),
 						};
-						gate.chatLog.push(msg);
-						gate.pendingChats.push(msg);
-						// 대기 중인 runGate 가 있으면 chat 이벤트로 즉시 전달(게이트 유지).
+						// 에이전트가 듣는 중(runGate 대기) → 즉시 전송: chatLog 적재 + 전달.
+						// 응답 중(resolver 없음) → 가시 큐(pendingChats)에만 적재. chatLog 에 넣지 않아
+						// 취소 시 완전 삭제되고, runGate 재진입(읽기) 시 chatLog 로 승격된다.
 						const r = gate.currentResolver;
 						if (r) {
+							gate.chatLog.push(msg);
+							gate.pendingChats.push(msg);
 							gate.currentResolver = null;
 							r({ kind: "chat", messages: gate.pendingChats.splice(0) });
+						} else {
+							gate.pendingChats.push(msg);
+							broadcast("chat");
 						}
 					}
 					res.writeHead(200, { "Content-Type": "application/json" });
 					res.end(JSON.stringify({ ok: true }));
 					return;
 				}
-				// GET /api/chat — 채팅 누적 로그(뷰어가 폴링으로 표시).
+				// GET /api/chat — 누적 로그(messages) + 전송 대기 큐(queue).
 				res.writeHead(200, { "Content-Type": "application/json" });
-				res.end(JSON.stringify({ messages: gate.chatLog }));
+				res.end(
+					JSON.stringify({
+						messages: gate.chatLog,
+						queue: gate.pendingChats,
+					}),
+				);
 				return;
 			}
 			// 정적 자원(SPA). /assets/* → dist 파일, 그 외 → index.html.

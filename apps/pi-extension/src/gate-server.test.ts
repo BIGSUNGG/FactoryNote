@@ -630,6 +630,99 @@ test("영속 게이트: SSE 연결이 살아있으면 하트비트 경과해도 
 	await closeGate(root, "ssehb");
 });
 
+test("채팅 전송 큐: 응답 중이면 큐 적재·취소 가능, 재진입 시 승격, 넘겨진 뒤 취소 거부(read-wins)", async () => {
+	// 에이전트 '응답 중' = runGate 호출 사이(currentResolver null) 구간을 시뮬레이션해
+	// 가시 큐 적재·취소·승격·read-wins 를 한 흐름에서 검증.
+	let url = "";
+	// 1) 에이전트 듣는 중(runGate 대기) → 즉시 전송(chatLog + chat 이벤트).
+	const first = await runGate({
+		root,
+		feature: "queueflow",
+		viewerDistDir: VIEWER_DIST,
+		open: false,
+		onReady: async (u) => {
+			url = u;
+			await fetch(`${u}/api/chat`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ text: "첫질문" }),
+			});
+		},
+	});
+	expect(first.kind).toBe("chat");
+	// first 반환 = runGate 종료 → currentResolver null(에이전트 '응답 중').
+	// 2) 응답 중 전송 → 가시 큐에만 적재(chatLog 미진입).
+	await fetch(`${url}/api/chat`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ text: "두번째" }),
+	});
+	const st = (await (await fetch(`${url}/api/chat`)).json()) as {
+		messages: Array<{ text: string }>;
+		queue: Array<{ text: string; id: string }>;
+	};
+	expect(st.messages.map((m) => m.text)).toEqual(["첫질문"]);
+	expect(st.queue.map((m) => m.text)).toEqual(["두번째"]);
+	// 3) 큐에 있는 동안 취소 → 완전 제거.
+	const cancelRes = (await (
+		await fetch(`${url}/api/chat/cancel`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ id: st.queue[0]!.id }),
+		})
+	).json()) as { ok: boolean };
+	expect(cancelRes.ok).toBe(true);
+	const st2 = (await (await fetch(`${url}/api/chat`)).json()) as {
+		queue: unknown[];
+	};
+	expect(st2.queue).toHaveLength(0);
+	// 4) 다시 큐 적재 후 runGate 재진입 → '읽기' = chatLog 승격 + chat 이벤트 전달.
+	await fetch(`${url}/api/chat`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ text: "세번째" }),
+	});
+	const second = await runGate({
+		root,
+		feature: "queueflow",
+		viewerDistDir: VIEWER_DIST,
+		open: false,
+	});
+	expect(second.kind).toBe("chat");
+	if (second.kind === "chat") expect(second.messages[0]?.text).toBe("세번째");
+	const st3 = (await (await fetch(`${url}/api/chat`)).json()) as {
+		messages: Array<{ text: string; id: string }>;
+		queue: unknown[];
+	};
+	expect(st3.messages.map((m) => m.text)).toEqual(["첫질문", "세번째"]);
+	expect(st3.queue).toHaveLength(0);
+	// 5) 이미 넘겨진 메시지 취소 → 거부(read-wins).
+	const cancelRes2 = (await (
+		await fetch(`${url}/api/chat/cancel`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ id: st3.messages[1]!.id }),
+		})
+	).json()) as { ok: boolean; reason?: string };
+	expect(cancelRes2.ok).toBe(false);
+	expect(cancelRes2.reason).toBe("already-sent");
+	// 정리.
+	await runGate({
+		root,
+		feature: "queueflow",
+		viewerDistDir: VIEWER_DIST,
+		open: false,
+		onReady: async (u) => {
+			await fetch(`${u}/api/decision`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ verdict: "confirm", comments: [] }),
+			});
+		},
+	});
+	await closeGate(root, "queueflow");
+});
+
 test("teardown", async () => {
 	await rm(root, { recursive: true, force: true });
 });

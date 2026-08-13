@@ -9,6 +9,7 @@ export default function ChatSidebar({
 	disabled = false,
 }) {
 	const [messages, setMessages] = useState([]);
+	const [queue, setQueue] = useState([]);
 	const [draft, setDraft] = useState("");
 	const [scopeBlock, setScopeBlock] = useState(false);
 	const endRef = useRef(null);
@@ -19,8 +20,23 @@ export default function ChatSidebar({
 			if (!r.ok) return;
 			const data = await r.json();
 			setMessages(data.messages || []);
+			setQueue(data.queue || []);
 		} catch {
 			/* 무시 — 다음 폴링 */
+		}
+	};
+
+	// 전송 대기 큐에서 취소(완전 삭제). 이미 넘겨졌으면 서버가 ok:false → 그냥 새로고침.
+	const cancelQueued = async (id) => {
+		try {
+			await fetch("/api/chat/cancel", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ id }),
+			});
+			fetchChat();
+		} catch {
+			/* 무시 */
 		}
 	};
 
@@ -98,6 +114,29 @@ export default function ChatSidebar({
 				)}
 				<div ref={endRef} />
 			</div>
+			{queue.length > 0 && (
+				<div className="chat-queue">
+					<div className="chat-queue-head">
+						전송 대기 중{" "}
+						<span className="chat-queue-count">{queue.length}</span>
+					</div>
+					{queue.map((m) => (
+						<div key={m.id} className="chat-queued-msg">
+							<span className="chat-queued-tag">대기</span>
+							{m.blockId && <span className="chat-block">[{m.blockId}]</span>}
+							<div className="chat-text">{m.text}</div>
+							<button
+								className="chat-cancel"
+								onClick={() => cancelQueued(m.id)}
+								disabled={disabled}
+								aria-label="전송 취소"
+							>
+								✕
+							</button>
+						</div>
+					))}
+				</div>
+			)}
 			{activeBlockId && (
 				<label className="chat-scope">
 					<input
