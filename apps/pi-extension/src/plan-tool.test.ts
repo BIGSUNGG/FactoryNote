@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, expect } from "bun:test";
 import { drivePlan, type DrivePlanOutput } from "./plan-tool.ts";
+import { getOrCreateGate } from "./gate-manager.ts";
 import {
 	initialState,
 	loadState,
@@ -607,6 +608,141 @@ test("ADR-017: feedbackLevel low → 정확히 1개(1~3 영역 담당) 지시", 
 	expect(out.feedbackLevel).toBe("low");
 	expect(out.message).toContain("정확히 1개");
 	expect(out.message).toContain("1~3개 검토 영역");
+});
+
+test("채팅 루프: 게이트 대기 중 채팅 → chatPending → chatResponse 재진입 시 agent 답변이 chatLog 에 push 되고 게이트가 유지된다", async () => {
+	const feature = "chatloop";
+	const md = "# 채팅 루프 유지\n\n게이트 끊김 회귀 방지.";
+	const base = {
+		root,
+		viewerDistDir: VIEWER_DIST,
+		feature,
+		open: false,
+	} as const;
+	let url = "";
+	const postChat = async (u: string) => {
+		url = u;
+		await fetch(`${u}/api/chat`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ text: "이 단계 설명해줘" }),
+		});
+	};
+
+	// 게이트가 열리는 호출에 onReady 로 채팅을 보낸다(결정 아님 → chatPending 반환 유도).
+	let out = await drivePlan({ ...base, onReady: postChat });
+	let dc = 0;
+	while (!out.chatPending && !out.done && out.gateResult === null) {
+		if (out.nextAction === "spawn-design") {
+			const d = dc++ === 0 ? md : null;
+			if (d === null) throw new Error("채팅 루프 테스트: 게이트 미도달");
+			await writeFile(out.draftPath!, d, "utf8");
+			out = await drivePlan({
+				...base,
+				designArtifact: out.draftPath!,
+				onReady: postChat,
+			});
+		} else if (out.nextAction === "spawn-feedback") {
+			out = await drivePlan({
+				...base,
+				designArtifact: out.draftPath!,
+				feedbackResult: "CLEAN",
+				onReady: postChat,
+			});
+		} else {
+			break;
+		}
+	}
+	expect(out.chatPending).toBeTruthy();
+	expect(out.chatPending?.[0]?.text).toBe("이 단계 설명해줘");
+
+	// 에이전트 재호출 시뮬: chatResponse 로 답하고 게이트 재진입 → confirm 결정 처리.
+	const out2 = await drivePlan({
+		...base,
+		chatResponse: "이 단계는 요구사항 정의 단계입니다.",
+		onReady: postDecision("confirm"),
+	});
+	expect(out2.gateResult?.verdict).toBe("confirm");
+
+	// agent 답변이 chatLog 에 push 됐는지 GET /api/chat 으로 확인.
+	const res = await fetch(`${url}/api/chat`);
+	const data = (await res.json()) as {
+		messages?: { role?: string; text?: string }[];
+	};
+	const msgs = data.messages ?? [];
+	expect(
+		msgs.some((m) => m.role === "user" && m.text === "이 단계 설명해줘"),
+	).toBe(true);
+	expect(
+		msgs.some(
+			(m) =>
+				m.role === "agent" && m.text === "이 단계는 요구사항 정의 단계입니다.",
+		),
+	).toBe(true);
+});
+
+test("게이트 열린 상태에서 designArtifact(재작성)+chatResponse 재호출 → 산물 반영·게이트 유지·답변 push", async () => {
+	const feature = "chatrewrite";
+	const base = {
+		root,
+		viewerDistDir: VIEWER_DIST,
+		feature,
+		open: false,
+	} as const;
+	const draftPath = join(root, feature, "draft.md");
+	// 1) 게이트 열린 상태(stage 1) 시드: draft.md(구 내용) + 상태 gateOpen=true.
+	await mkdir(join(root, feature), { recursive: true });
+	await getOrCreateGate({ root, feature, viewerDistDir: VIEWER_DIST }); // 게이트 사전 생성 — runOpenGate 의 appendAgentChat 이 게이트를 찾도록
+	await writeFile(draftPath, "# 구 초안\n", "utf8");
+	await saveState(root, {
+		...initialState(feature),
+		stage: 1,
+		gateOpen: true,
+		dfPhase: "design",
+	});
+	await writeArtifact(
+		root,
+		feature,
+		"01-understanding-and-scenarios.md",
+		"# 구 초안\n",
+	);
+
+	// 2) 에이전트가 재작성: draft.md 를 새 내용으로.
+	await writeFile(draftPath, "# 새 초안 — 채팅 수정 반영\n", "utf8");
+
+	// 3) factorynote_plan(designArtifact+chatResponse) 재호출 → 게이트 재오픈(confirm).
+	let url = "";
+	const onReady = async (u: string) => {
+		url = u;
+		await fetch(`${u}/api/decision`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ verdict: "confirm", comments: [] }),
+		});
+	};
+	const out = await drivePlan({
+		...base,
+		designArtifact: draftPath,
+		chatResponse: "수정 반영했습니다.",
+		onReady,
+	});
+
+	// 4) 산출물이 새 내용으로 반영되고 게이트가 유지돼 결정이 처리됐다(이전엔 폴백으로 끊김).
+	expect(out.gateResult?.verdict).toBe("confirm");
+	expect(
+		await readArtifact(root, feature, "01-understanding-and-scenarios.md"),
+	).toBe("# 새 초안 — 채팅 수정 반영\n");
+
+	// 5) chatResponse 답변이 chatLog 에 push 됐다.
+	const res = await fetch(`${url}/api/chat`);
+	const data = (await res.json()) as {
+		messages?: { role?: string; text?: string }[];
+	};
+	expect(
+		(data.messages ?? []).some(
+			(m) => m.role === "agent" && m.text === "수정 반영했습니다.",
+		),
+	).toBe(true);
 });
 
 test("teardown", async () => {

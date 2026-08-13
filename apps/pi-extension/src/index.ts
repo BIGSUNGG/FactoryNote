@@ -44,6 +44,7 @@ export default function (pi: ExtensionAPI): void {
 		promptSnippet: "Drive the FactoryNote 3-stage gated plan pipeline",
 		promptGuidelines: [
 			"Use factorynote_plan when in FactoryNote plan mode to produce a human-gated plan instead of writing code.",
+			"When the tool returns chatPending (a user asked something while the gate is open), you MUST answer it: call factorynote_plan again with chatResponse (and designArtifact if a rewrite is needed) to keep the gate open. Never end your turn on chatPending — doing so breaks the chat loop and the user gets no reply.",
 			"When nextAction=spawn-design, spawn factorynote-design with spawnTask (file protocol). When nextAction=spawn-feedback, read menuPath, pick the number of factorynote-feedback-<name> agents required by the current feedback level (low 1 / medium 2-3 / high 4-6 / ultra 9), and spawn them in parallel (runs.all); on spawn rate-limit failure retry in sequential batches of 3-4; report aggregated [name] verdicts. Children write to files; report paths/verdicts, never inline content.",
 		],
 		parameters: Type.Object({

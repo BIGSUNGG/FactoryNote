@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-12
+updated: 2026-08-13
 tags: [development, changelog]
 ---
 
@@ -11,6 +11,10 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 ## [Unreleased]
 
 ### Fixed
+
+- **채팅 수정 요청 게이트 깨짐 — gateOpen 상태의 designArtifact 재호출 미처리** — 채팅으로 산물 수정 요청이 들어와 에이전트가 재작성 후 `factorynote_plan(designArtifact[, chatResponse])` 로 재호출할 때, `drivePlan` 이 `gateOpen=true` + `designArtifact` 경로를 다루지 않고 폴백(spawn-design)으로 빠져 — 재작성 draft 가 스테이지 산출물로 반영되지도, 게이트가 갱신된 내용으로 다시 열리지도 않아(게이트가 닫힌 것처럼), 뷰어(`/api/state` 2초 폴링)도 갱신 없이 상호작용이 먹통이 되던 문제. `drivePlan` 에 “게이트 열린 상태 + designArtifact → 산물(draft.md) 반영 + `runOpenGate(resume=false)` 로 게이트 재오픈” 처리를 추가. 뷰어는 이미 폴링 중이므로 백엔드 수정만으로 갱신·상호작용 회복. 회귀 테스트 추가(gateOpen+designArtifact 재호출 시 산물 반영·게이트 유지·chatResponse 답변 push). 자체체크 151 pass. [[chat-rewrite-gate-reopen]]
+
+- **게이트 채팅 루프 끊김 — chatPending 수신 후 에이전트 턴 종료** — 웹 게이트 채팅으로 질문/수정 요청이 들어와 `factorynote_plan` 이 `chatPending` 을 반환하면 에이전트가 `factorynote_plan(chatResponse)` 로 재호출해 게이트를 유지해야 하나, 턴을 종료해버려 답변이 돌아오지 않던 문제("하네스에서 채팅이 끝남"). `formatForAgent` 의 채팅 블록을 본문 상단으로 올려 “턴 종료 금지 + `factorynote_plan(chatResponse)` 재호출”을 명령형으로 지시하고, `factorynote_plan` `promptGuidelines` 에도 chatPending 시 재호출 의무를 명시. 게이트 서버 재진입 로직은 이미 `gate-server.test.ts` 로 검증돼 무변경. 회귀 테스트 2건 추가(format 지시문 + chatResponse 재진입 시 agent 답변 chatLog push·게이트 유지). 자체체크 150 pass. [[chat-loop-reentry]]
 
 - **그래프 쇼케이스 미출력 — 낡은 뷰어 dist 서빙** — `bun repro-graph-kinds.mjs` 실행 시 그래프 블록 자리는 나오나 "그래프 데이터(...)를 찾을 수 없습니다" 빈 상태만 표시되던 문제. `/api/state` 는 4종 그래프를 정상 내려줬으나(curl 확인), 서빙된 dist 가 다중 그래프 API(`artifacts[].graphs`) 이전의 단일 API(`artifact.graph`) 를 소비하도록 빌드된 구 버전이라 `graphData={}` 가 된 것이 원인. `ensure-viewer-dist.ts` 를 staleness 인식으로 일반화(dist 가 없거나 소스보다 낡으면 vite 재빌드, 순결정 `viewerDistIsStale` 분리) 하고, repro 가 서빙 전 이를 import 해 항상 최신 dist 를 보장하게 수정. 백엔드·코어 무변경. 자체체크 140 pass(신규 4). [[graph-showcase-stale-dist]]
 

@@ -65,6 +65,16 @@ export async function drivePlan(
 		}
 	}
 
+	// 채팅 수정 요청 등으로 게이트 열린 상태에서 재작성(designArtifact)이 들어옴:
+	// 산출물(draft.md)을 반영해 갱신된 내용으로 게이트를 다시 연다(게이트 유지 — ADR-009).
+	// resume=false 로 재작성 반영. chatResponse 도 함께 오면 runOpenGate 가 답변을 chatLog 에 push.
+	// (이전엔 이 경로가 빠져 폴백으로 빠졌다 → 산물 미반영·게이트 끊김·뷰어 멈춤.)
+	if (state.gateOpen && input.designArtifact !== undefined) {
+		const { draftFile } = resolvePaths(root, feature, def);
+		const gateArtifact = (await readArtifact(root, feature, draftFile)) ?? "";
+		return await runOpenGate(input, state, def, gateArtifact, false);
+	}
+
 	if (requiresArtifact(state.stage) && !state.gateOpen) {
 		const feedbackLevel = input.feedbackLevel ?? DEFAULT_FEEDBACK_LEVEL;
 		const report = deriveReport(input, state, def);

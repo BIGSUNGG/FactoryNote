@@ -1,11 +1,42 @@
 ---
-updated: 2026-08-12
+updated: 2026-08-13
 tags: [development, dev-log]
 ---
 
 # Dev-Log
 
 날짜별 작업 기록. 무엇을 했는지, 왜, 무엇이 남았는지. [[Changelog]]는 외부용 단위, 본 파일은 일일 흐름.
+
+## 2026-08-13
+
+### 채팅 수정 요청 게이트 깨짐 수정 — gateOpen 상태 designArtifact 재호출 미처리 ([[chat-rewrite-gate-reopen]])
+
+**맥락**: 사용자 보고 — 채팅으로 수정 요청하니 draft.md 만 수정되고 게이트가 닫히며, 뷰어는 갱신 안 되고 클릭 등 상호작용이 먹통인 상태가 된다.
+
+**조사**: (1) `closeGate` 는 파이프라인 완료/`state.done` 시에만 호출 — 채팅 수정으로 닫힐 리 없다. (2) `drivePlan` 에서 `gateOpen=true` + `designArtifact` 정의된 경우를 추적: resume 경로는 `designArtifact===undefined` 요구(스킵), 메인 경로는 `!state.gateOpen` 요구(스킵) → “도달 불가 — 안전 추락” 폴백으로 빠져 spawn-design 만 반환. 재작성 draft 가 스테이지 산물로 반영되지도, 게이트가 갱신 내용으로 재오픈되지도 않는다. (3) 뷰어는 App.jsx 가 `/api/state` 를 2초 폴링(`setInterval`) → 게이트가 살아있고 산물이 갱신되면 자동 갱신. 즉 “뷰어 멈춤/갱신 안 됨”은 폴백으로 게이트가 orphan 돼 resolver 가 없어 클릭이 먹통인 것의 결과.
+
+**작업**:
+
+- `plan-tool.ts` `drivePlan`: resume 블록 뒤에 `gateOpen && designArtifact` 분기 추가 — `draft.md` 내용을 읽어 `runOpenGate(resume=false)` 로 산물 반영 + 게이트 재오픈. `chatResponse` 도 함께 오면 runOpenGate 가 답변을 chatLog 에 push.
+- 게이트 서버·`runOpenGate`·뷰어는 무변경(뷰어는 이미 폴링 중).
+- 회귀 테스트(`plan-tool.test.ts`): 게이트 열린 상태에서 `designArtifact(+chatResponse)` 재호출 → 산물 반영·게이트 유지·답변 push. 단 `appendAgentChat` 이 `runGate→getOrCreateGate` 보다 먼저라 첫 오픈엔 게이트가 없으므로 `getOrCreateGate` 로 게이트를 사전 시드(실동작에선 채팅이 이미 열린 게이트에서 발생해 무관).
+
+**남은 것**: 수동 웹 검증(실제 에이전트가 designArtifact 재호출로 게이트 갱신)은 사용자 확인. 자체체크 151 pass.
+
+### 게이트 채팅 루프 끊김 수정 — chatPending 수신 후 에이전트 턴 종료 ([[chat-loop-reentry]])
+
+**맥락**: 사용자 보고 — 에이전트 채팅을 치면 FactoryNote 모드가 꺼진다. 정확히는 채팅 응답이 돌아오지 않고, 에이전트가 게이트 대기 상태로 재진입하지 않은 채 하네스에서 턴이 종료된다.
+
+**조사**: (1) `planMode` 는 `disablePlanMode()`(파이프라인 완료 시) 또는 `/factorynote off` 로만 꺼짐 — 코드상 채팅만으로는 꺼질 리 없음(`index.ts:108`). (2) 채팅 이벤트 경로는 `done:false` 반환(`plan-gate.ts`). (3) 게이트 서버 재진입 로직은 `gate-server.test.ts`(“runGate resolves chat event while waiting, then decision on re-entry”) 로 이미 검증 — 채팅→재진입→결정 루프 정상. (4) 따라서 끊김의 원인은 에이전트가 `chatPending` 수신 후 자발적으로 `factorynote_plan(chatResponse)` 를 재호출하지 않아 턴이 종료되는 것. 툴 호출 모델에서는 에이전트 재호출 없이 게이트 유지 불가.
+
+**작업** (방향: 재호출 유도 강화):
+
+- `format.ts`: 채팅 블록을 본문 `message` 앞(상단)으로 옮기고, “턴을 종료하지 말 것” + `factorynote_plan(chatResponse)`(산물 수정 필요시 `designArtifact` 포함) 재호출을 명령형으로 명시.
+- `index.ts`: `factorynote_plan` `promptGuidelines` 에 chatPending 시 재호출 의무(턴 종료 금지) 라인 추가.
+- 게이트 서버·`plan-gate.ts` 재진입 로직은 무변경(이미 검증).
+- 회귀 테스트: `format.test.ts`(chatPending → 재호출 지시문 명령형 포함 + 상단 배치), `plan-tool.test.ts`(게이트 대기 중 채팅 → chatPending → chatResponse 재진입 시 agent 답변 chatLog push + 게이트 유지 confirm).
+
+**남은 것**: 수동 웹 검증(실제 에이전트가 재호출하는지)은 사용자 확인 필요 — 결정적 기반(재진입 코드 경로 + 지시문)은 단위·통합 테스트로 검증 완료. 자체체크 150 pass.
 
 ## 2026-08-12
 
