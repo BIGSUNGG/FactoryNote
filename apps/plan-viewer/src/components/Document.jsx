@@ -1,5 +1,6 @@
 import { useRef, useEffect } from "react";
 import Block from "./Block";
+import { activeHeadingId } from "../lib/activeHeading";
 
 // 산출물 본문 = 마크다운 블록 시퀀스.
 // 클릭 상호작용을 Document가 통합 처리:
@@ -14,19 +15,44 @@ export default function Document({
 	activeTargetId,
 	graphData,
 	fontScale = 1,
+	headingIds = [], // 목차 추적 대상(h2/h3) 블록 id — PlanPage 가 toc 에서 전달
+	onActiveHeading, // scroll-spy: 현재 최상단 헤딩 id 를 상위로 보고
 }) {
 	const skipRef = useRef(false); // 직전 mouseup 이 드래그였으면 뒤따르는 click 무시
 	const mainRef = useRef(null);
-	// 에이전트 수정로 md 가 갱신되면(초기 로드 제외) .doc 맨 위로 스크롤 —
-	// 상단에 prepend 된 수정 배너가 보이도록 보장(.doc 가 스크롤 컨테이너).
-	const firstLoadRef = useRef(true);
+
+	// scroll-spy: .doc 스크롤 시 상단 기준선(80px)을 지난 가장 마지막 h2/h3 헤딩 보고.
+	// rAF 로 스로틀(스크롤 이벤트 빈도 완화), 블록/헤딩 변경·마운트·리사이즈에서 재계산.
 	useEffect(() => {
-		if (firstLoadRef.current) {
-			firstLoadRef.current = false;
-			return;
-		}
-		mainRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-	}, [blocks]);
+		const el = mainRef.current;
+		if (!el || !headingIds.length) return;
+		let raf = 0;
+		const compute = () => {
+			raf = 0;
+			const cTop = el.getBoundingClientRect().top;
+			const heads = headingIds
+				.map((id) => {
+					const node = el.querySelector(`[data-block-id="${id}"]`);
+					if (!node) return null;
+					const top = node.getBoundingClientRect().top - cTop + el.scrollTop;
+					return { id, top };
+				})
+				.filter(Boolean);
+			const id = activeHeadingId(heads, el.scrollTop, 80);
+			if (id) onActiveHeading?.(id);
+		};
+		const onScroll = () => {
+			if (!raf) raf = requestAnimationFrame(compute);
+		};
+		compute(); // 초기 로드 직후 현재 헤딩 반영
+		el.addEventListener("scroll", onScroll, { passive: true });
+		window.addEventListener("resize", onScroll);
+		return () => {
+			if (raf) cancelAnimationFrame(raf);
+			el.removeEventListener("scroll", onScroll);
+			window.removeEventListener("resize", onScroll);
+		};
+	}, [headingIds, blocks, onActiveHeading]);
 
 	const handleMouseUp = () => {
 		const sel = window.getSelection();

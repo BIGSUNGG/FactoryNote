@@ -94,11 +94,15 @@ export default function PlanPage({
 		const hs = blocks.filter(
 			(b) => b.type === "heading" && b.level >= 2 && b.level <= 3,
 		);
-		return hs.map((b, idx) => ({ label: stripHtml(b.html), cur: idx === 0 }));
+		return hs.map((b) => ({
+			id: b.id,
+			label: stripHtml(b.html),
+		}));
 	}, [blocks]);
 
 	const [comments, setComments] = useState([]);
 	const [activeTargetId, setActiveTargetId] = useState(null);
+	const [activeHeading, setActiveHeading] = useState(null); // scroll-spy 현재 h2/h3 헤딩 id
 	const [activeRange, setActiveRange] = useState(null);
 	const [rangeDraft, setRangeDraft] = useState("");
 	const [fontScale, setFontScale] = useState(1); // md 본문 글자 배율(−/+ 버튼)
@@ -226,7 +230,7 @@ export default function PlanPage({
 				</div>
 			)}
 			<div className="layout">
-				<Toc items={toc} />
+				<Toc items={toc} activeId={activeHeading} />
 				<Document
 					blocks={blocks}
 					comments={comments}
@@ -236,6 +240,8 @@ export default function PlanPage({
 					activeTargetId={readOnly ? null : activeTargetId}
 					graphData={graphData}
 					fontScale={fontScale}
+					headingIds={toc.map((t) => t.id)}
+					onActiveHeading={!readOnly ? setActiveHeading : undefined}
 				/>
 			</div>
 			{!readOnly && (
