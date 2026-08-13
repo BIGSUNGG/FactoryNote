@@ -22,13 +22,10 @@ export default function ChatSidebar({ stage, activeBlockId }) {
 
 	useEffect(() => {
 		fetchChat();
-		const id = setInterval(fetchChat, 500); // 폴링 0.5초(에이전트 회신 등 안전망)
 		const refresh = () => fetchChat();
-		window.addEventListener("fn-chat-update", refresh); // 코멘트 전송 시 즉시 갱신
-		return () => {
-			clearInterval(id);
-			window.removeEventListener("fn-chat-update", refresh);
-		};
+		// 갱신은 App 의 SSE chat 이벤트(→ fn-chat-update)와 코멘트 전송 시 발화. 폴링 없음.
+		window.addEventListener("fn-chat-update", refresh);
+		return () => window.removeEventListener("fn-chat-update", refresh);
 	}, []);
 
 	useEffect(() => {

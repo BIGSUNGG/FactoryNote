@@ -10,6 +10,10 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ## [Unreleased]
 
+### Changed
+
+- **뷰어 갱신 폴링 → SSE push 전환** — 뷰어가 `/api/state` 2초 폴링 + `/api/chat` 0.5초 폴링으로 갱신하던 것을 제거하고, 게이트 서버에 SSE(`/api/events`) 엔드포인트를 추가해 에이전트가 산출물을 기록하는 시점(산물 write + 게이트 오픈 = `runOpenGate`, 채팅 회신 = `appendAgentChat`)에만 push 갱신. `gate` 객체에 `sseClients: Set<ServerResponse>` 를 두고 `broadcastSse` 가 프레임 송신(실패 클라이언트 자동 제거). 뷰어는 단일 `EventSource` 로 `state`·`chat` 이벤트 수신. 탭 생존 하트비트(브라우저 재오픈 판정)는 SSE 연결 생존으로 흡수 — `runGate`/`observeGate` 재오픈 조건에 `sseClients.size === 0` 추가(SSE 클라이언트가 살아있으면 `lastSeen` 경과와 무관하게 재오픈 생략). core(`packages/factorynote`) 무변경 — 모든 `writeArtifact` 호출이 pi-extension 경로를 거치므로 트리거를 pi-extension 에 배치. `node:*` builtins 만 사용(`ws` 미도입). 회귀 테스트 추가(SSE broadcast · 하트비트 흡수). 자체체크 153 pass(신규 2). [[ADR-022-viewer-sse-push]]
+
 ### Fixed
 
 - **채팅 수정 요청 게이트 깨짐 — gateOpen 상태의 designArtifact 재호출 미처리** — 채팅으로 산물 수정 요청이 들어와 에이전트가 재작성 후 `factorynote_plan(designArtifact[, chatResponse])` 로 재호출할 때, `drivePlan` 이 `gateOpen=true` + `designArtifact` 경로를 다루지 않고 폴백(spawn-design)으로 빠져 — 재작성 draft 가 스테이지 산출물로 반영되지도, 게이트가 갱신된 내용으로 다시 열리지도 않아(게이트가 닫힌 것처럼), 뷰어(`/api/state` 2초 폴링)도 갱신 없이 상호작용이 먹통이 되던 문제. `drivePlan` 에 “게이트 열린 상태 + designArtifact → 산물(draft.md) 반영 + `runOpenGate(resume=false)` 로 게이트 재오픈” 처리를 추가. 뷰어는 이미 폴링 중이므로 백엔드 수정만으로 갱신·상호작용 회복. 회귀 테스트 추가(gateOpen+designArtifact 재호출 시 산물 반영·게이트 유지·chatResponse 답변 push). 자체체크 151 pass. [[chat-rewrite-gate-reopen]]

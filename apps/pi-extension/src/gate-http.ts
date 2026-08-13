@@ -55,6 +55,7 @@ export function makeGateHandler(gate: {
 	chatLog: import("@factorynote/core").ChatMessage[];
 	pendingChats: import("@factorynote/core").ChatMessage[];
 	currentResolver: ((e: GateEvent) => void) | null;
+	sseClients: Set<import("node:http").ServerResponse>;
 }) {
 	return async (
 		req: import("node:http").IncomingMessage,
@@ -68,6 +69,21 @@ export function makeGateHandler(gate: {
 				const payload = await buildViewerState(gate.root, gate.feature);
 				res.writeHead(200, { "Content-Type": "application/json" });
 				res.end(JSON.stringify(payload));
+				return;
+			}
+			if (url === "/api/events") {
+				// SSE — 뷰어가 상태·채팅 변경을 push 로 수신(폴링 대체). 연결이 유지되는 동안
+				// 탭 생존 하트비트로 삼는다(재오픈 판정은 sseClients 비어있을 때만 lastSeen 사용).
+				res.writeHead(200, {
+					"Content-Type": "text/event-stream",
+					"Cache-Control": "no-store",
+					Connection: "keep-alive",
+				});
+				res.write(": connected\n\n");
+				gate.sseClients.add(res);
+				req.on("close", () => {
+					gate.sseClients.delete(res);
+				});
 				return;
 			}
 			if (url === "/api/decision" && req.method === "POST") {

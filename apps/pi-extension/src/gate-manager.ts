@@ -16,10 +16,13 @@ export interface PersistentGate {
 	/** 마지막 뷰어 요청 시각(ms). 탭 생존 하트비트 — 오래되면 탭이 닫힌 것으로 보고 브라우저 재오픈. */
 	lastSeen: number;
 	currentResolver: ((e: GateEvent) => void) | null;
-	/** 채팅 누적 로그(사용자+에이전트). 뷰어가 GET /api/chat 로 폴링. */
+	/** 채팅 누적 로그(사용자+에이전트). */
 	chatLog: ChatMessage[];
 	/** 에이전트에 아직 전달되지 않은 사용자 채팅(runGate 가 chat 이벤트로 resolve 시 비움). */
 	pendingChats: ChatMessage[];
+	/** 연결된 뷰어 SSE 클라이언트들(/api/events). 상태·채팅 변경 시 push 수신자.
+	 * 비어있지 않으면 탭이 살아있는 것으로 보고 브라우저 재오픈을 생략한다(하트비트 흡수). */
+	sseClients: Set<import("node:http").ServerResponse>;
 }
 
 const gates = new Map<string, PersistentGate>();
@@ -53,6 +56,7 @@ export async function getOrCreateGate(opts: {
 		currentResolver: null,
 		chatLog: [],
 		pendingChats: [],
+		sseClients: new Set(),
 	};
 	const server = createServer(makeGateHandler(gate));
 	gate.server = server;
@@ -71,6 +75,15 @@ export async function closeGate(root: string, feature: string): Promise<void> {
 	if (!gate) return;
 	gates.delete(key);
 	gate.currentResolver = null;
+	// SSE 클라이언트 정리 — 연결을 닫아 뷰어가 마감 화면 폴링으로 전환하게 한다.
+	for (const res of gate.sseClients) {
+		try {
+			res.end();
+		} catch {
+			/* 이미 닫힌 소켓 */
+		}
+	}
+	gate.sseClients.clear();
 	// 클라이언트가 최종 응답 바이트를 읽어가도록 잠시 대기 후 종료.
 	await new Promise((r) => setTimeout(r, 30));
 	gate.server.closeAllConnections?.();
@@ -91,4 +104,33 @@ export function appendAgentChat(
 		text,
 		at: Date.now(),
 	});
+	// 채팅 회신 push — 뷰어가 SSE chat 이벤트로 즉시 갱신(폴링 대체).
+	broadcastSse(gate, "chat");
+}
+
+/** SSE 클라이언트들에 이벤트 push. 전송 실패(탭 닫힘 등) 클라이언트는 자동 제거. */
+export function broadcastSse(
+	gate: PersistentGate,
+	type: string,
+	data?: unknown,
+): void {
+	if (gate.sseClients.size === 0) return;
+	const payload = `event: ${type}\ndata: ${JSON.stringify(data ?? {})}\n\n`;
+	for (const res of gate.sseClients) {
+		if (res.writableEnded || res.destroyed) {
+			gate.sseClients.delete(res);
+			continue;
+		}
+		try {
+			res.write(payload);
+		} catch {
+			gate.sseClients.delete(res);
+		}
+	}
+}
+
+/** 뷰어에 상태·산물 변경을 push(runOpenGate 가 산물을 쓰고 게이트를 열 때 호출). */
+export function notifyViewerState(root: string, feature: string): void {
+	const gate = gates.get(gateKey(root, feature));
+	if (gate) broadcastSse(gate, "state");
 }

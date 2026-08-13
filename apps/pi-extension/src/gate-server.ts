@@ -7,17 +7,16 @@
 //  - gate-http.ts     — /api/* 라우팅 HTTP 핸들러 + 정적 SPA 서빙
 //  - gate-manager.ts  — 기능별 영속 게이트 서버 풀(생성/재사용/종료/채팅 로그)
 //  - gate-browser.ts  — 브라우저 오픈·모듈 경로 유틸
-import {
-	getOrCreateGate,
-	BROWSER_REOPEN_AFTER_MS,
-	closeGate,
-	appendAgentChat,
-} from "./gate-manager.ts";
-import { openBrowser, moduleDir, resolveViewerDist } from "./gate-browser.ts";
+import { getOrCreateGate, BROWSER_REOPEN_AFTER_MS } from "./gate-manager.ts";
+import { openBrowser } from "./gate-browser.ts";
 import type { GateEvent } from "./gate-events.ts";
 
 export type { GateEvent } from "./gate-events.ts";
-export { closeGate, appendAgentChat } from "./gate-manager.ts";
+export {
+	closeGate,
+	appendAgentChat,
+	notifyViewerState,
+} from "./gate-manager.ts";
 export { moduleDir, resolveViewerDist } from "./gate-browser.ts";
 
 export interface RunGateOptions {
@@ -56,9 +55,11 @@ export async function runGate(opts: RunGateOptions): Promise<GateEvent> {
 
 	const gate = await getOrCreateGate({ root, feature, viewerDistDir });
 
-	// 브라우저 오픈: 최초(또는 탭이 닫혀 하트비트가 오래된 경우)에만. 탭이 살아있으면 재오픈하지 않는다(다중 탭 방지).
+	// 브라우저 오픈: 최초(또는 탭이 닫혀 하트비트가 오래된 경우)에만. SSE 클라이언트가 살아있거나
+	// 최근 요청이 있으면 재오픈하지 않는다(다중 탭 방지 + 폴링 제거 후 SSE 연결이 하트비트).
 	if (
 		open &&
+		gate.sseClients.size === 0 &&
 		Date.now() - gate.lastSeen > (reopenAfterMs ?? BROWSER_REOPEN_AFTER_MS)
 	) {
 		(browserOpener ?? openBrowser)(gate.url);
@@ -143,6 +144,7 @@ export async function observeGate(opts: ObserveGateOptions): Promise<void> {
 	const gate = await getOrCreateGate({ root, feature, viewerDistDir });
 	if (
 		open &&
+		gate.sseClients.size === 0 &&
 		Date.now() - gate.lastSeen > (reopenAfterMs ?? BROWSER_REOPEN_AFTER_MS)
 	) {
 		(browserOpener ?? openBrowser)(gate.url);

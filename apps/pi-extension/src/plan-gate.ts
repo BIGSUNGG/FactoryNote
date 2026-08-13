@@ -24,6 +24,7 @@ import { spawnDirective } from "./plan-directive.ts";
 import {
 	appendAgentChat,
 	closeGate,
+	notifyViewerState,
 	observeGate,
 	runGate,
 } from "./gate-server.ts";
@@ -51,17 +52,16 @@ export async function runOpenGate(
 			root,
 			feature,
 			def.artifactFile,
-			await promoteGraphArtifact(
-				root,
-				feature,
-				def.id,
-				artifactToWrite,
-			),
+			await promoteGraphArtifact(root, feature, def.id, artifactToWrite),
 		);
 	}
 
 	state = markArtifactReady(state);
 	await saveState(root, state);
+
+	// 산물을 디스크에 기록하고 게이트를 열기 직전 — 뷰어에게 상태 변경 push.
+	// 에이전트가 쓴 타이밍에만 갱신(폴링 대체). resume 여부 무관: 재오픈도 뷰어가 따라가야 한다.
+	notifyViewerState(root, feature);
 
 	let decision: GateDecision;
 	if (input.autoAdvance) {

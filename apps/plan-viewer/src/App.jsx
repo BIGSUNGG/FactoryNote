@@ -11,8 +11,6 @@ import ChatSidebar from "./components/ChatSidebar";
 import { Center, ClosedScreen, PreparingScreen } from "./components/Screens";
 import { notifyNewStage, requestNotifyPermission } from "./lib/notify";
 
-const HEARTBEAT_MS = 2000; // /api/state 폴링 주기 = 탭 생존 하트비트(서버 재오픈 판정에 사용).
-
 export default function App() {
 	const [state, setState] = useState(null); // 마지막 /api/state
 	const [phase, setPhase] = useState("loading"); // loading | reviewing | preparing | closed
@@ -26,11 +24,16 @@ export default function App() {
 		// ponytail: cleanup 불필요 — 폴링 effect 가 phase 전환을 주도.
 	}, []);
 
-	// 연속 폴링 = 상태 동기화 + 탭 생존 하트비트. closed(게이트 마감) 에서는 멈춘다.
+	// 서버 push(SSE)로 상태 동기화 — 폴링 대체. closed(게이트 마감) 에서는 닫는다.
 	useEffect(() => {
 		if (phase === "closed") return;
-		const id = setInterval(fetchState, HEARTBEAT_MS);
-		return () => clearInterval(id);
+		const es = new EventSource("/api/events");
+		es.addEventListener("state", fetchState);
+		// 채팅 회신 push → ChatSidebar 가 fn-chat-update 로 fetchChat.
+		es.addEventListener("chat", () =>
+			window.dispatchEvent(new Event("fn-chat-update")),
+		);
+		return () => es.close();
 	}, [phase]);
 
 	// 단계 전환 시 채팅 부분코멘트 블록 선택을 초기화.

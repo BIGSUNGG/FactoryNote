@@ -9,6 +9,26 @@ tags: [development, dev-log]
 
 ## 2026-08-13
 
+### 뷰어 갱신 폴링 → SSE push 전환 ([[ADR-022-viewer-sse-push]])
+
+**맥락**: 사용자 요청 — 뷰어가 md 를 2초 폴링으로 갱신하는 대신, 에이전트가 파일을 기록한 타이밍에만 갱신하게(이벤트 push). 사용자는 md 파일을 직접 건드리지 않으니 에이전트 수정·추가 시에만 갱신되는 게 낫다고 판단.
+
+**조사**: (1) `/api/state` 2초 폴링은 md 갱신 외에 탭 생존 하트비트 역할도 담당(`gate.lastSeen` → `BROWSER_REOPEN_AFTER_MS` 재오픈 판정). 폴링을 그냥 없애면 재오픈 로직이 붕괴. (2) `ChatSidebar` 도 `/api/chat` 0.5초 폴링. (3) 에이전트가 md 를 기록하는 경로(`writeArtifact`)는 core 에 있지만 **모든 호출자가 pi-extension**(`plan-tool.ts`·`plan-gate.ts`) — core 내부 호출(`promoteGraphTree`) 도 `runOpenGate → promoteGraphArtifact` 경로. 즉 트리거 소스가 이미 서버 쪽에 있어 core 건드릴 필요 없음. (4) 핵심 한 지점: 뷰어에 보이는 산출물 md 는 `runOpenGate` 의 `writeArtifact` + 직후 게이트 오픈(`runGate`/`observeGate`) 시퀀스 한 곳에서 발생.
+
+**작업**:
+
+- `gate-manager.ts`: `PersistentGate` 에 `sseClients: Set<ServerResponse>` 추가. `broadcastSse(gate, type, data?)` 헬퍼(프레임 송신 + 실패 클라이언트 자동 제거). `notifyViewerState(root, feature)` 래퍼. `appendAgentChat` 에 `broadcastSse(gate, "chat")` 연결. `closeGate` 가 SSE 클라이언트 정리.
+- `gate-http.ts`: `/api/events` 핸들러 추가(`text/event-stream`, `sseClients.add`, `req.on("close")` 해제). 인라인 gate 타입에 `sseClients` 필드.
+- `gate-server.ts`: `runGate`/`observeGate` 재오픈 판정에 `gate.sseClients.size === 0 &&` 조건 추가(SSE 연결 = 하트비트 흡수). `notifyViewerState` re-export. (덤: `closeGate`·`appendAgentChat`·`moduleDir`·`resolveViewerDist` 상단 import 가 re-export 와 중복 unused → 상단 import 를 실사용분만 남겨 정리.)
+- `plan-gate.ts`: `runOpenGate` 에서 `saveState` 직후 `notifyViewerState(root, feature)` 호출(산물 기록 타이밍 = push). resume 여부 무관.
+- `App.jsx`: `setInterval(fetchState, HEARTBEAT_MS)` 제거 → 단일 `EventSource("/api/events")` 로 `state` 이벤트 → `fetchState()`, `chat` 이벤트 → `fn-chat-update` dispatch. `HEARTBEAT_MS` 상수 삭제.
+- `ChatSidebar.jsx`: `setInterval(fetchChat, 500)` 제거. `fn-chat-update` 리스너 유지(이제 SSE chat 이벤트가 유일한 갱신 트리거).
+- 테스트(`gate-server.test.ts`) 2건 추가: `/api/events` SSE broadcast(`appendAgentChat`·`notifyViewerState` → 클라이언트에 `chat`/`state` 프레임 도달), SSE 연결 살아있으면 하트비트 경과해도 재오픈 생략.
+
+**결정 근거**: Long polling(매 요청 오버헤드·동시 연결 제한) · `fs.watch`(OS별 신뢰성·core 침범) · `ws`(builtins-only 위반) 대안 대비, SSE 가 raw `node:http` builtins 로 가능하고 트리거 소스가 서버에 이미 있어 가장 작은 변경. → [[ADR-022-viewer-sse-push]]
+
+**남은 것**: 수동 웹 검증(실제 에이전트가 산물 기록 후 게이트 오픈 시 뷰어가 폴링 없이 즉시 갱신·SSE 연결 끊김 시 자동 재연결)은 사용자 확인. 자체체크 153 pass.
+
 ### 채팅 수정 요청 게이트 깨짐 수정 — gateOpen 상태 designArtifact 재호출 미처리 ([[chat-rewrite-gate-reopen]])
 
 **맥락**: 사용자 보고 — 채팅으로 수정 요청하니 draft.md 만 수정되고 게이트가 닫히며, 뷰어는 갱신 안 되고 클릭 등 상호작용이 먹통인 상태가 된다.

@@ -4,7 +4,12 @@ import { mkdtemp, rm, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, expect } from "bun:test";
-import { runGate, closeGate } from "./gate-server.ts";
+import {
+	runGate,
+	closeGate,
+	appendAgentChat,
+	notifyViewerState,
+} from "./gate-server.ts";
 import {
 	initialState,
 	markArtifactReady,
@@ -538,6 +543,91 @@ test("runGate resolves chat event while waiting, then decision on re-entry", asy
 	if (second.kind === "decision")
 		expect(second.decision.verdict).toBe("confirm");
 	await closeGate(root, "chatrace");
+});
+
+test("gate /api/events SSE: appendAgentChat·notifyViewerState 가 클라이언트에 push", async () => {
+	// 폴링 대체 — 서버가 상태·채팅 변경 시점에만 data 프레임을 보낸다.
+	let collected = "";
+	const event = await runGate({
+		root,
+		feature: "ssepush",
+		viewerDistDir: VIEWER_DIST,
+		open: false,
+		onReady: async (u) => {
+			// SSE 클라이언트 연결(스트리밍 응답 유지).
+			const res = await fetch(`${u}/api/events`);
+			const reader = res.body!.getReader();
+			const dec = new TextDecoder();
+			await reader.read(); // connected 코멘트 프레임 소비
+			// 트리거: 채팅 회신 + 상태(산물) 변경 push.
+			appendAgentChat(root, "ssepush", "안녕");
+			notifyViewerState(root, "ssepush");
+			// 두 이벤트 프레임이 올 때까지 읽기(네트워크 합쳐질 수 있음).
+			for (let i = 0; i < 10 && collected.split("event:").length - 1 < 2; i++) {
+				const { value, done } = await reader.read();
+				if (done) break;
+				collected += dec.decode(value, { stream: true });
+			}
+			await reader.cancel();
+			await fetch(`${u}/api/decision`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ verdict: "confirm", comments: [] }),
+			});
+		},
+	});
+	expect(collected).toContain("event: chat");
+	expect(collected).toContain("event: state");
+	expect(event.kind).toBe("decision");
+	await closeGate(root, "ssepush");
+});
+
+test("영속 게이트: SSE 연결이 살아있으면 하트비트 경과해도 재오픈 안 함", async () => {
+	// 폴링 제거 후 SSE 연결 자체가 탭 생존 하트비트 — lastSeen 이 오래되도 클라이언트가 있으면 재오픈 생략.
+	let opens = 0;
+	const opener = () => {
+		opens++;
+	};
+	const postConfirm = (u: string) =>
+		fetch(`${u}/api/decision`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ verdict: "confirm", comments: [] }),
+		});
+	// ponytail: reader 타입 단언(any) — TS 가 클로저 내 대입을 추론 못 해 never 로 좁혀진다. 테스트 코드.
+	let sseReader: any = null;
+	await runGate({
+		root,
+		feature: "ssehb",
+		viewerDistDir: VIEWER_DIST,
+		open: true,
+		browserOpener: opener,
+		reopenAfterMs: 30,
+		onReady: async (u) => {
+			// SSE 연결 = 탭 생존. 결정 POST 와 무관하게 reader 를 보유해 연결 유지.
+			const res = await fetch(`${u}/api/events`);
+			sseReader = res.body!.getReader();
+			await sseReader.read(); // connected 소비
+			await postConfirm(u);
+		},
+	});
+	expect(opens).toBe(1); // 최초 1회 오픈
+	// lastSeen 갱신 없이 reopenAfterMs 초과 대기 — 하지만 SSE 클라이언트가 살아있음.
+	await new Promise((r) => setTimeout(r, 50));
+	await runGate({
+		root,
+		feature: "ssehb",
+		viewerDistDir: VIEWER_DIST,
+		open: true,
+		browserOpener: opener,
+		reopenAfterMs: 30,
+		onReady: async (u) => {
+			await postConfirm(u);
+		},
+	});
+	expect(opens).toBe(1); // SSE 클라이언트 살아있어 재오픈 생략
+	await sseReader?.cancel();
+	await closeGate(root, "ssehb");
 });
 
 test("teardown", async () => {
