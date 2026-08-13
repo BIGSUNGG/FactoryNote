@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useEffect } from "react";
 import Block from "./Block";
 
 // 산출물 본문 = 마크다운 블록 시퀀스.
@@ -17,6 +17,16 @@ export default function Document({
 }) {
 	const skipRef = useRef(false); // 직전 mouseup 이 드래그였으면 뒤따르는 click 무시
 	const mainRef = useRef(null);
+	// 에이전트 수정로 md 가 갱신되면(초기 로드 제외) .doc 맨 위로 스크롤 —
+	// 상단에 prepend 된 수정 배너가 보이도록 보장(.doc 가 스크롤 컨테이너).
+	const firstLoadRef = useRef(true);
+	useEffect(() => {
+		if (firstLoadRef.current) {
+			firstLoadRef.current = false;
+			return;
+		}
+		mainRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+	}, [blocks]);
 
 	const handleMouseUp = () => {
 		const sel = window.getSelection();

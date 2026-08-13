@@ -1,5 +1,6 @@
 .topbar {
 	display: flex;
+	flex: none;
 	align-items: center;
 	gap: var(--s3);
 	height: 56px;
@@ -34,6 +35,7 @@
 }
 .stepper {
 	display: flex;
+	flex: none;
 	align-items: center;
 	gap: 0;
 	padding: var(--s3) var(--s4);
@@ -88,7 +90,9 @@
 .layout {
 	display: grid;
 	grid-template-columns: 220px 1fr 300px;
-	min-height: calc(100vh - 56px - 65px);
+	flex: 1 1 auto; /* .review-main 플렉스 컬럼에서 남은 높이 채움 */
+	min-height: 0; /* 자식 .doc overflow 스크롤을 위해 축소 허용 */
+	overflow: hidden;
 	/* 목차 ↔ 채팅 사이(중간 영역) 배경 = 살짝 어두운 베이스 + 격자 그리드.
 	   .toc(불투명 흰색)과 .doc(불투명 흰색)이 위를 덮어 그리드는 여백에만 노출. */
 	background-color: rgba(17, 24, 39, 0.02);
@@ -129,11 +133,13 @@
 .doc {
 	--doc-ratio: 0.75; /* 16:9에서 가시 그리드 폭(G) 대비 .doc 차지 비율. 세로(9:16)는 항상 100%. 이 값만 바꾸면 16:9 폭 조절됨. */
 	grid-column: 2 / -1; /* col2 + col3 = 가시 그리드 배경 폭(G) 전체 차지 → 100%=G */
+	min-height: 0; /* grid item 기본 min-height:auto 해제 → 남은 높이에서 스크롤 */
+	overflow-y: auto; /* 문서 본문만 스크롤 — 크롬(topbar/stepper/gate)은 고정 */
 	font-size: calc(
 		1rem *
 		var(--fs, 1)
 	); /* 본문 단락은 여기서 상속 → --fs 로 확대/축소 */
-	padding: var(--s5) var(--s5) 120px;
+	padding: var(--s5) var(--s5) var(--s5); /* 내부 스크롤 → gate-bar 위까지 차지, 120px 클리어 불필요 */
 	/* 화면 비율에 따라 연속 변화(16:9·9:16 하드코딩 없음):
 	   16:9 → --doc-ratio·G, 9:16 → 100%(min() 클램프).
 	   177.78vh ≈ 16:9 뷰포트폭(1vh=0.5625%·W), 560px = 고정 크롬(목차220+채팅340). */
@@ -145,6 +151,22 @@
 	width: 100%;
 	/* md 렌더링 영역은 그리드에서 제외 → 불투명 흰색으로 덮음 */
 	background: var(--surface);
+	scrollbar-width: thin; /* Firefox — 얇은 바 */
+	scrollbar-color: var(--border-strong) transparent;
+}
+/* 얇은 커스텀 스크롤바 (sleek) — .doc 우측 끝 */
+.doc::-webkit-scrollbar {
+	width: 8px;
+}
+.doc::-webkit-scrollbar-track {
+	background: transparent;
+}
+.doc::-webkit-scrollbar-thumb {
+	background: var(--border-strong);
+	border-radius: 999px;
+}
+.doc::-webkit-scrollbar-thumb:hover {
+	background: var(--text);
 }
 .doc h1 {
 	font-size: calc(1.75rem * var(--fs, 1));
