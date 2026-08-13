@@ -80,6 +80,49 @@
 	white-space: pre-wrap;
 	word-break: break-word;
 }
+
+/* 에이전트 회신 대기 — 마지막 메시지가 user 일 때 "thinking..." 표시. agent 회신이 오면 자동 소거 */
+.chat-msg.thinking .chat-text {
+	display: inline-flex;
+	align-items: baseline;
+}
+.chat-msg.thinking .think-dots {
+	display: inline-flex;
+	gap: 2px;
+	margin-left: 2px;
+}
+.chat-msg.thinking .think-dots i {
+	width: 4px;
+	height: 4px;
+	border-radius: 50%;
+	background: var(--muted);
+	display: inline-block;
+	animation: think-pulse 1.2s infinite ease-in-out both;
+}
+.chat-msg.thinking .think-dots i:nth-child(2) {
+	animation-delay: 0.18s;
+}
+.chat-msg.thinking .think-dots i:nth-child(3) {
+	animation-delay: 0.36s;
+}
+@keyframes think-pulse {
+	0%,
+	80%,
+	100% {
+		opacity: 0.25;
+		transform: translateY(0);
+	}
+	40% {
+		opacity: 1;
+		transform: translateY(-2px);
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.chat-msg.thinking .think-dots i {
+		animation: none;
+		opacity: 0.6;
+	}
+}
 .chat-scope {
 	display: flex;
 	align-items: center;

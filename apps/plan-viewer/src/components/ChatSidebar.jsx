@@ -53,6 +53,10 @@ export default function ChatSidebar({ stage, activeBlockId }) {
 		}
 	};
 
+	// 마지막 메시지가 user 면 에이전트 회신 대기 → "thinking..." 표시.
+	// 채팅 전송·코멘트 둘 다 chatLog 를 거치므로 이 파생 규칙 하나로 커버.
+	const thinking = messages.length > 0 && messages.at(-1).role === "user";
+
 	return (
 		<aside className="chat-sidebar">
 			<div className="chat-head">
@@ -79,6 +83,17 @@ export default function ChatSidebar({ stage, activeBlockId }) {
 							<div className="chat-text">{m.text}</div>
 						</div>
 					))
+				)}
+				{thinking && (
+					<div className="chat-msg agent thinking">
+						<span className="chat-role">AI</span>
+						<div className="chat-text">
+							thinking
+							<span className="think-dots">
+								<i /> <i /> <i />
+							</span>
+						</div>
+					</div>
 				)}
 				<div ref={endRef} />
 			</div>
