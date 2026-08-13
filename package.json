@@ -9,6 +9,7 @@
   "scripts": {
     "build": "tsc -b && bun run build:viewer && bun scripts/install.mjs",
     "build:viewer": "cd apps/plan-viewer && bun run build",
+    "dev:viewer": "cd apps/plan-viewer && bun run dev",
     "typecheck": "tsc -b",
     "deploy": "bun scripts/install.mjs",
     "clean": "git clean -fdX packages apps"

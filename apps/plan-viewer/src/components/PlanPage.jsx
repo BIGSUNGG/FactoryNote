@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import Topbar from "./Topbar";
 import Stepper from "./Stepper";
@@ -67,6 +67,17 @@ export default function PlanPage({
 }) {
 	const label = STAGE_DEFS[stage - 1].label;
 	const blocks = useMemo(() => mdToBlocks(mdSource), [mdSource]);
+
+	// 에이전트 수정로 md 가 갱신되면(초기 로드 제외) 맨 위로 스크롤 —
+	// 상단에 prepend 된 수정 배너가 화면에 보이도록 보장(폴링 갱신 가시화).
+	const firstMdRef = useRef(true);
+	useEffect(() => {
+		if (firstMdRef.current) {
+			firstMdRef.current = false;
+			return;
+		}
+		window.scrollTo({ top: 0, behavior: "smooth" });
+	}, [mdSource]);
 	const toc = useMemo(() => {
 		const hs = blocks.filter(
 			(b) => b.type === "heading" && b.level >= 2 && b.level <= 3,
