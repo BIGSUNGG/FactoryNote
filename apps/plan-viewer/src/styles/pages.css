@@ -34,7 +34,7 @@
 	font-size: 14px;
 }
 .doc > * {
-	max-width: 760px;
+	max-width: 100%; /* 본문 블록은 .doc 폭(비율 반응형)을 따라감 */
 	margin-left: auto;
 	margin-right: auto;
 }

@@ -127,8 +127,16 @@
 	background: var(--primary-tint);
 }
 .doc {
+	--doc-ratio: 0.75; /* 16:9에서 가시 그리드 폭(G) 대비 .doc 차지 비율. 세로(9:16)는 항상 100%. 이 값만 바꾸면 16:9 폭 조절됨. */
+	grid-column: 2 / -1; /* col2 + col3 = 가시 그리드 배경 폭(G) 전체 차지 → 100%=G */
 	padding: var(--s5) var(--s5) 120px;
-	max-width: 760px;
+	/* 화면 비율에 따라 연속 변화(16:9·9:16 하드코딩 없음):
+	   16:9 → --doc-ratio·G, 9:16 → 100%(min() 클램프).
+	   177.78vh ≈ 16:9 뷰포트폭(1vh=0.5625%·W), 560px = 고정 크롬(목차220+채팅340). */
+	max-width: min(
+		100%,
+		calc(var(--doc-ratio) * 177.78vh - var(--doc-ratio) * 560px)
+	);
 	margin: 0 auto;
 	width: 100%;
 	/* md 렌더링 영역은 그리드에서 제외 → 불투명 흰색으로 덮음 */
