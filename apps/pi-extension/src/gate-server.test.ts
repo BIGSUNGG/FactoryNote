@@ -818,20 +818,43 @@ test("stage-request: 채팅과 같은 큐를 경유 — 대기 채팅 뒤 적재
 			decision: { verdict: "confirm", comments: [{ text: "재진행" }] },
 		}),
 	});
-	// 8) runGate 재진입(응답 완료) → 선행 채팅 3건만 chat 으로 전달, stage-request 는 큐 유지.
-	const second = await runGate({
+	// 8) runGate 재진입(응답 완료) → **선두 1개씩만** chat 으로 전달(일괄 배출 금지),
+	//    stage-request 는 큐 끝까지 대기 유지. 각 재진입마다 큐가 하나씩 줄어든다.
+	const r2 = await runGate({
 		root,
 		feature: "stagereq2",
 		viewerDistDir: VIEWER_DIST,
 		open: false,
 	});
-	expect(second.kind).toBe("chat");
-	if (second.kind === "chat")
-		expect(second.messages.map((m) => m.text)).toEqual([
-			"두번째",
-			"세번째",
-			"다시가능",
-		]);
+	expect(r2.kind).toBe("chat");
+	if (r2.kind === "chat")
+		expect(r2.messages.map((m) => m.text)).toEqual(["두번째"]);
+	const mid = (await (await fetch(`${url}/api/chat`)).json()) as {
+		queue: Array<Record<string, unknown>>;
+	};
+	expect(mid.queue.map((m) => m.kind ?? "chat")).toEqual([
+		"chat",
+		"chat",
+		"stage-request",
+	]);
+	const r3 = await runGate({
+		root,
+		feature: "stagereq2",
+		viewerDistDir: VIEWER_DIST,
+		open: false,
+	});
+	expect(r3.kind).toBe("chat");
+	if (r3.kind === "chat")
+		expect(r3.messages.map((m) => m.text)).toEqual(["세번째"]);
+	const r4 = await runGate({
+		root,
+		feature: "stagereq2",
+		viewerDistDir: VIEWER_DIST,
+		open: false,
+	});
+	expect(r4.kind).toBe("chat");
+	if (r4.kind === "chat")
+		expect(r4.messages.map((m) => m.text)).toEqual(["다시가능"]);
 	// 9) 다음 재진입 → 선두 stage-request → decision(confirm) 실행 + fulfilled 기록.
 	const third = await runGate({
 		root,

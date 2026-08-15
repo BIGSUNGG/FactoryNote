@@ -227,6 +227,13 @@
 	font-size: 12.5px;
 	color: var(--text);
 }
+/* 큐 미리보기 — 첫 줄만 한 줄로(줄바꿈·넒침 말줄임). */
+.chat-queued-preview {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	min-width: 0;
+}
 .chat-cancel {
 	flex: none;
 	background: transparent;
@@ -245,6 +252,16 @@
 .chat-cancel:disabled {
 	opacity: 0.4;
 	cursor: not-allowed;
+}
+/* stage-request 큐 카드(--primary 채운 배경)의 ✕ — muted 회색은 배경과 대비가 없어
+ * 안 보였다. on-color 계열로 대비 확보(ADR-026 후속 수정). */
+.chat-queued-msg.stage-request .chat-cancel {
+	color: var(--on-color);
+	opacity: 0.9;
+}
+.chat-queued-msg.stage-request .chat-cancel:hover:not(:disabled) {
+	color: var(--on-color);
+	background: rgba(255, 255, 255, 0.25);
 }
 /* 확정(단계 진행) 요청 대기 중 채팅 입력 잠금 안내. */
 .chat-lock-notice {

@@ -11,6 +11,7 @@ export default function GateBar({
 	onRevert,
 	onReview,
 	loading = false, // 확정/검토 요청 제출 후 다음 산출물 준비 중(확정 버튼 로딩, 전체 화면 전환 없음)
+	loadingLabel, // 로딩 사유 라벨(예: 확정 요청이 큐 대기 중 '앞선 채팅 응답 후 진행…'). 미지정 시 단계별 기본 라벨.
 }) {
 	const isLast = stage >= 3;
 	// 회귀 대상 후보 = 현재 단계보다 앞선 Stage(1..stage-1).
@@ -62,7 +63,8 @@ export default function GateBar({
 				{loading ? (
 					<>
 						<span className="spinner" aria-hidden="true" />
-						{isLast ? " 완료 처리 중…" : " 다음 단계 작성 중…"}
+						{loadingLabel ??
+							(isLast ? " 완료 처리 중…" : " 다음 단계 작성 중…")}
 					</>
 				) : isLast ? (
 					"✓ 최종 확정 (완료)"

@@ -55,6 +55,7 @@ let currentState;
 let esListeners; // { type -> Set<fn> }
 let chatPosts; // /api/chat POST 기록(stage-request 검증용)
 let decisionPosts; // /api/decision POST 기록(채널 단일화 검증용)
+let chatGet; // GET /api/chat 응답(큐 대기 상태 시나리오용)
 const originalFetch = globalThis.fetch;
 const originalEventSource = globalThis.EventSource;
 
@@ -63,6 +64,7 @@ function installStubs() {
 	esListeners = new Map();
 	chatPosts = [];
 	decisionPosts = [];
+	chatGet = { messages: [], queue: [] };
 	globalThis.fetch = async (url, opts) => {
 		if (String(url).endsWith("/api/state")) {
 			return { ok: true, json: async () => currentState };
@@ -88,7 +90,7 @@ function installStubs() {
 			}
 			return {
 				ok: true,
-				json: async () => (method === "GET" ? { messages: [], queue: [] } : {}),
+				json: async () => (method === "GET" ? chatGet : {}),
 			};
 		}
 		if (String(url).endsWith("/api/review-request")) {
@@ -112,6 +114,12 @@ function pushState(next) {
 	currentState = next;
 	const fns = esListeners.get("state") || new Set();
 	for (const fn of fns) fn(new Event("state"));
+}
+
+// SSE 'chat' 이벤트(큐 변동)를 밀어 App 이 fetchQueue 를 다시 돌리게 한다.
+function pushChat() {
+	const fns = esListeners.get("chat") || new Set();
+	for (const fn of fns) fn(new Event("chat"));
 }
 
 let container;
@@ -301,4 +309,65 @@ test("confirm(마지막 아님) → /api/chat 에 stage-request(decision 포함)
 	expect(stageReq.targetStage).toBe(2);
 	expect(stageReq.decision.verdict).toBe("confirm");
 	expect(decisionPosts).toHaveLength(0); // decision 은 큐 페이로드로만 전달
+});
+
+// ——— 6) 확정 요청 큐 대기 중 게이트 바 로딩 유지 + 상황별 라벨 ———
+test("확정 요청이 큐 대기 중인 동안 게이트 재오픈(채팅 루프)해도 로딩 유지, 다음 단계 오픈 시 해제", async () => {
+	const confirmBtn = () =>
+		[...container.querySelectorAll(".btn.primary")].find((b) =>
+			b.className.includes("primary"),
+		) ??
+		[...container.querySelectorAll("button")].find((b) =>
+			b.textContent.includes("확정"),
+		);
+	// Stage 1 reviewing.
+	await React.act(async () => {
+		currentState = makeState({ stage: 1, stageName: "요구사항·시나리오" });
+		pushState(currentState);
+	});
+	// 큐에 stage-request 대기 중 상태로 확정 클릭 → 적재 + fetchQueue → 로딩 시작.
+	chatGet = {
+		messages: [],
+		queue: [{ id: "sr1", kind: "stage-request", status: "pending", at: 1 }],
+	};
+	let btn = confirmBtn();
+	await React.act(async () => {
+		btn.dispatchEvent(
+			new window.MouseEvent("click", { bubbles: true, cancelable: true }),
+		);
+		await new Promise((r) => setTimeout(r, 0));
+	});
+	btn = confirmBtn();
+	expect(btn.textContent).toContain("앞선 채팅 응답 후 진행…");
+	// 채팅 응답 루프로 같은 단계 게이트가 재오픈(gateOpen=true) → 로딩 유지되어야 한다.
+	await React.act(async () => {
+		pushState(
+			makeState({ stage: 1, stageName: "요구사항·시나리오", gateOpen: true }),
+		);
+		await new Promise((r) => setTimeout(r, 0));
+	});
+	btn = confirmBtn();
+	expect(btn.textContent).toContain("앞선 채팅 응답 후 진행…");
+	expect(btn.disabled).toBe(true);
+	// 확정 실행(큐 해소) → 단계 진행 + 게이트 닫힘(2단계 작성 중) → 기본 라벨로 유지.
+	chatGet = { messages: [], queue: [] };
+	await React.act(async () => {
+		pushChat();
+		pushState(
+			makeState({ stage: 2, stageName: "모듈·클래스 설계", gateOpen: false }),
+		);
+		await new Promise((r) => setTimeout(r, 0));
+	});
+	btn = confirmBtn();
+	expect(btn.textContent).toContain("다음 단계 작성 중…");
+	// Stage 2 게이트 오픈 → 로딩 해제, 다음 확정 버튼 라벨.
+	await React.act(async () => {
+		pushState(
+			makeState({ stage: 2, stageName: "모듈·클래스 설계", gateOpen: true }),
+		);
+		await new Promise((r) => setTimeout(r, 0));
+	});
+	btn = confirmBtn();
+	expect(btn.textContent).toContain("확정 → Stage 3");
+	expect(btn.disabled).toBe(false);
 });

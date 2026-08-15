@@ -67,10 +67,19 @@ function flush() {
 	return new Promise((r) => setTimeout(r, 0));
 }
 
-test("대기 채팅은 플레이스홀더(본문 미노출)로 큐 렌더, 채팅 입력은 유지", async () => {
+test("대기 채팅은 '대기' 태그 + 한 줄 미리보기로 큐 렌더, 채팅 입력은 유지", async () => {
 	chatResp = {
 		messages: [{ id: "m1", role: "agent", text: "안녕", at: 1 }],
-		queue: [{ id: "q1", role: "user", text: "수정해줘", at: 2 }],
+		queue: [
+			{ id: "q1", role: "user", text: "수정해줘", at: 2 },
+			{
+				id: "q2",
+				role: "user",
+				text: "a".repeat(60),
+				at: 3,
+				blockId: "b3",
+			},
+		],
 	};
 	await React.act(async () => {
 		root.render(h(ChatSidebar, { stage: 1 }));
@@ -79,11 +88,16 @@ test("대기 채팅은 플레이스홀더(본문 미노출)로 큐 렌더, 채�
 		await flush();
 	});
 	expect(container.textContent).toContain("전송 대기 중");
-	expect(container.textContent).toContain("대기 중 · 채팅");
+	const items = container.querySelectorAll(".chat-queued-msg");
+	expect(items).toHaveLength(2);
+	// 미리보기 — 무엇이 대기 중인지 식별 가능(첫 줄 + 말줄임 40자).
+	expect(items[0].textContent).toContain("대기");
+	expect(items[0].textContent).toContain("수정해줘");
+	expect(items[1].textContent).toContain("[b3]");
+	expect(items[1].textContent).toContain("a".repeat(40));
+	expect(items[1].textContent).not.toContain("a".repeat(41)); // 40자 넘으면 말줄임
 	expect(container.querySelector(".chat-cancel")).toBeDefined();
-	// 대기 콘텍스트 플레이스홀더 — 본문은 실제 전송 후에만 공개.
-	expect(container.textContent).not.toContain("수정해줘");
-	// 본 채팅 영역(.chat-body)에도 대기 메시지가 노출되지 않는다.
+	// 본 채팅 영역(.chat-body)에는 대기 메시지가 노출되지 않는다.
 	const sentMsgs = container.querySelectorAll(".chat-body .chat-msg");
 	expect([...sentMsgs].some((el) => el.textContent.includes("수정해줘"))).toBe(
 		false,
@@ -155,6 +169,18 @@ test("큐의 단계 요청은 강조 + ✕(취소 허용) 렌더, 채팅 입력 
 	expect(
 		container.querySelector(".chat-body .chat-msg.stage-request"),
 	).toBeNull();
+	// ✕ 클릭 → /api/chat/cancel POST 로 확정 요청 취소(큐 비면 잠금 해제).
+	await React.act(async () => {
+		pending
+			.querySelector(".chat-cancel")
+			.dispatchEvent(
+				new window.MouseEvent("click", { bubbles: true, cancelable: true }),
+			);
+		await flush();
+	});
+	expect(cancelCalls).toHaveLength(1);
+	expect(cancelCalls[0].id).toBe("sr1");
+	expect(container.querySelector(".chat-lock-notice")).toBeNull();
 });
 
 test("fulfilled 단계 요청은 채팅 본문에 강조 렌더", async () => {

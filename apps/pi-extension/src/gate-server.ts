@@ -81,9 +81,10 @@ export async function runGate(opts: RunGateOptions): Promise<GateEvent> {
 
 	// 채팅 루프 재진입 보호 + 큐 드레인: runGate 가 chat 로 resolve 된 뒤 에이전트가
 	// 응답·재진입하는 사이에 쌓인 pendingChats(가시 큐)를 에이전트에 넘기는 순간이 '읽기'다.
-	// 선두가 일반 채팅이면 선행 채팅들(단계 요청 직전까지)을 chatLog 로 승격해 chat 이벤트로
-	// 전달하고, 선두가 단계 진행 요청(stage-request)이면 — 앞 채팅 응답이 모두 끝났다 —
-	// fulfilled 기록 후 decision(confirm) 이벤트로 resolve 해 다음 단계를 진행시킨다.
+	// 재진입마다 **선두 1개만** 전달한다 — 대기 채팅 여러 개가 한 번에 배출되지 않고
+	// 각각 앞 응답이 끝난 뒤 순서대로 실행된다. 선두가 단계 진행 요청(stage-request)
+	// 이면 — 앞 채팅 응답이 모두 끝났다 — fulfilled 기록 후 decision(confirm) 이벤트로
+	// resolve 해 다음 단계를 진행시킨다.
 	if (gate.pendingChats.length > 0) {
 		const head = gate.pendingChats[0];
 		if (head && head.kind === "stage-request") {
@@ -98,16 +99,11 @@ export async function runGate(opts: RunGateOptions): Promise<GateEvent> {
 				decision: head.decision ?? { verdict: "confirm", comments: [] },
 			});
 		} else {
-			const drain: ChatMessage[] = [];
-			while (
-				gate.pendingChats[0] &&
-				gate.pendingChats[0].kind !== "stage-request"
-			)
-				drain.push(gate.pendingChats.shift() as ChatMessage);
-			for (const m of drain) gate.chatLog.push(m);
+			const m = gate.pendingChats.shift() as ChatMessage;
+			gate.chatLog.push(m);
 			const r = gate.currentResolver;
 			gate.currentResolver = null;
-			r?.({ kind: "chat", messages: drain });
+			r?.({ kind: "chat", messages: [m] });
 			broadcastSse(gate, "chat");
 		}
 	}

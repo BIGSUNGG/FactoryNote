@@ -1,6 +1,6 @@
 ---
 status: accepted
-updated: 2026-08-14
+updated: 2026-08-15
 tags: [adr, chat, gate, viewer, stage-request, queue]
 ---
 
@@ -28,11 +28,12 @@ accepted — [[ADR-025-stage-request-chat-record]] 를 대체(supersede)
 **큐 경유 단일 채널 모델** — 비최종 단계 확정은 `/api/decision` 을 거치지 않고 `POST /api/chat {kind:"stage-request", targetStage, decision}` 하나로 표현한다. 단계 요청은 일반 채팅과 같은 `pendingChats` 큐의 마지막 칸에 적재되고, `ChatMessage.decision`(신규 선택 필드)에 실행될 `GateDecision` 을 실어 운반한다.
 
 1. **적재**: 서버는 단계 요청을 `pendingChats` 에 push. 이미 대기 중인 단계 요청이 있으면 `{ok:false, reason:"already-pending"}` 로 거부(이중 확정 방지). 게이트가 열려 있고 앞 대기가 없으면(유일 항목) 즉시 `fulfilled` 기록 후 `decision` 이벤트로 resolve — 기존 즉시 진행 체감 유지.
-2. **드레인**: `runGate` 재진입 시 큐 선두가 일반 채팅이면 선행 채팅들(단계 요청 직전까지)만 `chat` 이벤트로 전달하고, 선두가 단계 요청이면 — 앞 채팅 응답이 모두 끝났다는 뜻 — `fulfilled` 기록 후 `decision(confirm)` 이벤트로 resolve 해 다음 단계를 진행시킨다.
+2. **드레인(1개씩)**: `runGate` 재진입마다 큐 **선두 1개만** 전달한다(2026-08-15 개정 — 일괄 배출 금지). 선두가 일반 채팅이면 그 1건만 `chat` 이벤트로 전달하고, 선두가 단계 요청이면 — 앞 채팅 응답이 모두 끝났다는 뜻 — `fulfilled` 기록 후 `decision(confirm)` 이벤트로 resolve 해 다음 단계를 진행시킨다. 대기 채팅 여러 개는 각각 앞 응답이 끝난 뒤 하나씩 순서 실행된다.
 3. **채팅 잠금**: 단계 요청이 큐에 대기 중이면 `POST /api/chat`(텍스트)을 `{ok:false, reason:"stage-request-pending"}` 로 거부. 뷰어는 입력 임금 + 안내 배너, 전송 거부 시 draft 유지.
 4. **취소**: 대기 중 단계 요청도 일반 채팅과 동일하게 `/api/chat/cancel` 로 취소 가능(실행 시작 후 불가 — read-wins 는 [[ADR-024-chat-send-queue]] 동일).
-5. **플레이스홀더**: 큐 영역의 일반 채팅은 본문 미노출 '대기 중 · 채팅' 플레이스홀더만 표시하고, 본문은 실제 전송(승격) 후 채팅 로그에만 공개. 단계 요청은 종전대로 ➡Stage 뱃지 + 채운 배경 강조.
-6. **비최종/최종 분기**: 최종(3단계) 확정·modify·revert 는 기존대로 `/api/decision` 즉시 전달. `App.onGate` 만 분기한다.
+5. **큐 가시성(2026-08-15 개정)**: 큐 영역의 일반 채팅은 '대기' 태그 + **한 줄 미리보기**(첫 줄 ~40자 말줄임, 블록 스코프면 `[blockId]`)로 무엇이 대기 중인지 식별 가능하게 표시한다. 본문 전체는 실제 전송(승격) 후 채팅 로그에만 공개. 단계 요청은 ➡Stage 뱃지 + 채운 배경 강조, ✕ 취소 버튼은 배경과 대비되는 `--on-color` 계열로 표시한다.
+6. **게이트 바 대기 상태(2026-08-15 추가)**: 확정 요청이 큐에 대기 중인 동안에는 채팅 응답 루프로 게이트가 같은 단계로 재오픈(`gateOpen=true`)해도 게이트 바 로딩이 유지된다(`App.stageQueued` — SSE chat 이벤트마다 큐 동기화). 라벨은 상황별: 대기 중 '앞선 채팅 응답 후 진행…', 실행 후(gateOpen=false + 단계 진행 감지 시 pending 재설정) 기존 '다음 단계 작성 중…'.
+7. **비최종/최종 분기**: 최종(3단계) 확정·modify·revert 는 기존대로 `/api/decision` 즉시 전달. `App.onGate` 만 분기한다.
 
 ## 이유 (Rationale)
 

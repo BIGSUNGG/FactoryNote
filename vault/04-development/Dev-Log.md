@@ -1,11 +1,35 @@
 ---
-updated: 2026-08-14
+updated: 2026-08-15
 tags: [development, dev-log]
 ---
 
 # Dev-Log
 
 날짜별 작업 기록. 무엇을 했는지, 왜, 무엇이 남았는지. [[Changelog]]는 외부용 단위, 본 파일은 일일 흐름.
+
+## 2026-08-15
+
+### 큐 후속 UX 4건 — 1개씩 순서 전달·미리보기·취소 버튼 대비·게이트 바 대기 유지 ([[ADR-026-stage-request-queue-transit]] 개정)
+
+**맥락**: 사용자 보고 4건 — ① 대기 채팅 2개가 응답 완료 시 한 번에 배출돼 큐가 한꺼번에 비워짐(하나씩 기다리게 해야 함) ② 큐에서 무엇이 대기 중인지 안 보임 ③ 확정 요청 대기 항목에 취소 버튼이 안 보임 ④ 확정 요청 실행 시 게이트 바가 대기 상태로 전환되지 않고 다음 단계 페이지로 바로 넘어감.
+
+**원인 분석**:
+
+1. `gate-server.ts` 드레인 `while` 루프가 선행 채팅을 전부 한 chat 이벤트로 배출.
+2. 이전 세션의 '플레이스홀더만' 요구 반영으로 본문 전체를 가렸더니 식별 불가(요구 반전).
+3. ✕ 버튼은 렌더링되지만 `--muted` 회색이 `--primary` 배경과 대비가 없어 시각적으로 사라짐(CSS 문제).
+4. `applyState`가 `gateOpen=true`마다 `setPending(false)` — 채팅 응답 루프의 게이트 재오픈이 로딩을 해제했고, 실행 시엔 pending 이 이미 풀린 상태.
+
+**작업**:
+
+- `gate-server.ts`: 드레인을 선두 1개만 전달로 변경(채팅 1건 씩; stage-request 선두 시 decision 은 유지).
+- `ChatSidebar.jsx`: 큐 미리보기(`previewOf` — 첫 줄 ~40자 말줄임) + '대기' 태그 + `[blockId]`.
+- `chat.css`: `.chat-queued-preview`(한 줄 말줄임), `.chat-queued-msg.stage-request .chat-cancel` `--on-color` 대비 규칙.
+- `App.jsx`: `stageQueued` 상태 + `fetchQueue`(마운트·SSE chat·확정 직후 동기화), `applyState` gateOpen=false + 단계 진행 감지 시 `setPending(true)` 재설정, `loading={pending || stageQueued}` + `loadingLabel` 상황별 전달.
+- `GateBar.jsx`/`PlanPage.jsx`: `loadingLabel` prop 추가·전달.
+- 테스트: 서버 시나리오 1개씩 전달 검증(재진입마다 1건 + 중간 큐 상태), 뷰어 미리보기(40자 말줄임·blockId)·취소 POST 호출, App 로딩 유지 시나리오(재오픈 유지 → 실행 → 기본 라벨 → 해제). `bun test` 173 pass, `bun run build` 0 종료(배포).
+
+**교훈**: '미리보기 없는 플레이스홀더' 요구는 하루 만에 반전됨 — 큐 UI는 '무엇이' 대기 중인지가 핵심 정보. 스펙 확정 시 식별성과 프라이버시(본문 비노출)를 함께 물었어야 했다.
 
 ## 2026-08-14
 

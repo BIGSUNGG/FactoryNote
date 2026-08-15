@@ -23,10 +23,26 @@ export default function App() {
 	const notifiedRef = useRef(false); // 전환 알림 1회 가드(preparing→reviewing)
 	// F1: 채팅 부분 코멘트용 현재 선택 블록(PlanPage 가 갱신).
 	const [activeBlockId, setActiveBlockId] = useState(null);
+	// ADR-026 후속: 확정(단계 진행) 요청이 큐에 대기 중인지. 채팅 응답 루프로 게이트가
+	// 같은 단계로 재오픈해도(gateOpen=true) GateBar 로딩이 풀리지 않게 하는 상태.
+	const [stageQueued, setStageQueued] = useState(false);
+
+	// 큐의 stage-request 대기 여부 동기화(SSE chat 이벤트·확정 직후에 호출).
+	const fetchQueue = async () => {
+		try {
+			const r = await fetch("/api/chat");
+			if (!r.ok) return;
+			const d = await r.json();
+			setStageQueued((d.queue || []).some((m) => m.kind === "stage-request"));
+		} catch {
+			/* 무시 — 다음 이벤트에서 재동기화 */
+		}
+	};
 
 	// 초기 1회 로드.
 	useEffect(() => {
 		fetchState();
+		fetchQueue();
 		// ponytail: cleanup 불필요 — 폴링 effect 가 phase 전환을 주도.
 	}, []);
 
@@ -35,10 +51,12 @@ export default function App() {
 		if (phase === "closed") return;
 		const es = new EventSource("/api/events");
 		es.addEventListener("state", fetchState);
-		// 채팅 회신 push → ChatSidebar 가 fn-chat-update 로 fetchChat.
-		es.addEventListener("chat", () =>
-			window.dispatchEvent(new Event("fn-chat-update")),
-		);
+		// 채팅 회신 push → ChatSidebar 가 fn-chat-update 로 fetchChat. 큐(확정 요청
+		// 대기) 변동 시 GateBar 로딩 유지 판정도 같이 갱신한다.
+		es.addEventListener("chat", () => {
+			window.dispatchEvent(new Event("fn-chat-update"));
+			fetchQueue();
+		});
 		return () => es.close();
 	}, [phase]);
 
@@ -78,6 +96,10 @@ export default function App() {
 			});
 		} else {
 			notifiedRef.current = false;
+			// 확정 요청 실행 감지: 큐에 대기하던 단계 요청이 실행되면 단계가 진행되고 게이트가
+			// 닫힌다. 채팅 루프 재오픈에서 pending 이 이미 풀렸으므로 여기서 재설정해
+			// 다음 단계 게이트가 열릴 때까지 로딩을 유지한다(ADR-026 후속).
+			if (state && s.stage !== state.stage) setPending(true);
 			// 에이전트 작업 중(gateOpen=false).
 			// 이미 검토 페이지를 보고 있다면(확정/검토요청 제출 후) 전체 화면으로
 			// 전환하지 않고 페이지를 유지 — 확정 버튼 로딩 연출(onGate/pending)이 대기 상태를
@@ -102,6 +124,8 @@ export default function App() {
 						decision,
 					}),
 				});
+				// 적재 직후 큐 상태 반영(SSE chat 이벤트 대기 없이 즉시 로딩 유지).
+				await fetchQueue();
 			} else {
 				await fetch("/api/decision", {
 					method: "POST",
@@ -169,7 +193,8 @@ export default function App() {
 			}
 			graphData={graphData}
 			readOnly={readOnly}
-			loading={pending}
+			loading={pending || stageQueued}
+			loadingLabel={stageQueued ? "앞선 채팅 응답 후 진행…" : undefined}
 		/>
 	);
 

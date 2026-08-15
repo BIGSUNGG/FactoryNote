@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-14
+updated: 2026-08-15
 tags: [development, changelog]
 ---
 
@@ -17,6 +17,8 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 - **게이트 채팅 전송 대기 큐(read-wins 취소)** — 에이전트가 응답 중(도구 호출 중, `runGate` 대기 아님)일 때 보낸 채팅을 `chatLog` 가 아닌 가시 대기 큐(`pendingChats`)에 적재. 뷰어 채팅 사이드바에 별도 **'전송 대기 중' 영역**이 표시되고 각 메시지를 ✕ 로 **전송 취소**(완전 삭제)할 수 있다. 에이전트가 응답을 마치고 `runGate` 에 재진입해 큐 메시지를 `chat` 이벤트로 넘기는 순간(= '읽기') `chatLog` 로 **승격**되어 일반 전송 메시지로 전환된다. 에이전트가 듣는 중(`runGate` 대기)에 보내면 종래대로 즉시 전송(큐 미경유). 전송 경로 분기는 `currentResolver` 유무로 판별. **read-wins**: 이미 넘겨진 메시지의 취소는 `POST /api/chat/cancel` 이 `{ok:false, reason:"already-sent"}` 로 거부(단일 스레드 불변조건 '큐에 없으면 이미 넘겨진 것'으로 보장). `GET /api/chat` 응답에 `queue` 배열 추가, SSE `chat` 이벤트를 적재·취소·승급 시점에 push. `makeGateHandler` 가 `broadcast` 를 주입받도록 시그니처 변경(`gate-http↔gate-manager` 순환 import 회피). 게이트 바 결정·에이전트→사용자 답변·코멘트/그래프는 무변경. 신규 자체체크 3건(서버 큐 라이프사이클 1 + 뷰어 큐 렌더·취소 2). 자체체크 167 pass. [[ADR-024-chat-send-queue]]
 
 ### Changed
+
+- **큐 후속 UX 4건 — 1개씩 순서 전달·미리보기·취소 버튼 대비·게이트 바 대기 유지 ([[ADR-026]] 개정)** — (1) `runGate` 드레인을 일괄 배출에서 **재진입마다 선두 1개만 전달**로 변경 — 대기 채팅 2개가 한 번에 배출되던 것을 각각 앞 응답 종료 후 하나씩 순서 실행. (2) 큐 대기 채팅 항목에 '대기' 태그 + **한 줄 미리보기**(첫 줄 ~40자 말줄임, `[blockId]` 표시) 추가 — 무엇이 대기 중인지 식별 가능(본문 전체는 전송 후 공개 유지). (3) stage-request 큐 카드의 ✕ 취소 버튼이 `--muted` 회색이라 `--primary` 배경에서 안 보이던 CSS 대비 문제 수정(`--on-color` 계열 + hover 처리). (4) 확정 요청 큐 대기 중 채팅 응답 루프로 게이트가 재오픈해도 게이트 바 로딩이 풀리던 문제 수정 — `App.stageQueued`(SSE chat 이벤트마다 `/api/chat` 큐 동기화)로 로딩 유지, 라벨 상황별('앞선 채팅 응답 후 진행…' / '다음 단계 작성 중…'), 실행 감지(gateOpen=false + 단계 진행) 시 pending 재설정. `GateBar.loadingLabel`·`PlanPage.loadingLabel` 전달 추가. 테스트: 서버 시나리오를 1개씩 전달(재진입 3회 각 1건 + 큐 감소 검증)로 갱신, 뷰어 미리보기·취소 호출 검증, App 로딩 유지 시나리오 추가. 자체체크 173 pass. [[ADR-026-stage-request-queue-transit]]
 
 - **다음 단계 요청의 큐 경유(단일 채널 진행) — 응답 중 확정 드롭·큐 미표시 수정** — [[ADR-025-stage-request-chat-record]] 의 컴패니언 모델(기록 전용, `/api/decision` 즉시 진행)을 대체: 비최종 단계 확정은 `POST /api/chat {kind:'stage-request', targetStage, decision}` 하나로 표현되며 **채팅과 같은 `pendingChats` 큐의 마지막 칸에 적재**된다(`ChatMessage.decision` 신규 선택 필드가 실행될 `GateDecision` 운반). 게이트 열림+앞 대기 없음 → 즉시 `fulfilled` 기록 후 decision resolve(기존 체감 유지); 대기 채팅이 있으면 그 뒤에 순서 적재 → `runGate` 드레인이 선행 채팅만 `chat` 이벤트로 전달 → 선두 도달 시 `decision(confirm)` 으로 resolve. 이로써 응답 중(`currentResolver` null) 확정이 드롭되던 `r?.()` 버그가 구조적으로 제거됨. **확정 대기 중 채팅 거부**(`{ok:false, reason:'stage-request-pending'}`) + 뷰어 입력 잠금·안내 배너(`chat-lock-notice`), **대기 중 확정 요청도 ✕ 취소 허용**(read-wins). **큐 플레이스홀더** — 대기 채팅은 본문 미노출 '대기 중 · 채팅' 태그만 표시, 본문은 전송(승격) 후 공개. 최종(3단계) 확정·modify·revert 는 기존대로 `/api/decision`. 신규 자체체크: 서버 5단계 시나리오(순서 적재→채팅 거부→취소→재확정→드레인→decision 실행·코멘트 페이로드) + 즉시 resolve 2건, 뷰어 플레이스홀더·잠금 2건(갱신), App 채널 단일화 1건(갱신). 자체체크 172 pass. [[ADR-026-stage-request-queue-transit]]
 

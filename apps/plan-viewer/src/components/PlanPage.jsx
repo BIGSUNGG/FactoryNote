@@ -81,6 +81,7 @@ export default function PlanPage({
 	graphData = {},
 	readOnly = false, // 이전 단계 보기: 코멘트·게이트·채팅 비활성
 	loading = false, // 게이트 결정 제출 후 다음 산출물 준비 중(확정 버튼 로딩)
+	loadingLabel, // 로딩 사유 라벨(확정 요청 큐 대기 중 안내). GateBar 로 전달.
 	onSelectStage, // 읽기 전용 이전 단계 선택/복귀(단계 전환 이벤트)
 }) {
 	const label = STAGE_DEFS[stage - 1].label;
@@ -253,6 +254,7 @@ export default function PlanPage({
 					onRevert={sendRevert}
 					onReview={onReview}
 					loading={loading}
+					loadingLabel={loadingLabel}
 				/>
 			)}
 			<div className="fs-control" role="group" aria-label="글자 크기">

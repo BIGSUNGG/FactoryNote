@@ -85,6 +85,11 @@ export default function ChatSidebar({
 	// 확정(단계 진행) 요청이 큐에서 대기 중 → 이후 채팅 입력 잠금 + 안내 표시.
 	const stagePending = queue.some((m) => m.kind === "stage-request");
 	const inputDisabled = disabled || stagePending;
+	// 큐 미리보기 — 첫 줄 기준 한 줄 요약(~40자 + 말줄임). 무엇이 대기 중인지 식별용.
+	const previewOf = (text) => {
+		const first = (text ?? "").split("\n")[0].trim();
+		return first.length > 40 ? `${first.slice(0, 40)}…` : first;
+	};
 
 	return (
 		<aside className="chat-sidebar">
@@ -157,8 +162,16 @@ export default function ChatSidebar({
 									➡ Stage {m.targetStage} 진행 요청
 								</span>
 							) : (
-								// 대기 콘텍스트 플레이스홀더 — 본문은 실제 전송 후 채팅 로그에만 공개.
-								<span className="chat-queued-tag">대기 중 · 채팅</span>
+								<>
+									{/* 대기 콘텍스트 태그 + 한 줄 미리보기 — 전체 본문은 전송 후 채팅 로그에 공개. */}
+									<span className="chat-queued-tag">대기</span>
+									{m.blockId && (
+										<span className="chat-block">[{m.blockId}]</span>
+									)}
+									<div className="chat-text chat-queued-preview">
+										{previewOf(m.text)}
+									</div>
+								</>
 							)}
 							<button
 								type="button"
