@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-13
+updated: 2026-08-14
 tags: [development, dev-log]
 ---
 
@@ -7,7 +7,49 @@ tags: [development, dev-log]
 
 날짜별 작업 기록. 무엇을 했는지, 왜, 무엇이 남았는지. [[Changelog]]는 외부용 단위, 본 파일은 일일 흐름.
 
+## 2026-08-14
+
+### 다음 단계 요청의 큐 경유(단일 채널) — 응답 중 확정 드롭·큐 미표시 수정 ([[ADR-026-stage-request-queue-transit]])
+
+**맥락**: 사용자 보고 — 큐에 채팅 2개가 대기 중인 상태에서 확정 버튼을 눌러도 '다음 단계 요청'이 채팅 2개 뒤 3번째 칸으로 보이지 않고, 실제 진행도 채팅 응답이 끝난 뒤에 이루어지지 않음. 추가 요구: 확정 대기 중 채팅 입력 잠금+안내, 큐 항목은 본문이 아닌 대기 콘텍스트 플레이스홀더.
+
+**원인 분석**(`/goal` 검증 계약 하에 조사):
+
+1. `gate-http.ts` stage-request 분기가 `chatLog` 에 직접 push(주석 그대로 '전달/큐 미경유') — 큐(`pendingChats`)에 안 들어가 순서 표시가 불가능했다.
+2. `/api/decision` 핸들러가 `currentResolver` null(에이전트가 채팅 응답 중)이면 `r?.()` 로 **확정 결정을 조용히 드롭** — 기록만 남고 진행은 안 되어 재클릭이 필요했다.
+
+**작업**:
+
+- `types/gate.ts`: `ChatMessage.decision?: GateDecision` 추가(큐 항목이 실행될 결정을 운반 — 서버 내부용).
+- `gate-http.ts`: stage-request → `pendingChats` 마지막 칸 적재(+이중 확정 `already-pending` 거부). 게이트 열림+유일 항목이면 즉시 fulfilled 기록 후 decision resolve. 텍스트 채팅 POST 는 큐에 stage-request 대기 중 `stage-request-pending` 거부.
+- `gate-server.ts`: runGate 드레인 재작성 — 선두가 채팅이면 선행 채팅만 chat 이벤트(단계 요청 직전까지), 선두가 stage-request 면 fulfilled 기록 + `decision(confirm)` resolve. 구 `chatLog` pending 승격 스캔 제거.
+- `App.jsx`: `onGate` 분기 — 비최종 confirm 은 `/api/chat stage-request(decision 포함)` 단일 채널, 최종/modify/revert 만 `/api/decision`.
+- `ChatSidebar.jsx`: 큐 플레이스홀더('대기 중 · 채팅', 본문 미노출), stage-request 대기 중 입력 잠금 + `.chat-lock-notice` 안내, 전송 거부 시 draft 유지, 취소 ✕ 를 단계 요청에도 부여.
+- `chat.css`: `.chat-lock-notice` 스타일.
+- 테스트: 서버 5단계 시나리오(즉시 전달→2건 적재→확정 3번째 칸→채팅 거부→취소→재확정→드레인 chat→decision 실행·코멘트 페이로드 검증) + 즉시 resolve 경로, 뷰어 플레이스홀더·잠금 2건, App 채널 단일화(decision 미경유) 1건. `bun test` 172 pass, `bun run build` 0 종료(배포 완료).
+- 문서: ADR-026 작성, ADR-025 superseded 처리.
+
+**남은 것**: modify/revert 를 응답 중(resolver null)에 누르면 여전히 드롭된다(사전 존재 동작, 범위 밖 — 필요 시 동일 큐 패턴으로 `kind:'decision-request'` 확장 가능). 구 뷰어와 신 서버 혼용 시 비최종 confirm 이 빈 코멘트로 즉시 실행되나 빌드=배포로 실질 동시 갱신.
+
 ## 2026-08-13
+
+### 다음 단계 요청 채팅 강조 기록(pending→fulfilled) + 큐 재디자인 ([[ADR-025-stage-request-chat-record]])
+
+**맥락**: 사용자 요청 — '확정 → 다음 단계' 버튼을 누르면 '다음 단계 요청'이 채팅처럼 채팅창에 나타나야 하고, 큐에도 올라갈 수 있으며, 채팅·큐 양쪽에서 특별한 메시지로 강조. 추가로 큐 전반 디자인 개선·둥근 테두리.
+
+**조사**: 게이트 결정(`/api/decision`, 단계 진행)과 채팅(`/api/chat`, 정제)은 [[ADR-009-realtime-chat-loop]] 가 분리한 별개 채널. 단계 요청을 실제 전달 큐(`pendingChats`)에 넣으면 결정 채널과 resolver 경쟁·이중 전달이 생긴다. → 결정 채널은 그대로 두고, 단계 요청을 **채팅 로그 기록 전용**(전달 X, 취소 불가)으로 분리. 게이팅 사용자 선택: '결정 진행 + 강조 기록'(companion) 모델, 디자인은 '채운 액센트 배경'.
+
+**작업**:
+
+- `types/gate.ts`: `ChatMessage` 에 선택 필드 `kind?:"stage-request"`·`status?:"pending"|"fulfilled"`·`targetStage?:number` 추가(후방 호환).
+- `gate-http.ts`: `POST /api/chat` 에 `kind:"stage-request"` 분기 — `chatLog` 에 `status:"pending"` 으로 push 하되 `currentResolver`/`pendingChats` 건드리지 않음(게이트 유지, 결정 채널로만 진행).
+- `gate-server.ts`: `runGate` 시작(currentResolver 설정 직후, `onReady` 이전)에 `chatLog` 내 `pending` 단계 요청을 `fulfilled` 로 전환 + `broadcastSse("chat")`.
+- `App.jsx`: `onGate` 가 `verdict:"confirm"` 且 `state.stage<3` 일 때 `/api/decision` 외에 `/api/chat {kind:"stage-request", targetStage:stage+1}` POST.
+- `ChatSidebar.jsx`: `pendingStageReqs` 계산 — pending 단계 요청은 큐 영역에 강조(✕ 없음), fulfilled 은 채팅 본문에 강조(messages.map 에서 pending 은 skip). thinking 표시에서 stage-request 제외.
+- `chat.css`: 단계 요청 `--primary` 채운 배경 + 10px 둥근 카드, 큐 아이템 점선→실선 둥근 카드·태그 pill.
+- 테스트: `gate-server.test.ts` +1(stage-request pending 기록·게이트 유지·runGate 오픈 시 fulfilled 전환), `ChatSidebar.test.jsx` +2(pending 큐 강조·✕ 없음 / fulfilled 본문 강조), `App.test.jsx` +1(confirm 시 stage-request POST). 자체체크 171 pass(신규 4).
+
+**남음**: 없음.
 
 ### 채팅 전송 대기 큐 도입 — 에이전트 응답 중 큐 적재·취소·승격·read-wins ([[ADR-024-chat-send-queue]])
 

@@ -29,6 +29,13 @@ export interface ChatMessage {
 	blockId?: string;
 	/** 드래그 영역 코멘트의 선택 텍스트(인용). */
 	quote?: string;
+	/** 단계 진행 요청 기록(confirm 시 생성). 일반 채팅은 미지정.
+	 * pendingChats 큐를 경유해 기존 대기 채팅 뒤에 적재되고, 실행 시 fulfilled 로 chatLog 에 기록된다. */
+	kind?: "stage-request";
+	status?: "pending" | "fulfilled";
+	targetStage?: number;
+	/** stage-request 가 큐에서 실행될 때 resolve 될 결정(서버 내부용 — 뷰어 미사용). */
+	decision?: GateDecision;
 	at: number;
 }
 

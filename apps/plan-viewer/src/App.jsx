@@ -88,11 +88,27 @@ export default function App() {
 
 	const onGate = async (decision) => {
 		try {
-			await fetch("/api/decision", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(decision),
-			});
+			// 단계 진행(confirm, 마지막 단계 제외) → '다음 단계 요청'을 채팅과 같은 큐에 적재.
+			// 대기 채팅이 있으면 그 뒤에 순서대로, 게이트가 열려 있고 앞 대기가 없으면 서버가
+			// 즉시 decision 으로 resolve 한다(채널 단일화 — /api/decision 미경유).
+			// 마지막 단계 confirm·수정·회귀는 기존대로 /api/decision 로 즉시 전달.
+			if (decision.verdict === "confirm" && state && state.stage < 3) {
+				await fetch("/api/chat", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						kind: "stage-request",
+						targetStage: state.stage + 1,
+						decision,
+					}),
+				});
+			} else {
+				await fetch("/api/decision", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify(decision),
+				});
+			}
 		} catch {
 			/* 무시 — 다음 폴링에서 상태 동기화 */
 		}

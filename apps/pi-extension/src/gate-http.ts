@@ -145,8 +145,71 @@ export function makeGateHandler(
 						text?: unknown;
 						blockId?: unknown;
 						quote?: unknown;
+						kind?: unknown;
+						targetStage?: unknown;
+						decision?: unknown;
 					};
+					// 단계 진행 요청(confirm 시 뷰어가 POST) — 채팅과 같은 pendingChats 큐의 마지막 칸에
+					// 적재되어 기존 대기 채팅의 응답이 모두 끝난 뒤 실행된다. 게이트가 열려 있고 앞에
+					// 대기가 없으면(유일 항목) 즉시 decision 으로 resolve — fulfilled 기록만 chatLog 에 남긴다.
+					// 선두 도달은 runGate 재진입 시 큐 드레인이 decision 이벤트로 처리한다.
+					if (parsed.kind === "stage-request") {
+						if (gate.pendingChats.some((m) => m.kind === "stage-request")) {
+							res.writeHead(200, { "Content-Type": "application/json" });
+							res.end(JSON.stringify({ ok: false, reason: "already-pending" }));
+							return;
+						}
+						const target =
+							typeof parsed.targetStage === "number" ? parsed.targetStage : 0;
+						const pd = parsed.decision as
+							| { comments?: unknown; revertTo?: unknown }
+							| undefined;
+						const decision: GateDecision = {
+							verdict: "confirm",
+							comments: Array.isArray(pd?.comments) ? pd.comments : [],
+							...(typeof pd?.revertTo === "number"
+								? {
+										revertTo: pd.revertTo as NonNullable<
+											GateDecision["revertTo"]
+										>,
+									}
+								: {}),
+						};
+						const item: ChatMessage = {
+							id: crypto.randomUUID(),
+							role: "user",
+							kind: "stage-request",
+							status: "pending",
+							targetStage: target,
+							text: `Stage ${target} 진행 요청`,
+							at: Date.now(),
+							decision,
+						};
+						gate.pendingChats.push(item);
+						broadcast("chat");
+						const r = gate.currentResolver;
+						if (r && gate.pendingChats[0] === item) {
+							// 앞 대기 없음(게이트 열림) → 즉시 진행: fulfilled 기록 + decision resolve.
+							gate.pendingChats.shift();
+							item.status = "fulfilled";
+							gate.chatLog.push(item);
+							gate.currentResolver = null;
+							r({ kind: "decision", decision });
+							broadcast("chat");
+						}
+						res.writeHead(200, { "Content-Type": "application/json" });
+						res.end(JSON.stringify({ ok: true }));
+						return;
+					}
 					const text = typeof parsed.text === "string" ? parsed.text : "";
+					// 확정(단계 진행) 요청이 큐에서 대기 중 → 이후 채팅은 거부(뷰어가 잠금 안내 표시).
+					if (gate.pendingChats.some((m) => m.kind === "stage-request")) {
+						res.writeHead(200, { "Content-Type": "application/json" });
+						res.end(
+							JSON.stringify({ ok: false, reason: "stage-request-pending" }),
+						);
+						return;
+					}
 					if (text.trim()) {
 						const msg: ChatMessage = {
 							id: crypto.randomUUID(),

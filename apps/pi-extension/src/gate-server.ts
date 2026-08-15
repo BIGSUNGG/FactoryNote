@@ -13,7 +13,7 @@ import {
 	broadcastSse,
 } from "./gate-manager.ts";
 import { openBrowser } from "./gate-browser.ts";
-import type { GateEvent } from "./gate-events.ts";
+import type { ChatMessage, GateEvent } from "./gate-events.ts";
 
 export type { GateEvent } from "./gate-events.ts";
 export {
@@ -75,17 +75,41 @@ export async function runGate(opts: RunGateOptions): Promise<GateEvent> {
 	});
 	gate.currentResolver = (e) => resolveEvent?.(e);
 
+	// (stage-request 승급은 여기서 하지 않는다 — pendingChats 큐를 경유하며 아래 드레인에서
+	// 결정으로 소비될 때 fulfilled 로 chatLog 에 기록된다.)
 	await onReady?.(gate.url);
 
-	// 채팅 루프 재진입 보호 + 큐 승급: runGate 가 chat 로 resolve 된 뒤 에이전트가
+	// 채팅 루프 재진입 보호 + 큐 드레인: runGate 가 chat 로 resolve 된 뒤 에이전트가
 	// 응답·재진입하는 사이에 쌓인 pendingChats(가시 큐)를 에이전트에 넘기는 순간이 '읽기'다.
-	// 이때 큐 메시지를 chatLog 로 승격시켜 '전송됨'으로 확정 후 chat 이벤트로 전달한다.
+	// 선두가 일반 채팅이면 선행 채팅들(단계 요청 직전까지)을 chatLog 로 승격해 chat 이벤트로
+	// 전달하고, 선두가 단계 진행 요청(stage-request)이면 — 앞 채팅 응답이 모두 끝났다 —
+	// fulfilled 기록 후 decision(confirm) 이벤트로 resolve 해 다음 단계를 진행시킨다.
 	if (gate.pendingChats.length > 0) {
-		for (const m of gate.pendingChats) gate.chatLog.push(m);
-		const r = gate.currentResolver;
-		gate.currentResolver = null;
-		r?.({ kind: "chat", messages: gate.pendingChats.splice(0) });
-		broadcastSse(gate, "chat");
+		const head = gate.pendingChats[0];
+		if (head && head.kind === "stage-request") {
+			gate.pendingChats.shift();
+			head.status = "fulfilled";
+			gate.chatLog.push(head);
+			broadcastSse(gate, "chat");
+			const r = gate.currentResolver;
+			gate.currentResolver = null;
+			r?.({
+				kind: "decision",
+				decision: head.decision ?? { verdict: "confirm", comments: [] },
+			});
+		} else {
+			const drain: ChatMessage[] = [];
+			while (
+				gate.pendingChats[0] &&
+				gate.pendingChats[0].kind !== "stage-request"
+			)
+				drain.push(gate.pendingChats.shift() as ChatMessage);
+			for (const m of drain) gate.chatLog.push(m);
+			const r = gate.currentResolver;
+			gate.currentResolver = null;
+			r?.({ kind: "chat", messages: drain });
+			broadcastSse(gate, "chat");
+		}
 	}
 
 	const onAbort = () => {

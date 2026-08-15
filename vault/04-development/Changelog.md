@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-13
+updated: 2026-08-14
 tags: [development, changelog]
 ---
 
@@ -12,9 +12,13 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ### Added
 
+- **다음 단계 요청 채팅 강조 기록(pending→fulfilled) + 큐 재디자인** — '✓ 확정 → 다음 단계' 확인(마지막 단계 제외) 시, 단계 진행(`/api/decision`)은 종래대로 유지하되 추가로 'Stage N+1 진행 요청' 강조 메시지를 채팅 로그에 기록. `ChatMessage` 에 `kind:'stage-request'`·`status`·`targetStage` 선택 필드 추가(후방 호환). `App.onGate` 가 `verdict:'confirm'` 且 `stage<3` 일 때 `POST /api/decision` 외에 `POST /api/chat {kind:'stage-request', targetStage}` 도 전송 — 서버는 이 메시지를 `chatLog` 에 `status:'pending'` 으로 push 하되 `currentResolver`/`pendingChats` 미건드림(결정 채널로만 진행, 에이전트 미전달·취소 불가). 라이프사이클: 다음 단계 준비 중(`gateOpen=false`)엔 '전송 대기 중' 큐 영역에 강조(채운 액센트 배경 + ➡Stage 뱃지, ✕ 없음), `runGate` 시작(게이트 오픈, `onReady` 이전)이 `pending`→`fulfilled` 전환 → 채팅 본문에 강조 기록으로 자리잡음. 디자인: 단계 요청 `--primary` 채운 배경 + 10px 둥근 카드, 큐 아이템 점선→실선 둥근 카드·태그 pill 로 재디자인. 마지막 단계 확정·modify·revert 는 단계 요청 미생성, 일반 채팅 큐/취소([[ADR-024-chat-send-queue]]) 무변경. 신규 자체체크 4건(서버 stage-request 1 + 뷰어 pending/fulfilled 렌더 2 + App confirm POST 1). 자체체크 171 pass. [[ADR-025-stage-request-chat-record]]
+
 - **게이트 채팅 전송 대기 큐(read-wins 취소)** — 에이전트가 응답 중(도구 호출 중, `runGate` 대기 아님)일 때 보낸 채팅을 `chatLog` 가 아닌 가시 대기 큐(`pendingChats`)에 적재. 뷰어 채팅 사이드바에 별도 **'전송 대기 중' 영역**이 표시되고 각 메시지를 ✕ 로 **전송 취소**(완전 삭제)할 수 있다. 에이전트가 응답을 마치고 `runGate` 에 재진입해 큐 메시지를 `chat` 이벤트로 넘기는 순간(= '읽기') `chatLog` 로 **승격**되어 일반 전송 메시지로 전환된다. 에이전트가 듣는 중(`runGate` 대기)에 보내면 종래대로 즉시 전송(큐 미경유). 전송 경로 분기는 `currentResolver` 유무로 판별. **read-wins**: 이미 넘겨진 메시지의 취소는 `POST /api/chat/cancel` 이 `{ok:false, reason:"already-sent"}` 로 거부(단일 스레드 불변조건 '큐에 없으면 이미 넘겨진 것'으로 보장). `GET /api/chat` 응답에 `queue` 배열 추가, SSE `chat` 이벤트를 적재·취소·승급 시점에 push. `makeGateHandler` 가 `broadcast` 를 주입받도록 시그니처 변경(`gate-http↔gate-manager` 순환 import 회피). 게이트 바 결정·에이전트→사용자 답변·코멘트/그래프는 무변경. 신규 자체체크 3건(서버 큐 라이프사이클 1 + 뷰어 큐 렌더·취소 2). 자체체크 167 pass. [[ADR-024-chat-send-queue]]
 
 ### Changed
+
+- **다음 단계 요청의 큐 경유(단일 채널 진행) — 응답 중 확정 드롭·큐 미표시 수정** — [[ADR-025-stage-request-chat-record]] 의 컴패니언 모델(기록 전용, `/api/decision` 즉시 진행)을 대체: 비최종 단계 확정은 `POST /api/chat {kind:'stage-request', targetStage, decision}` 하나로 표현되며 **채팅과 같은 `pendingChats` 큐의 마지막 칸에 적재**된다(`ChatMessage.decision` 신규 선택 필드가 실행될 `GateDecision` 운반). 게이트 열림+앞 대기 없음 → 즉시 `fulfilled` 기록 후 decision resolve(기존 체감 유지); 대기 채팅이 있으면 그 뒤에 순서 적재 → `runGate` 드레인이 선행 채팅만 `chat` 이벤트로 전달 → 선두 도달 시 `decision(confirm)` 으로 resolve. 이로써 응답 중(`currentResolver` null) 확정이 드롭되던 `r?.()` 버그가 구조적으로 제거됨. **확정 대기 중 채팅 거부**(`{ok:false, reason:'stage-request-pending'}`) + 뷰어 입력 잠금·안내 배너(`chat-lock-notice`), **대기 중 확정 요청도 ✕ 취소 허용**(read-wins). **큐 플레이스홀더** — 대기 채팅은 본문 미노출 '대기 중 · 채팅' 태그만 표시, 본문은 전송(승격) 후 공개. 최종(3단계) 확정·modify·revert 는 기존대로 `/api/decision`. 신규 자체체크: 서버 5단계 시나리오(순서 적재→채팅 거부→취소→재확정→드레인→decision 실행·코멘트 페이로드) + 즉시 resolve 2건, 뷰어 플레이스홀더·잠금 2건(갱신), App 채널 단일화 1건(갱신). 자체체크 172 pass. [[ADR-026-stage-request-queue-transit]]
 
 - **단계 전환 UX — 대기 화면 제거 + 이전 단계 읽기 전용 보기 (F2)** — 두 가지 뷰어 동작 변경. (1) 확정/검토 요청 제출 후 기존에 전체 화면 '다음 준비 중'(`PreparingScreen`)으로 전환하던 것을 제거하고, 게이트 결정·검토 요청 중에도 기존 뷰어 페이지를 그대로 유지한 채 게이트 바의 확정 버튼이 로딩 연출(스피너 + '다음 단계 작성 중…', 액션 비활성)하도록 함. `App` 은 `gateOpen=false` 여도 `reviewing` 이면 페이지를 유지(`loading/pending` 시만 준비 화면), 게이트 재오픈 시 자동으로 다음 단계로 전환. `GateBar.loading` prop 추가. (2) 헤더 3단계 스테퍼에서 이전 단계를 클릭하면 해당 단계 산출물(승인된 이전 단계는 `state.artifacts` 에 이미 포함 — 데이터 변경 없음)을 **읽기 전용**으로 보기 — 코멘트 작성·채팅 입력·게이트(확정/수정/정정)가 모두 비활성(배너 + `readonly-banner`). `App.viewStage` 로 전환 제어, `PlanPage.readOnly` 가 코멘트 핸들러를 no-op 으로, `ChatSidebar.disabled` 가 입력을 잠금. '현재 단계로 돌아가기'로 복귀 시 재활성. 기존 정정(revert)과 무관. 신규 `App.test.jsx` 2건(페이지 유지+로딩 / 읽기 전용 전환) 포함. 자체체크 155 pass. [[ADR-023-viewer-transition-ux]]
 

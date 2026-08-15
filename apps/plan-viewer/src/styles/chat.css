@@ -205,9 +205,9 @@
 	align-items: flex-start;
 	gap: var(--s1);
 	background: var(--surface);
-	border: 1px dashed var(--border-strong);
-	border-radius: var(--radius-sm);
-	padding: var(--s1) var(--s2);
+	border: 1px solid var(--border);
+	border-radius: 10px;
+	padding: var(--s2) var(--s3);
 }
 .chat-queued-tag {
 	font-family: var(--mono);
@@ -216,8 +216,8 @@
 	letter-spacing: 0.05em;
 	color: var(--muted);
 	background: rgba(17, 24, 39, 0.06);
-	border-radius: var(--radius-sm);
-	padding: 1px 4px;
+	border-radius: 999px;
+	padding: 2px 8px;
 	flex: none;
 	margin-top: 1px;
 }
@@ -245,6 +245,37 @@
 .chat-cancel:disabled {
 	opacity: 0.4;
 	cursor: not-allowed;
+}
+/* 확정(단계 진행) 요청 대기 중 채팅 입력 잠금 안내. */
+.chat-lock-notice {
+	flex: none;
+	margin: 0 var(--s2) var(--s1);
+	padding: var(--s1) var(--s2);
+	font-size: 11.5px;
+	line-height: 1.5;
+	color: var(--muted);
+	background: rgba(17, 24, 39, 0.05);
+	border: 1px dashed rgba(17, 24, 39, 0.18);
+	border-radius: var(--radius-sm);
+	text-align: center;
+}
+
+/* === 단계 진행 요청(stage-request) — 채운 액센트 배경 강조 ===
+ * 채팅 본문(fulfilled)·큐(pending) 공통: --primary 배경 + 둥근 카드. */
+.chat-msg.stage-request,
+.chat-queued-msg.stage-request {
+	background: var(--primary);
+	color: var(--on-color);
+	border: none;
+	border-radius: 10px;
+	padding: var(--s2) var(--s3);
+}
+.chat-stage-badge {
+	display: block;
+	font-family: var(--mono);
+	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: 0.02em;
 }
 @media (max-width: 900px) {
 	.review-main {

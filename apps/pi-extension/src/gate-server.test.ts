@@ -723,6 +723,173 @@ test("채팅 전송 큐: 응답 중이면 큐 적재·취소 가능, 재진입 �
 	await closeGate(root, "queueflow");
 });
 
+test("stage-request: 채팅과 같은 큐를 경유 — 대기 채팅 뒤 적재, 드레인 시 선행 채팅 먼저, 선두 도달 시 decision 으로 실행, 대기 중 채팅 거부, 취소 가능", async () => {
+	// 사용자 동작 예시 5단계(확정 대기 중 취소 포함)를 한 흐름으로 검증.
+	let url = "";
+	// 1) 에이전트 듣는 중 → 채팅 즉시 전달(chat 이벤트).
+	const first = await runGate({
+		root,
+		feature: "stagereq2",
+		viewerDistDir: VIEWER_DIST,
+		open: false,
+		onReady: async (u) => {
+			url = u;
+			await fetch(`${u}/api/chat`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ text: "첫질문" }),
+			});
+		},
+	});
+	expect(first.kind).toBe("chat");
+	// first 반환 = 응답 중(resolver null).
+	// 2)·3) 응답 중 채팅 2건 큐 적재.
+	await fetch(`${url}/api/chat`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ text: "두번째" }),
+	});
+	await fetch(`${url}/api/chat`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ text: "세번째" }),
+	});
+	// 4) 확정 → 큐 마지막 칸(세번째 뒤)에 stage-request 적재.
+	const stReq = (await (
+		await fetch(`${url}/api/chat`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				kind: "stage-request",
+				targetStage: 2,
+				decision: {
+					verdict: "confirm",
+					comments: [{ text: "진행" }],
+				},
+			}),
+		})
+	).json()) as { ok: boolean };
+	expect(stReq.ok).toBe(true);
+	const st = (await (await fetch(`${url}/api/chat`)).json()) as {
+		messages: Array<Record<string, unknown>>;
+		queue: Array<Record<string, unknown>>;
+	};
+	expect(st.queue.map((m) => m.kind ?? "chat")).toEqual([
+		"chat",
+		"chat",
+		"stage-request",
+	]);
+	expect(st.messages.find((m) => m.kind === "stage-request")).toBeUndefined();
+	// 5) 확정 대기 중 채팅 전송 → 거부.
+	const rejected = (await (
+		await fetch(`${url}/api/chat`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ text: "무시될채팅" }),
+		})
+	).json()) as { ok: boolean; reason?: string };
+	expect(rejected.ok).toBe(false);
+	expect(rejected.reason).toBe("stage-request-pending");
+	// 6) 대기 중 확정 요청 취소 → 큐에서 제거 후 채팅 재허용.
+	const srId = st.queue[2]!.id as string;
+	const cancelRes = (await (
+		await fetch(`${url}/api/chat/cancel`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ id: srId }),
+		})
+	).json()) as { ok: boolean };
+	expect(cancelRes.ok).toBe(true);
+	const rechatted = (await (
+		await fetch(`${url}/api/chat`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ text: "다시가능" }),
+		})
+	).json()) as { ok: boolean };
+	expect(rechatted.ok).toBe(true);
+	// 7) 재확정 → 큐 적재(취소된 자리 재저장). 코멘트로 decision 페이로드 흐름 검증.
+	await fetch(`${url}/api/chat`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({
+			kind: "stage-request",
+			targetStage: 2,
+			decision: { verdict: "confirm", comments: [{ text: "재진행" }] },
+		}),
+	});
+	// 8) runGate 재진입(응답 완료) → 선행 채팅 3건만 chat 으로 전달, stage-request 는 큐 유지.
+	const second = await runGate({
+		root,
+		feature: "stagereq2",
+		viewerDistDir: VIEWER_DIST,
+		open: false,
+	});
+	expect(second.kind).toBe("chat");
+	if (second.kind === "chat")
+		expect(second.messages.map((m) => m.text)).toEqual([
+			"두번째",
+			"세번째",
+			"다시가능",
+		]);
+	// 9) 다음 재진입 → 선두 stage-request → decision(confirm) 실행 + fulfilled 기록.
+	const third = await runGate({
+		root,
+		feature: "stagereq2",
+		viewerDistDir: VIEWER_DIST,
+		open: false,
+	});
+	expect(third.kind).toBe("decision");
+	if (third.kind === "decision") {
+		expect(third.decision.verdict).toBe("confirm");
+		expect(third.decision.comments[0]?.text).toBe("재진행");
+	}
+	const fin = (await (await fetch(`${url}/api/chat`)).json()) as {
+		messages: Array<Record<string, unknown>>;
+		queue: unknown[];
+	};
+	const sr = fin.messages.find((m) => m.kind === "stage-request");
+	expect(sr?.status).toBe("fulfilled");
+	expect(sr?.targetStage).toBe(2);
+	expect(fin.queue).toHaveLength(0);
+	await closeGate(root, "stagereq2");
+});
+
+test("stage-request: 게이트 열려 있고 앞 대기 없으면 즉시 decision resolve + fulfilled 기록", async () => {
+	const event = await runGate({
+		root,
+		feature: "stagereq3",
+		viewerDistDir: VIEWER_DIST,
+		open: false,
+		onReady: async (u) => {
+			const r = (await (
+				await fetch(`${u}/api/chat`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						kind: "stage-request",
+						targetStage: 2,
+						decision: { verdict: "confirm", comments: [] },
+					}),
+				})
+			).json()) as { ok: boolean };
+			expect(r.ok).toBe(true);
+			const st = (await (await fetch(`${u}/api/chat`)).json()) as {
+				messages: Array<Record<string, unknown>>;
+				queue: unknown[];
+			};
+			// 즉시 실행 — 큐 비움, chatLog fulfilled 기록.
+			expect(st.queue).toHaveLength(0);
+			expect(st.messages.find((m) => m.kind === "stage-request")?.status).toBe(
+				"fulfilled",
+			);
+		},
+	});
+	expect(event.kind).toBe("decision");
+	if (event.kind === "decision") expect(event.decision.verdict).toBe("confirm");
+	await closeGate(root, "stagereq3");
+});
+
 test("teardown", async () => {
 	await rm(root, { recursive: true, force: true });
 });

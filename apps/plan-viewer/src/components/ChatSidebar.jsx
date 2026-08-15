@@ -57,13 +57,19 @@ export default function ChatSidebar({
 		if (!text) return;
 		const body = { text };
 		if (scopeBlock && activeBlockId) body.blockId = activeBlockId;
-		setDraft("");
 		try {
-			await fetch("/api/chat", {
+			const r = await fetch("/api/chat", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(body),
 			});
+			const data = await r.json().catch(() => ({}));
+			// 거부(확정 요청 대기 중 등) → 잠금 안내가 큐 상태로 표시된다. draft 유지.
+			if (data.ok === false) {
+				fetchChat();
+				return;
+			}
+			setDraft("");
 			fetchChat();
 		} catch {
 			/* 무시 — 다음 폴링 */
@@ -71,8 +77,14 @@ export default function ChatSidebar({
 	};
 
 	// 마지막 메시지가 user 면 에이전트 회신 대기 → "thinking..." 표시.
-	// 채팅 전송·코멘트 둘 다 chatLog 를 거치므로 이 파생 규칙 하나로 커버.
-	const thinking = messages.length > 0 && messages.at(-1).role === "user";
+	// 단계 진행 요청(stage-request)은 회신 대상이 아니므로 제외.
+	const lastChat = [...messages]
+		.reverse()
+		.find((m) => m.kind !== "stage-request");
+	const thinking = !!lastChat && lastChat.role === "user";
+	// 확정(단계 진행) 요청이 큐에서 대기 중 → 이후 채팅 입력 잠금 + 안내 표시.
+	const stagePending = queue.some((m) => m.kind === "stage-request");
+	const inputDisabled = disabled || stagePending;
 
 	return (
 		<aside className="chat-sidebar">
@@ -88,18 +100,31 @@ export default function ChatSidebar({
 						하단 게이트 바로 합니다.
 					</p>
 				) : (
-					messages.map((m) => (
-						<div key={m.id} className={`chat-msg ${m.role}`}>
-							<span className="chat-role">
-								{m.role === "user" ? "나" : "AI"}
-							</span>
-							{m.blockId && <span className="chat-block">[{m.blockId}]</span>}
-							{m.quote && (
-								<blockquote className="chat-quote">“{m.quote}”</blockquote>
-							)}
-							<div className="chat-text">{m.text}</div>
-						</div>
-					))
+					messages.map((m) => {
+						if (m.kind === "stage-request") {
+							// pending 은 큐 영역에서만 표시(본문 미노출), fulfilled 만 본문 강조 기록.
+							if (m.status === "pending") return null;
+							return (
+								<div key={m.id} className="chat-msg stage-request">
+									<span className="chat-stage-badge">
+										➡ Stage {m.targetStage} 진행 요청
+									</span>
+								</div>
+							);
+						}
+						return (
+							<div key={m.id} className={`chat-msg ${m.role}`}>
+								<span className="chat-role">
+									{m.role === "user" ? "나" : "AI"}
+								</span>
+								{m.blockId && <span className="chat-block">[{m.blockId}]</span>}
+								{m.quote && (
+									<blockquote className="chat-quote">“{m.quote}”</blockquote>
+								)}
+								<div className="chat-text">{m.text}</div>
+							</div>
+						);
+					})
 				)}
 				{thinking && (
 					<div className="chat-msg agent thinking">
@@ -121,11 +146,22 @@ export default function ChatSidebar({
 						<span className="chat-queue-count">{queue.length}</span>
 					</div>
 					{queue.map((m) => (
-						<div key={m.id} className="chat-queued-msg">
-							<span className="chat-queued-tag">대기</span>
-							{m.blockId && <span className="chat-block">[{m.blockId}]</span>}
-							<div className="chat-text">{m.text}</div>
+						<div
+							key={m.id}
+							className={`chat-queued-msg${
+								m.kind === "stage-request" ? " stage-request" : ""
+							}`}
+						>
+							{m.kind === "stage-request" ? (
+								<span className="chat-stage-badge">
+									➡ Stage {m.targetStage} 진행 요청
+								</span>
+							) : (
+								// 대기 콘텍스트 플레이스홀더 — 본문은 실제 전송 후 채팅 로그에만 공개.
+								<span className="chat-queued-tag">대기 중 · 채팅</span>
+							)}
 							<button
+								type="button"
 								className="chat-cancel"
 								onClick={() => cancelQueued(m.id)}
 								disabled={disabled}
@@ -135,6 +171,12 @@ export default function ChatSidebar({
 							</button>
 						</div>
 					))}
+				</div>
+			)}
+			{stagePending && (
+				<div className="chat-lock-notice">
+					다음 단계 요청이 대기 중입니다 — 앞선 채팅 응답이 끝나면 진행됩니다.
+					(채팅 입력 잠금)
 				</div>
 			)}
 			{activeBlockId && (
@@ -157,7 +199,7 @@ export default function ChatSidebar({
 							: "질문 또는 수정 요청… (Shift+Enter 줄바꿈)"
 					}
 					rows={2}
-					disabled={disabled}
+					disabled={inputDisabled}
 					onChange={(e) => setDraft(e.target.value)}
 					onKeyDown={(e) => {
 						if (e.key === "Enter" && !e.shiftKey) {
@@ -166,7 +208,12 @@ export default function ChatSidebar({
 						}
 					}}
 				/>
-				<button className="chat-send" onClick={send} disabled={disabled}>
+				<button
+					type="button"
+					className="chat-send"
+					onClick={send}
+					disabled={inputDisabled}
+				>
 					전송
 				</button>
 			</div>

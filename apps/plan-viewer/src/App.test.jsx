@@ -53,24 +53,42 @@ function makeState(over = {}) {
 // fetch/EventSource 스텁.
 let currentState;
 let esListeners; // { type -> Set<fn> }
+let chatPosts; // /api/chat POST 기록(stage-request 검증용)
+let decisionPosts; // /api/decision POST 기록(채널 단일화 검증용)
 const originalFetch = globalThis.fetch;
 const originalEventSource = globalThis.EventSource;
 
 function installStubs() {
 	currentState = makeState();
 	esListeners = new Map();
+	chatPosts = [];
+	decisionPosts = [];
 	globalThis.fetch = async (url, opts) => {
 		if (String(url).endsWith("/api/state")) {
 			return { ok: true, json: async () => currentState };
 		}
 		if (String(url).endsWith("/api/decision")) {
+			if (opts?.body) {
+				try {
+					decisionPosts.push(JSON.parse(opts.body));
+				} catch {
+					/* 본문 파싱 실패 시 무시 */
+				}
+			}
 			return { ok: true, json: async () => ({}) };
 		}
 		if (String(url).endsWith("/api/chat")) {
 			const method = opts?.method ?? "GET";
+			if (method !== "GET" && opts?.body) {
+				try {
+					chatPosts.push(JSON.parse(opts.body));
+				} catch {
+					/* 본문 파싱 실패 시 무시 */
+				}
+			}
 			return {
 				ok: true,
-				json: async () => (method === "GET" ? { messages: [] } : {}),
+				json: async () => (method === "GET" ? { messages: [], queue: [] } : {}),
 			};
 		}
 		if (String(url).endsWith("/api/review-request")) {
@@ -259,4 +277,28 @@ test("Stage 2 reviewing : Stage 3(미작성)만 locked, Stage 1(done)은 보기 
 	expect(steps[0].className).toContain("done"); // Stage 1 작성됨·보기 가능
 	expect(steps[1].className).toContain("current"); // Stage 2 현재(편집)
 	expect(steps[2].className).toContain("locked"); // Stage 3 아직 미작성 → 잠금
+});
+
+// ——— 5) confirm(마지막 단계 아님) → '다음 단계 요청' 강조 기록 POST ———
+test("confirm(마지막 아님) → /api/chat 에 stage-request(decision 포함) POST, /api/decision 미경유", async () => {
+	// Stage 1 reviewing → 확정 버튼은 '✓ 확정 → Stage 2'.
+	await React.act(async () => {
+		currentState = makeState({ stage: 1, stageName: "요구사항·시나리오" });
+		pushState(currentState);
+	});
+	const confirmBtn = [...container.querySelectorAll("button")].find((b) =>
+		b.textContent.includes("확정 → Stage 2"),
+	);
+	expect(confirmBtn).toBeDefined();
+	await React.act(async () => {
+		confirmBtn.dispatchEvent(
+			new window.MouseEvent("click", { bubbles: true, cancelable: true }),
+		);
+		await new Promise((r) => setTimeout(r, 0));
+	});
+	const stageReq = chatPosts.find((p) => p.kind === "stage-request");
+	expect(stageReq).toBeDefined();
+	expect(stageReq.targetStage).toBe(2);
+	expect(stageReq.decision.verdict).toBe("confirm");
+	expect(decisionPosts).toHaveLength(0); // decision 은 큐 페이로드로만 전달
 });
