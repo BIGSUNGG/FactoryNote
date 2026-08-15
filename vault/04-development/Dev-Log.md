@@ -9,6 +9,23 @@ tags: [development, dev-log]
 
 ## 2026-08-15
 
+## 2026-08-15 (2)
+
+### 테스트 뷰어 큐 무동작 — dev-mock 재작성(실서버 의미론 모방)
+
+**맥락**: 사용자 보고 — 테스트 뷰어(`apps/plan-viewer` `bun run dev`, vite 5180)에서 큐가 정상 동작하지 않음.
+
+**원인**: vite.config.js 의 dev-mock 이 최신 게이트 프로토콜보다 오래됨. GET /api/chat `{messages}`(queue 없음)·POST text 전용(stage-request 무시)·cancel 부재·SSE 부재. 특히 ADR-022 로 뷰어 폴링이 제거된 뒤 목업에는 갱신 채널 자체가 없어 3초 가짜 회신도 화면에 뜨지 않았다(주석은 폴링 시절 스테일).
+
+**작업**:
+
+- `apps/plan-viewer/dev/mock-api.js`(신규 순수 모듈): 실서버 의미론 — idle 즉시 전달, busy(3초 회신 창) 큐 적재, 회신 완료마다 선두 1개 드레인, stage-request(대기 채팅 뒤 적재·채팅 거부·이중 거부·선두 실행=단계 진행+fulfilled·idle 즉시 실행), cancel(already-sent), GET {messages,queue}, subscribe(변동 이벤트). 타이머/시각 주입 가능해 bun test 로 검증.
+- `vite.config.js`: 미들웨어 재구성 — 모든 /api/* 경로 exact 매칭(state·events SSE·chat GET/POST·cancel·decision·review-request), mock 구독 → SSE push(state·chat). 데모 산출물 6단계(1·2·5) → 3단계(1·2·3) 정리.
+- `dev/mock-api.test.js`(신규 8건): 가짜 클록으로 (a) 즉시 전달/큐 적재 (b) 확정 뒤 적재·채팅 거부 (c) 선두 1개씩 승격 (d) stage-request 실행·잠금 해제 (d2) idle 즉시 실행 (e) cancel·이중·read-wins (f) messages·queue (부가) 최종 confirm → done.
+- `bun test` 181 pass(신규 8), `bun run build` 0 종료(배포).
+
+**교훈**: 뷰어 프로토콜이 바뀔 때(SSE·큐·stage-request) '실서버 + 목업' 양쪽을 함께 갱신하지 않으면 데모 경로가 썩는다 — 목업도 의미론 단위(ADR)로 추적해야 했다. 이번에 목업을 순수 모듈로 분리해 테스트로 고정했으므로 재발 여지가 줄었다.
+
 ### 큐 후속 UX 4건 — 1개씩 순서 전달·미리보기·취소 버튼 대비·게이트 바 대기 유지 ([[ADR-026-stage-request-queue-transit]] 개정)
 
 **맥락**: 사용자 보고 4건 — ① 대기 채팅 2개가 응답 완료 시 한 번에 배출돼 큐가 한꺼번에 비워짐(하나씩 기다리게 해야 함) ② 큐에서 무엇이 대기 중인지 안 보임 ③ 확정 요청 대기 항목에 취소 버튼이 안 보임 ④ 확정 요청 실행 시 게이트 바가 대기 상태로 전환되지 않고 다음 단계 페이지로 바로 넘어감.
