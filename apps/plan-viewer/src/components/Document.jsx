@@ -1,5 +1,6 @@
 import { useRef, useEffect } from "react";
 import Block from "./Block";
+import { blockKey } from "../lib/blockDiff";
 import { activeHeadingId } from "../lib/activeHeading";
 
 // 산출물 본문 = 마크다운 블록 시퀀스.
@@ -91,19 +92,31 @@ export default function Document({
 			onMouseUp={handleMouseUp}
 			onClick={handleClick}
 		>
-			{blocks.map((b) => (
-				<Block
-					key={b.id}
-					block={b}
-					changed={changedIds?.has(b.id)}
-					added={addedIds?.has(b.id)}
-					comments={comments}
-					onAddComment={onAddComment}
-					onActivate={onActivate}
-					activeTargetId={activeTargetId}
-					graphData={graphData}
-				/>
-			))}
+			{(() => {
+				// key = 콘텐츠 지문 + 출현 순서(ADR-027 연출 안정성).
+				// 위치 기반 id(b0..) 는 재작성 시 같은 DOM 노드가 재사용돼 등장
+				// 애니메이션이 재실행되지 않는다. 콘텐츠 키 기준으로는 새 블록만
+				// 신규 마운트(연출 실행), 유지 블록은 노드를 지켜 하이라이트가
+				// transition 으로 천천히 사라진다(위치 밀려남도 키 유지).
+				const seen = {};
+				return blocks.map((b) => {
+					const k = blockKey(b);
+					const occ = (seen[k] = (seen[k] ?? 0) + 1);
+					return (
+						<Block
+							key={`${k}#${occ}`}
+							block={b}
+							changed={changedIds?.has(b.id)}
+							added={addedIds?.has(b.id)}
+							comments={comments}
+							onAddComment={onAddComment}
+							onActivate={onActivate}
+							activeTargetId={activeTargetId}
+							graphData={graphData}
+						/>
+					);
+				});
+			})()}
 		</main>
 	);
 }
