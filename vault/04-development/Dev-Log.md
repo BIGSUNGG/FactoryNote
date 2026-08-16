@@ -25,6 +25,8 @@ tags: [development, dev-log]
 
 **후속 4(사용자 피드백 — 도착 반응 재디자인)**: 축소 중 응답 도착 시 원형 점 뱃지(`.chat-badge`)를 없애고, 기존 뱃지에 걸던 애니메이션 전부를 복원 버튼 아웃라인으로 이동. `.chat-restore.unread` — border-color 상시 `--primary` 강조 + 단일 `restore-attention` 사이클(2.4s, infinite): 팝인(scale .8→1.15→1) + 핑(box-shadow 링 확산) → 나머지 구간 휴지. 팝인 시작값·오버슈트는 버튼(26×22) 크기에 맞춰 점보다 완화. JS 무변경에 가깝게 — 뱃지 span 제거·`unread` 클래스 토글만. 자체체크는 `.chat-badge` 쿼리를 `unread` 클래스 검증으로 교체하며 기존 `toBeDefined()`(null 이어도 통과) 약한 단언을 `toBe(true)` 로 강화. prefers-reduced-motion 에서 애니메이션 제거 유지.
 
+**후속 5(버그 — 거짓 알림)**: 축소 중 새 메시지 알림이 에이전트 응답뿐 아니라 **내 메시지**에도 발화 — 판정 기준이 '마지막 메시지 id 변화'라 전송 직후 축소하면 thinking 중인데도 알림이 뜸. `fetchChat` 의 추적을 `findLast(m => m.role === 'agent')` id 로 한정해 에이전트 응답만 발화하도록 수정. 자체체크에 회귀 케이스 추가(복원 후 재축소 → user 메시지 추가 → unread 미발화).
+
 ### 에이전트 채팅 메신저 버블 재디자인
 
 **맥락**: 사용자 피드백 — 채팅 사이드바에서 user(좌측 세로선 인용형)와 AI(회색 카드) 스타일이 너무 다르고, 확정 요청(stage-request)만 채운 액센트 카드로 튀어 대화가 끊겨 보임.

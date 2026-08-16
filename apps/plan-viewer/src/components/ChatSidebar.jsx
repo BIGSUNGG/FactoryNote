@@ -19,7 +19,8 @@ export default function ChatSidebar({
 	// 폴링/SSE 콜백이 최신 축소 여부를 보도록 ref 미러.
 	const collapsedRef = useRef(collapsed);
 	collapsedRef.current = collapsed;
-	// 마지막으로 본 메시지 id — 축소 중 id 가 바뀌면 unread 표시.
+	// 마지막으로 본 에이전트 메시지 id — 축소 중 새 에이전트 응답 도착 시에만 unread.
+	// (내 메시지·stage-request 제외: 전송 직후 축소해도 알림이 뜨지 않도록)
 	const lastMsgIdRef = useRef(null);
 
 	useEffect(() => {
@@ -33,7 +34,10 @@ export default function ChatSidebar({
 			const data = await r.json();
 			setMessages(data.messages || []);
 			setQueue(data.queue || []);
-			const lastId = data.messages?.length ? data.messages.at(-1).id : null;
+			const lastAgent = (data.messages || []).findLast(
+				(m) => m.role === "agent",
+			);
+			const lastId = lastAgent?.id ?? null;
 			if (collapsedRef.current && lastId !== lastMsgIdRef.current) {
 				setUnread(true);
 			}

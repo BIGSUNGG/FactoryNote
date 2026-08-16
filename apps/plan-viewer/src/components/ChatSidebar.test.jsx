@@ -272,4 +272,28 @@ test("축소 버튼 → 사이드바 숨김 + 우측 복원 버튼, 축소 중 �
 	).toBe(false);
 	expect(container.querySelector(".chat-restore")).toBeNull();
 	expect(container.querySelector(".unread")).toBeNull();
+	// 회귀 — 축소 중 내 메시지 추가(thinking 중, 에이전트 응답 전)는 unread 미발화.
+	await React.act(async () => {
+		container
+			.querySelector(".chat-collapse")
+			.dispatchEvent(
+				new window.MouseEvent("click", { bubbles: true, cancelable: true }),
+			);
+		await flush();
+	});
+	chatResp = {
+		messages: [
+			{ id: "m1", role: "agent", text: "안녕", at: 1 },
+			{ id: "m2", role: "agent", text: "새 답변", at: 2 },
+			{ id: "m3", role: "user", text: "추가 질문", at: 3 },
+		],
+		queue: [],
+	};
+	await React.act(async () => {
+		window.dispatchEvent(new Event("fn-chat-update"));
+		await flush();
+	});
+	expect(
+		container.querySelector(".chat-restore")?.classList.contains("unread"),
+	).toBe(false);
 });

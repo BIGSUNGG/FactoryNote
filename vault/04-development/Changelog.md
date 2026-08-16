@@ -28,6 +28,10 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 - **축소 중 새 메시지 알림 — 점 뱃지 제거, 복원 버튼 아웃라인 반응으로 대체** — 별도 원형 점(`.chat-badge`)을 없애고 도착 반응을 확장 버튼(`.chat-restore.unread`) 자체로 이동: 팝인(scale 오버슈트) + box-shadow 핑을 한 사이클(2.4s)로 묶어 펼칠 때까지 무한 반복, 상시 `--primary` 테두리로 강조. `ChatSidebar.jsx` 는 뱃지 span 제거·버튼에 `unread` 클래스 토글, 자체체크는 badge 쿼리를 `unread` 클래스 검증으로 교체(기존 `toBeDefined` 약한 단언 → `toBe(true)` 강화). prefers-reduced-motion 시 애니메이션 제거. 자체체크 200 pass.
 
+### Fixed
+
+- **채팅 축소 중 내 메시지 전송 시 거짓 새-메시지 알림** — unread 판정이 '마지막 메시지 id 변화' 기준이라, 전송 직후 축소 시 내 메시지(에이전트 thinking 중)가 도착 알림을 발화. 마지막 **에이전트** 메시지(`role:'agent'`) id 추적으로 한정 — 내 메시지·stage-request 는 미발화. 회귀 자체체크 추가(축소 중 user 메시지 추가 → unread 미발화). 자체체크 200 pass.
+
 - **에이전트 채팅 메신저 버블 레이아웃 통일** — user/AI 스타일이 상이하던 채팅을 실제 메신저 형태로 재디자인: 역할 라벨 제거, user 우측 회색 버블·agent 좌측 옅은 버블(정렬+색으로 구분, 꼬리 쪽 모서리 축소). 확정 요청(stage-request fulfilled)은 일반 user 버블과 동일 레이아웃의 검정 버블로 기록(✓ 뱃지) — 일반 채팅(회색)과 색상으로 구분. 큐 영역도 동일 체계로 재디자인: [대기] 태그·✕ 버튼 제거, 일반 대기 카드 회색 모노톤(버블과 동일색)·확정 대기 카드 검정, 카드 전체 클릭 = 전송 취소(role=button·키보드 취소 지원·헤더 힌트). 게이트 바 무변경. 자체체크 199 pass.
 
 - **viewer 중첩 삼항 소거 3건(가독성·관용구 분리)** — “열거형→값” 매핑의 진짜 중첩 삼항 3곳을 명명형 코드로 교체, JSX 렌더 체인(`a ? B : c ? D : E`)은 React 관용구이므로 유지. (1) `PlanPage.jsx` 3중 중첩 `stagesFor` 상태 계산 → 순수 함수 `stepperState(n, viewed, real)`. (2) `Stepper.jsx` 상태→툴팁 중첩 → `stepperTitle(state, label)` if 체인. (3) `Block.jsx` type→라벨 중첩 → `LABELS` 레코드 + nullish 기본값. 각 케이스는 단위 로직(열거값 판정)과 렌더 체인의 경계를 분명히 함. 스펙 영역 (1). 하드닝 루프 이터레이션 22.
