@@ -47,15 +47,14 @@ export function mdToBlocks(src) {
 			const children = inline?.children || [];
 			// 그래프 참조(ADR-016): html:false 이므로 HTML 주석은 일반 문단 텍스트로
 			// 파싱된다. 문단 전체가 참조 코멘트일 때만 그래프 블록으로 전환.
-			const lone =
-				children.length === 1 && children[0].type === "text";
+			const lone = children.length === 1 && children[0].type === "text";
 			const gref = lone ? children[0].content.match(GRAPH_REF_RE) : null;
 			if (gref) {
 				blocks.push({
-				id: bid(),
-				type: "graph",
-				graphFile: gref[1],
-			});
+					id: bid(),
+					type: "graph",
+					graphFile: gref[1],
+				});
 			} else {
 				const img = children.find((c) => c.type === "image");
 				const onlyImg =
@@ -66,7 +65,7 @@ export function mdToBlocks(src) {
 							c.type === "softbreak" ||
 							c.type === "hardbreak" ||
 							(c.type === "text" && !c.content.trim()),
-				);
+					);
 				if (onlyImg) {
 					blocks.push({
 						id: bid(),
@@ -75,7 +74,11 @@ export function mdToBlocks(src) {
 						alt: img.content || img.alt || "",
 					});
 				} else {
-					blocks.push({ id: bid(), type: "paragraph", html: inlineHtml(inline) });
+					blocks.push({
+						id: bid(),
+						type: "paragraph",
+						html: inlineHtml(inline),
+					});
 				}
 			}
 			i += 3;

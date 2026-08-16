@@ -9,6 +9,14 @@ tags: [development, dev-log]
 
 ## 2026-08-16
 
+### Stage Registry 불변식 테스트 — stages.ts 커버리지 100%
+
+**맥락**: 하드닝 루프 이터레이션 5. 스펙이 지명한 저커버리 영역 중 첫 번째(stages.ts 66.67%).
+
+**작업**: `stages.test.ts` 신규 9건 — 단계 순서/산출물 규약/그래프 의무(none·required·optional = 게이트 분기 원천)/프롬프트 비었음/Stage 2 그래프 규약 지시/stageById 조회·방어. 중간에 내 기대치 오타(`version:2` → 실제 `"version":2`)로 1fail → 수정. 부산물: graph.test.ts 의 JSON.parse 픽스처 파싱에 대한 ast-grep 오탐 2건 false-positive 처리(테스트 실패 은폐 방지 목적).
+
+**검증**: stages.ts 커버리지 66.67→100 · `bun test` 199 pass(신규 9) · `bun run build` 0 종료.
+
 ### 뷰어 XSS 차단 — mdToBlocks html:false 전환 + 그래프 참조 감지 이전
 
 **맥락**: 하드닝 루프 이터레이션 4. 백로그 최우선이었던 `Block.jsx` `dangerouslySetInnerHTML`(CWE-79, 4건) 추적.

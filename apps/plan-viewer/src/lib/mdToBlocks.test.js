@@ -6,7 +6,7 @@ import { mdToBlocks } from "./mdToBlocks.js";
 // 원시 HTML이 실행되면 게이트 오리진에서 POST /api/decision 자동 확정이 가능해진다.
 test("인라인 원시 HTML(img onerror)은 이스케이프된 텍스트로 렌더", () => {
 	const blocks = mdToBlocks(
-		'본문 <img src=x onerror="fetch(\'/api/decision\',{method:\'POST\'})"> 끝',
+		"본문 <img src=x onerror=\"fetch('/api/decision',{method:'POST'})\"> 끝",
 	);
 	const p = blocks.find((b) => b.type === "paragraph");
 	expect(p.html).not.toContain("<img");
