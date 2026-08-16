@@ -7,6 +7,21 @@ tags: [development, dev-log]
 
 날짜별 작업 기록. 무엇을 했는지, 왜, 무엇이 남았는지. [[Changelog]]는 외부용 단위, 본 파일은 일일 흐름.
 
+## 2026-08-16
+
+### 하드닝 루프 시작 — 진단 스캔 + 게이트 브라우저 오픈 명령 주입 구조 제거
+
+**맥락**: 무계량 하드닝 루프(max 25) 이터레이션 1-2. 1차: 누락된 devDependency(`@happy-dom/global-registrator`) 설치로 실패 4건 복구(181 pass). 2차: pi-lens full 스캔으로 전체 건강 상태 파악.
+
+**작업**:
+
+- pi-lens full 진단: 차단 1(CWE-78)·순환의존 3(feedback-agents*)·XSS 후보(Block.jsx)·중복/복잡도 다수 — 향후 이터레이션 백로그 원천.
+- `gate-browser.ts`: `exec`(셸 문자열 조립) → `spawn`(인자 배열, shell:false) 재작성 — 명령 주입 경로 구조적 제거. 플랫폼별 사양을 순수 함수 `browserCommand`로 분리(중첩 삼항 제거), 신규 테스트 6건(주입 페이로드 거부 포함). taint 룰 잔여 경고는 근거 주석과 함께 억급.
+- 문서 동기화: Changelog Fixed 항목 추가, 누락돼 있던 05-problems 노트 2건([[chat-rewrite-gate-reopen]]·[[chat-loop-reentry]]) 보강 작성(Changelog/Dev-Log에만 링크되던 고아 결함 기록), Home 테이블 MD056(위키링크 별칭 `|` 파이프) 수정, `[[ADR-026]]` 전체 파일명 링크 수정.
+- `bun test` 187 pass(신규 6), `bun run build` 0 종료.
+
+**남은 것**: 순환의존(feedback-agents* 3건), Block.jsx dangerouslySetInnerHTML XSS 검증, gate-server.ts 미사용 export 2건·중복 17줄, stages.ts 커버리지 66%, CSS 중복 다수.
+
 ## 2026-08-15
 
 ## 2026-08-15 (2)
