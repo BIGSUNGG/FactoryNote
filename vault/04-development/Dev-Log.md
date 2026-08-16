@@ -9,6 +9,14 @@ tags: [development, dev-log]
 
 ## 2026-08-16
 
+### 자리표시·고아 폴더 정리
+
+**맥락**: 사용자 요청 — codex/claude-code 용 폴더 + README 만 있는 안 쓰는 폴더 + 불필요 폴더 삭제.
+
+**삭제**: `apps/codex`·`apps/claude-code`(어댑터 자리표시, 구현 0) · `docs`·`tests`(README만 존재, 선언된 하위 파일 없음) · `plans`(vault 밖 방치 계획서, 참조 0 — git 히스토리로 복구 가능) · `tmp/`(미추적 임시 산물). 참조 0건 사전 확인(AGENTS.md·Home.md·meta 문서 무참조).
+
+**검증**: `bun test` 199 pass · `bun run build` 0 종료 — 전부 자리표시라 코드 영향 없음.
+
 ### artifact.ts mixed-async 정리 — 이터레이션 25 마지막 수정
 
 **맥락**: 하드닝 루프 이터레이션 25/25. 전체 재스캔에서 `artifact.ts` 의 mixed-async-styles 경고 확인.
