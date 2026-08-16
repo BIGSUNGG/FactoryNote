@@ -120,6 +120,35 @@ test("coerce rejects bad envelope / refs / ids", () => {
 	expect(() =>
 		coerceGraphLevelFile({ version: 2, nodes: [{ id: "a" }, { id: "a" }] }),
 	).toThrow();
+	// refs 항목 비객체 거부.
+	expect(() =>
+		coerceGraphLevelFile({
+			version: 2,
+			nodes: [{ id: "a", refs: ["not-an-object"] }],
+		}),
+	).toThrow();
+	// refs[].to 누락·빈 문자열 거부.
+	expect(() =>
+		coerceGraphLevelFile({
+			version: 2,
+			nodes: [{ id: "a", refs: [{ comment: "대상 없음" }] }],
+		}),
+	).toThrow();
+	expect(() =>
+		coerceGraphLevelFile({
+			version: 2,
+			nodes: [{ id: "a", refs: [{ to: "", comment: "빈 id" }] }],
+		}),
+	).toThrow();
+	// 노드 자체가 비객체 거부.
+	expect(() => coerceGraphLevelFile({ version: 2, nodes: ["nope"] })).toThrow();
+	// 노드 id 누락·빈 문자열 거부.
+	expect(() =>
+		coerceGraphLevelFile({ version: 2, nodes: [{ label: "id 없음" }] }),
+	).toThrow();
+	expect(() =>
+		coerceGraphLevelFile({ version: 2, nodes: [{ id: "" }] }),
+	).toThrow();
 });
 
 test("coerce: 노드 표시 필드는 불투명하게 보존", () => {

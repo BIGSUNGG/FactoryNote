@@ -9,6 +9,14 @@ tags: [development, dev-log]
 
 ## 2026-08-16
 
+### state·graph 거부 분기 테스트 — 스펙 지명 저커버리 영역 완료
+
+**맥락**: 하드닝 루프 이터레이션 6. 스펙 지명 저커버리(state.ts·graph.ts)의 미커버 라인이 전부 '거부 분기'(validateState invalid-shape throw · coerceRef/coerceNode throw)였음을 확인 — 방어 코드가 테스트 무방비 상태.
+
+**작업**: engine.test.ts 에 invalid-shape 8건(valid JSON, 형태 위반 → 백업+undefined), graph.test.ts 에 refs/노드 거부 6건 추가.
+
+**검증**: state.ts 브랜치 96.36→100 · graph.ts 브랜치 98.73→100 · `bun test` 200 pass(신규 1+6 케이스) · `bun run build` 0 종료.
+
 ### Stage Registry 불변식 테스트 — stages.ts 커버리지 100%
 
 **맥락**: 하드닝 루프 이터레이션 5. 스펙이 지명한 저커버리 영역 중 첫 번째(stages.ts 66.67%).

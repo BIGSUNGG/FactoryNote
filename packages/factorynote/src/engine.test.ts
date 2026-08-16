@@ -141,6 +141,30 @@ test("corrupt state recovers to undefined", async () => {
 	expect(loaded).toBeUndefined();
 });
 
+test("valid JSON but invalid shape → 백업 후 undefined (validateState 가드)", async () => {
+	// JSON 파싱은 되지만 형태가 틀린 state — validateState 의 방어 분기.
+	// 이 경로가 열려 있으면 stage 9 같은 불량 상태가 파이프라인에 그대로 적재된다.
+	const cases: Array<[string, unknown]> = [
+		["shape-scalar", 42],
+		["shape-null", null],
+		["shape-no-feature", { stage: 1, history: [] }],
+		["shape-feature-num", { feature: 7, stage: 1, history: [] }],
+		["shape-stage-low", { feature: "f", stage: 0, history: [] }],
+		["shape-stage-high", { feature: "f", stage: 4, history: [] }],
+		["shape-stage-nan", { feature: "f", stage: Number.NaN, history: [] }],
+		["shape-history-missing", { feature: "f", stage: 1 }],
+	];
+	for (const [feat, bad] of cases) {
+		await saveState(root, initialState(feat)); // 디렉토리 생성
+		await writeFile(
+			join(root, feat, "state.json"),
+			JSON.stringify(bad),
+			"utf8",
+		);
+		expect(await loadState(root, feat)).toBeUndefined();
+	}
+});
+
 test("missing state returns undefined", async () => {
 	const loaded = await loadState(root, "never-started");
 	expect(loaded).toBeUndefined();
