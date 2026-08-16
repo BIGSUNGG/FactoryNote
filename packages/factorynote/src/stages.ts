@@ -66,8 +66,3 @@ export function stageById(id: StageId): StageDefinition {
 	if (!def) throw new Error(`Unknown stage: ${id}`);
 	return def;
 }
-
-/** 현재 단계. */
-export function currentStageDef(stage: StageId): StageDefinition {
-	return stageById(stage);
-}

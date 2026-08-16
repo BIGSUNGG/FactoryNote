@@ -38,7 +38,7 @@ export type {
 	StageId,
 	ValidThrough,
 } from "./types/index.ts";
-export { STAGES, currentStageDef, stageById } from "./stages.ts";
+export { STAGES, stageById } from "./stages.ts";
 export type { StageDefinition } from "./stages.ts";
 export {
 	FEEDBACK_AGENTS,

@@ -9,6 +9,14 @@ tags: [development, dev-log]
 
 ## 2026-08-16
 
+### currentStageDef 제거 — pass-through 래퍼 마무리
+
+**맥락**: 하드닝 루프 이터레이션 19. 백로그 pass-through-wrapper 2건 종결.
+
+**작업**: `currentStageDef` = `stageById` 순수 동의어, 외부 소비 0 — 제거(재export·테스트 정리). `featureDir` 은 경고와 달리 내부 3소비점의 도메인 계약 단일 정의라 유지·오탐 기록. 부수: 이터레이션 18 의 touch 로 mtime 만 바뀌었던 main.jsx 줄바꿈 정규화 승차.
+
+**검증**: `bun test` 199 pass(위임 테스트 제거로 -1) · `bun run build` 0 종료.
+
 ### ensure-viewer-dist 이동 — 루트 소스 0 달성
 
 **맥락**: 하드닝 루프 이터레이션 18. 이전 이터레이션에서 누락됐던 루트 잔류 파일(이터레이션 17 참조).

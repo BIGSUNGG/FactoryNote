@@ -116,6 +116,8 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ### Removed
 
+- **죽은 공개 API `currentStageDef` 제거 + `featureDir` 오탐 기록** — `stages.ts` 의 `currentStageDef` 는 `stageById` 의 순수 동의어(외부 소비 0, 테스트도 위임 확인뿐) — 공개 표면에서 제거(재export·위임 테스트 동반 정리, 자체체크 199). 반면 `paths.ts` 의 `featureDir` 은 pass-through 경고와 달리 도메인 계약(.factorynote 레이아웃)의 단일 정의로 내부 3소비점이 있어 유지 — 오탐 처리 기록. 하드닝 루프 이터레이션 19.
+
 - **뷰어 고아 의존성 `mermaid` 제거 + 스테일 npm lock 삭제** — `apps/plan-viewer/package.json` 의 `mermaid@^11.16.0` 은 소스 어디에서도 import 되지 않고 번들에도 포함되지 않았다(그래프 렌더는 자체 SVG+react-flow, ADR-018·021) — 선언만 남은 고아 의존성. 제거로 `bun.lock` 에서 mermaid 트리(-143줄) 정리. 아울러 레포가 bun 으로 통일되기 전 잔재인 `apps/plan-viewer/package-lock.json`(npm 이중 매니페스트, mermaid 잔류)을 삭제 — npm install 로 제거된 의존성이 되살아나는 경로 차단. 번들·동작 무변(420KB JS 동일 해시). 하드닝 루프 이터레이션 16.
 
 - **단계별 `feedbackAxes` 고정 선택 + 공용 `factorynote-feedback`** — 정적 축 세트·단일 공용 에이전트 폐지(전문 에이전트 + Director 동적 선택으로 대체). `feedbackBatchTasks`/`feedbackAxisTask` → `feedbackAgentTask`+메뉴 기반으로 대체. [[ADR-014-dynamic-feedback-agents]].

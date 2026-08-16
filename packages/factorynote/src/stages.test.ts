@@ -2,7 +2,7 @@
 // stages.ts 는 protocol/stages/ 의 실행 투영이므로, 데이터 자체가 게이트 의무
 // (Stage 2 graph required 등)를 결정한다 — 테이블 드리프트를 잡는 것이 목적.
 import { describe, expect, test } from "bun:test";
-import { STAGES, stageById, currentStageDef } from "./stages.ts";
+import { STAGES, stageById } from "./stages.ts";
 
 describe("STAGES 정의 테이블", () => {
 	test("3단계가 id 1→3 순서로 존재", () => {
@@ -44,15 +44,11 @@ describe("STAGES 정의 테이블", () => {
 	});
 });
 
-describe("stageById / currentStageDef", () => {
+describe("stageById", () => {
 	test("유효 id 조회 — 정의 테이블 원본 반환(동일 참조)", () => {
 		for (const s of STAGES) {
 			expect(stageById(s.id)).toBe(s);
 		}
-	});
-
-	test("currentStageDef 는 stageById 위임(같은 결과)", () => {
-		expect(currentStageDef(2)).toBe(stageById(2));
 	});
 
 	test("범위 밖 id 는 명확한 에러(런타임 StageId 위반 방어)", () => {
