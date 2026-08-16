@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-15
+updated: 2026-08-16
 tags: [development, changelog]
 ---
 
@@ -23,6 +23,8 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 - **게이트 채팅 전송 대기 큐(read-wins 취소)** — 에이전트가 응답 중(도구 호출 중, `runGate` 대기 아님)일 때 보낸 채팅을 `chatLog` 가 아닌 가시 대기 큐(`pendingChats`)에 적재. 뷰어 채팅 사이드바에 별도 **'전송 대기 중' 영역**이 표시되고 각 메시지를 ✕ 로 **전송 취소**(완전 삭제)할 수 있다. 에이전트가 응답을 마치고 `runGate` 에 재진입해 큐 메시지를 `chat` 이벤트로 넘기는 순간(= '읽기') `chatLog` 로 **승격**되어 일반 전송 메시지로 전환된다. 에이전트가 듣는 중(`runGate` 대기)에 보내면 종래대로 즉시 전송(큐 미경유). 전송 경로 분기는 `currentResolver` 유무로 판별. **read-wins**: 이미 넘겨진 메시지의 취소는 `POST /api/chat/cancel` 이 `{ok:false, reason:"already-sent"}` 로 거부(단일 스레드 불변조건 '큐에 없으면 이미 넘겨진 것'으로 보장). `GET /api/chat` 응답에 `queue` 배열 추가, SSE `chat` 이벤트를 적재·취소·승급 시점에 push. `makeGateHandler` 가 `broadcast` 를 주입받도록 시그니처 변경(`gate-http↔gate-manager` 순환 import 회피). 게이트 바 결정·에이전트→사용자 답변·코멘트/그래프는 무변경. 신규 자체체크 3건(서버 큐 라이프사이클 1 + 뷰어 큐 렌더·취소 2). 자체체크 167 pass. [[ADR-024-chat-send-queue]]
 
 ### Changed
+
+- **에이전트 채팅 메신저 버블 레이아웃 통일** — user/AI 스타일이 상이하던 채팅을 실제 메신저 형태로 재디자인: 역할 라벨 제거, user 우측 잉크 채운 버블·agent 좌측 옅은 버블(정렬+색으로 구분, 꼬리 쪽 모서리 축소). 확정 요청(stage-request fulfilled)도 강조 카드가 아닌 일반 user 버블과 동일 레이아웃으로 기록(✓ 뱃지, mono→본문 서체). user 버블 내 blockId·quote 대비색 보정. 큐·게이트 바 무변경.
 
 - **viewer 중첩 삼항 소거 3건(가독성·관용구 분리)** — “열거형→값” 매핑의 진짜 중첩 삼항 3곳을 명명형 코드로 교체, JSX 렌더 체인(`a ? B : c ? D : E`)은 React 관용구이므로 유지. (1) `PlanPage.jsx` 3중 중첩 `stagesFor` 상태 계산 → 순수 함수 `stepperState(n, viewed, real)`. (2) `Stepper.jsx` 상태→툴팁 중첩 → `stepperTitle(state, label)` if 체인. (3) `Block.jsx` type→라벨 중첩 → `LABELS` 레코드 + nullish 기본값. 각 케이스는 단위 로직(열거값 판정)과 렌더 체인의 경계를 분명히 함. 스펙 영역 (1). 하드닝 루프 이터레이션 22.
 

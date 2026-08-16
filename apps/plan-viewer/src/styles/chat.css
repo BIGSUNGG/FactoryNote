@@ -54,31 +54,41 @@
 	font-size: 12.5px;
 	line-height: 1.6;
 }
+/* 채팅 버블 — 실제 메신저 레이아웃: user 우측 잉크 버블, agent 좌측 옅은 버블.
+ * 역할 라벨 없음(정렬+색으로 구분). 꼬리 쪽 모서리만 좁혀 발화 방향 암시. */
 .chat-msg {
 	font-size: 13px;
+	line-height: 1.55;
+	max-width: 85%;
+	padding: var(--s2) var(--s3);
+	border-radius: 14px;
 }
 .chat-msg.agent {
-	background: rgba(17, 24, 39, 0.04);
+	align-self: flex-start;
+	background: rgba(17, 24, 39, 0.05);
 	border: 1px solid var(--border);
-	border-radius: var(--radius);
-	padding: var(--s2) var(--s3);
+	border-bottom-left-radius: var(--radius-sm);
 }
 .chat-msg.user {
-	border-left: 2px solid var(--text);
-	padding: var(--s1) var(--s2);
+	align-self: flex-end;
+	background: var(--text);
+	color: var(--on-color);
+	border-bottom-right-radius: var(--radius-sm);
 }
-.chat-role {
-	font-family: var(--mono);
-	font-size: 10px;
-	text-transform: uppercase;
-	letter-spacing: 0.05em;
-	color: var(--muted);
-	margin-right: var(--s2);
+.chat-msg.user .chat-text {
+	color: inherit;
+}
+.chat-msg.user .chat-block {
+	color: rgba(255, 255, 255, 0.65);
+}
+.chat-msg.user .chat-quote {
+	color: rgba(255, 255, 255, 0.72);
+	border-left-color: rgba(255, 255, 255, 0.4);
 }
 .chat-block {
 	font-family: var(--mono);
 	font-size: 10px;
-	color: var(--text);
+	color: var(--muted);
 	font-weight: 600;
 }
 .chat-text {
@@ -277,22 +287,24 @@
 	text-align: center;
 }
 
-/* === 단계 진행 요청(stage-request) — 채운 액센트 배경 강조 ===
- * 채팅 본문(fulfilled)·큐(pending) 공통: --primary 배경 + 둥근 카드. */
-.chat-msg.stage-request,
+/* === 단계 진행 요청(stage-request) — 일반 채팅과 동일 레이아웃 ===
+ * 본문(fulfilled): user 버블과 같은 우측 잉크 버블. 큐(pending): 큐 카드 스타일 유지. */
+.chat-msg.stage-request {
+	background: var(--text);
+	color: var(--on-color);
+	border: none;
+}
 .chat-queued-msg.stage-request {
 	background: var(--primary);
 	color: var(--on-color);
 	border: none;
-	border-radius: 10px;
-	padding: var(--s2) var(--s3);
 }
 .chat-stage-badge {
 	display: block;
-	font-family: var(--mono);
-	font-size: 12px;
+	font-size: 12.5px;
 	font-weight: 600;
-	letter-spacing: 0.02em;
+	letter-spacing: 0.01em;
+	color: inherit;
 }
 @media (max-width: 900px) {
 	.review-main {

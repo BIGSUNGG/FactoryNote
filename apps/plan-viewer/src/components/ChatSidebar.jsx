@@ -107,21 +107,19 @@ export default function ChatSidebar({
 				) : (
 					messages.map((m) => {
 						if (m.kind === "stage-request") {
-							// pending 은 큐 영역에서만 표시(본문 미노출), fulfilled 만 본문 강조 기록.
+							// pending 은 큐 영역에서만 표시(본문 미노출), fulfilled 는 일반
+							// 채팅과 같은 우측 버블로 기록.
 							if (m.status === "pending") return null;
 							return (
-								<div key={m.id} className="chat-msg stage-request">
+								<div key={m.id} className="chat-msg user stage-request">
 									<span className="chat-stage-badge">
-										➡ Stage {m.targetStage} 진행 요청
+										✓ Stage {m.targetStage} 진행 요청
 									</span>
 								</div>
 							);
 						}
 						return (
 							<div key={m.id} className={`chat-msg ${m.role}`}>
-								<span className="chat-role">
-									{m.role === "user" ? "나" : "AI"}
-								</span>
 								{m.blockId && <span className="chat-block">[{m.blockId}]</span>}
 								{m.quote && (
 									<blockquote className="chat-quote">“{m.quote}”</blockquote>
@@ -133,7 +131,6 @@ export default function ChatSidebar({
 				)}
 				{thinking && (
 					<div className="chat-msg agent thinking">
-						<span className="chat-role">AI</span>
 						<div className="chat-text">
 							thinking
 							<span className="think-dots">
