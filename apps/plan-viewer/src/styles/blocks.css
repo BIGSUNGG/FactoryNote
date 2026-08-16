@@ -13,23 +13,26 @@
 	border-color: var(--border);
 }
 
-/* ADR-027 변경 하이라이트 — 게이트 중 재작성으로 추가·수정된 블록.
+/* ADR-027 변경 하이라이트 — 게이트 중 재작성으로 추가·수정된 블록(모노톤).
+ * 수정 = 주황, 추가 = 연두(.added 가 .changed 를 덮음 — added ⊂ changed).
  * 확정 시 서버가 .prev 를 삭제하므로 하이라이트도 함께 사라진다. */
 .block.changed {
 	background: rgba(217, 119, 6, 0.08);
 	border-color: rgba(217, 119, 6, 0.4);
 }
 
-/* ADR-027 추가 블록 등장 연출 — 페이드인 + 살짝 솟아오름 + 진한 앰버 플래시가
- * .changed 하이라이트 색으로 정착. 수정 블록은 연출 없이 하이라이트만. */
+/* ADR-027 추가 블록 — 연두 하이라이트 + 등장 연출(페이드인 + 살짝 솟아오름 +
+ * 진한 연두 플래시가 정착). 수정 블록은 연출 없이 주황 하이라이트만. */
 .block.added {
+	background: rgba(140, 168, 60, 0.12);
+	border-color: rgba(140, 168, 60, 0.45);
 	animation: block-added-in 0.5s ease-out;
 }
 @keyframes block-added-in {
 	from {
 		opacity: 0;
 		transform: translateY(6px);
-		background: rgba(217, 119, 6, 0.18);
+		background: rgba(140, 168, 60, 0.24);
 	}
 }
 @media (prefers-reduced-motion: reduce) {
