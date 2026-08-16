@@ -9,6 +9,14 @@ tags: [development, dev-log]
 
 ## 2026-08-16
 
+### viewer 중첩 삼항 소거 3건 — 가독성·관용구 경계
+
+**맥락**: 하드닝 루프 이터레이션 22. 백로그 viewer 중첩 삼항 소수 처리. JSX 조건부 렌더 체인은 React 관용구로 남겨두고, “열거형→값” 계산의 진짜 중첩만 명명 코드로 교체.
+
+**작업**: (1) PlanPage 3중 중첩 상태 계산 → `stepperState(n, viewed, real)` if 체인, (2) Stepper 상태→툴팁 중첩 → `stepperTitle(state, label)`, (3) Block type→라벨 중첩 → `LABELS` 레코드 + nullish 기본. 도중 edit 실수: Block 의 3단 삼항 기본 분기를 oldText 에 누락해 dangling 라인 남김 → 즉시 발견해 제거 + 기본 텍스트 원본(“관계도”) 복구로 행동 동일화.
+
+**검증**: 뷰어 빌드 포함 전체 재빌드 성공(JSX 변경이므로 실빌드 확인) · `bun test` 199 pass · `bun run build` 0 종료.
+
 ### runDesignFeedbackLoop 옵션 객체 — long-param 종결
 
 **맥락**: 하드닝 루프 이터레이션 21. 코어 마지막 long-param 경고(df-loop).

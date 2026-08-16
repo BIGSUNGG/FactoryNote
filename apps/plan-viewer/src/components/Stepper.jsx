@@ -3,6 +3,13 @@ import React from "react";
 // 3단계 스텝퍼. 단계 클릭 시 해당 Stage 로 전환(F2 읽기 전용 이전 단계 보기 지원).
 // onSelect(stage) 가 주어지면 클릭→부모(App)의 setViewStage 로 읽기 전용 이전 단계/현재 단계 전환.
 // onSelect 가 없으면 기존 해시 라우팅(레거시)으로 동작.
+/** 스텝 툴팁 — 중첩 삼항 대신 if 체인: locked > view > default. */
+function stepperTitle(state, label) {
+	if (state === "locked") return "잠김 — 이전 Stage 확정 필요";
+	if (state === "view") return "이전 단계 읽기 전용 보기";
+	return `${label} 보기`;
+}
+
 export default function Stepper({ stages, onSelect }) {
 	const go = (n) => {
 		if (!onSelect) {
@@ -19,13 +26,7 @@ export default function Stepper({ stages, onSelect }) {
 					<div
 						className={`step ${s.state}`}
 						onClick={() => go(s.n)}
-						title={
-							s.state === "locked"
-								? "잠김 — 이전 Stage 확정 필요"
-								: s.state === "view"
-									? "이전 단계 읽기 전용 보기"
-									: `${s.label} 보기`
-						}
+						title={stepperTitle(s.state, s.label)}
 						style={{ cursor: s.state === "locked" ? "not-allowed" : "pointer" }}
 					>
 						<span className="num">{s.n}</span> {s.label}

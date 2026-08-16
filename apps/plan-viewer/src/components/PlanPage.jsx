@@ -19,19 +19,15 @@ const stagesFor = (viewed, real) =>
 		// - s.n > real: 아직 작성 안 됨(잠금·선택 불가)
 		// - s.n === viewed: 지금 보고 있는 단계(현재 편집=current, 이전 단계 읽기 전용=view)
 		// - 그 외(작성됨·선택 가능): 클릭으로 해당 단계 이동/이전 단계 복귀
-		const locked = s.n > real;
-		const viewing = s.n === viewed;
-		return {
-			...s,
-			state: locked
-				? "locked"
-				: viewing
-					? real === viewed
-						? "current"
-						: "view"
-					: "done",
-		};
+		return { ...s, state: stepperState(s.n, viewed, real) };
 	});
+
+/** 스텝 표시 상태 — 중첩 삼항 대신 가독 판정: locked > current/view > done. */
+function stepperState(n, viewed, real) {
+	if (n > real) return "locked";
+	if (n === viewed) return real === viewed ? "current" : "view";
+	return "done";
+}
 
 const stripHtml = (html) => html.replace(/<[^>]+>/g, "").trim();
 

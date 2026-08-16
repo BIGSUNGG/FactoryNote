@@ -22,6 +22,8 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ### Changed
 
+- **viewer 중첩 삼항 소거 3건(가독성·관용구 분리)** — “열거형→값” 매핑의 진짜 중첩 삼항 3곳을 명명형 코드로 교체, JSX 렌더 체인(`a ? B : c ? D : E`)은 React 관용구이므로 유지. (1) `PlanPage.jsx` 3중 중첩 `stagesFor` 상태 계산 → 순수 함수 `stepperState(n, viewed, real)`. (2) `Stepper.jsx` 상태→툴팁 중첩 → `stepperTitle(state, label)` if 체인. (3) `Block.jsx` type→라벨 중첩 → `LABELS` 레코드 + nullish 기본값. 각 케이스는 단위 로직(열거값 판정)과 렌더 체인의 경계를 분명히 함. 스펙 영역 (1). 하드닝 루프 이터레이션 22.
+
 - **`runDesignFeedbackLoop` 옵션 객체 전환 — 코어 long-parameter-list 종결** — 위치 인자 5개(spawn, def, maxLoops, select, feedbackLevel — 테스트가 `undefined, "none"` 같은 자릿수 맞춤을 하던)를 `DesignFeedbackLoopOptions` 로 전환, 공개 API 에서 타입 재export. 호출점 3건(orchestration.test.ts) 갱신 — `select: pick3`·`feedbackLevel: "none"` 이 명명으로 읽힘. 코어 마지막 long-param 경고 해소. 하드닝 루프 이터레이션 21.
 
 - **`scripts/README.md` 를 현재 실체로 재작성** — 구 체계 잔재(`build.ts` — 존재하지 않음, tsc -b 전환 이전) 참조 제거, 이번 하드닝으로 scripts/ 에 이동·추가된 파일 전부 기재: gen-feedback-agents(레지스트리→에이전트 md 생성, ADR-014)·ensure-viewer-dist(preload staleness)·repro-serve(공용 서버+resolveRepoRoot)·repro 스모크 4종(실행 경로 `bun scripts/...` 포함). 스펙 영역 (3) — 루트 소스 0 달성으로 scripts/ 가 실질적 스크립트 홈이 됐으나 안내서가 비었었다. 하드닝 루프 이터레이션 20.

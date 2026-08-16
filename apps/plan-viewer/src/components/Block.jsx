@@ -65,12 +65,11 @@ function BlockContent({
 			// tree = 계층 드릴다운(GraphView), sequence·flowchart = 읽기 전용 SVG.
 			// 캔버스 조작은 상위(Document) 코멘트 핸들러로 전파되지 않게 막고, 헤더만 블록 코멘트 활성화에 쓴다.
 			const entry = graphData?.[block.graphFile];
-			const label =
-				entry?.type === "sequence"
-					? "📈 시퀀스 다이어그램 · 클릭하여 코멘트"
-					: entry?.type === "flowchart"
-						? "📈 플로우차트 · 클릭하여 코멘트"
-						: "📈 관계도 · 클릭하여 코멘트";
+			const LABELS = {
+				sequence: "📈 시퀀스 다이어그램 · 클릭하여 코멘트",
+				flowchart: "📈 플로우차트 · 클릭하여 코멘트",
+			};
+			const label = LABELS[entry?.type ?? ""] ?? "📈 관계도 · 클릭하여 코멘트";
 			return (
 				<div className="block-content block-graph">
 					<div className="block-graph-head" title="클릭하여 코멘트">
