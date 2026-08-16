@@ -117,16 +117,12 @@
 	font-weight: 500;
 	background: var(--primary-tint);
 }
-.doc {
+/* .doc 래퍼 — 그리드 슬롯·폭 클램프 소유(ADR-027 변경 마커 레일 위치 기준). */
+.doc-wrap {
 	--doc-ratio: 0.75; /* 16:9에서 가시 그리드 폭(G) 대비 .doc 차지 비율. 세로(9:16)는 항상 100%. 이 값만 바꾸면 16:9 폭 조절됨. */
 	grid-column: 2 / -1; /* col2 + col3 = 가시 그리드 배경 폭(G) 전체 차지 → 100%=G */
-	min-height: 0; /* grid item 기본 min-height:auto 해제 → 남은 높이에서 스크롤 */
-	overflow-y: auto; /* 문서 본문만 스크롤 — 크롬(topbar/stepper/gate)은 고정 */
-	font-size: calc(
-		1rem *
-		var(--fs, 1)
-	); /* 본문 단락은 여기서 상속 → --fs 로 확대/축소 */
-	padding: var(--s5) var(--s5) var(--s5); /* 내부 스크롤 → gate-bar 위까지 차지, 120px 클리어 불필요 */
+	min-height: 0;
+	position: relative; /* 레일 오버레이 기준 */
 	/* 화면 비율에 따라 연속 변화(16:9·9:16 하드코딩 없음):
 	   16:9 → --doc-ratio·G, 9:16 → 100%(min() 클램프).
 	   177.78vh ≈ 16:9 뷰포트폭(1vh=0.5625%·W), 560px = 고정 크롬(목차220+채팅340). */
@@ -138,22 +134,55 @@
 	width: 100%;
 	/* md 렌더링 영역은 그리드에서 제외 → 불투명 흰색으로 덮음 */
 	background: var(--surface);
-	scrollbar-width: thin; /* Firefox — 얇은 바 */
-	scrollbar-color: var(--border-strong) transparent;
 }
-/* 얇은 커스텀 스크롤바 (sleek) — .doc 우측 끝 */
-.doc::-webkit-scrollbar {
+.doc {
+	height: 100%;
+	min-height: 0; /* grid item 기본 min-height:auto 해제 → 남은 높이에서 스크롤 */
+	overflow-y: auto; /* 문서 본문만 스크롤 — 크롬(topbar/stepper/gate)은 고정 */
+	font-size: calc(
+		1rem *
+		var(--fs, 1)
+	); /* 본문 단락은 여기서 상속 → --fs 로 확대/축소 */
+	padding: var(--s5) var(--s5) var(--s5); /* 내부 스크롤 → gate-bar 위까지 차지, 120px 클리어 불필요 */
+	width: 100%;
+	scrollbar-width: none; /* 네이티브 바 숨김 — 커스텀 스크롤바(DocScrollbar)가 대체 */
+}
+/* 커스텀 스크롤바 트랙(DocScrollbar) — .doc 우측 끝, 네이티브 바 대체.
+ * ADR-027 변경 마커(수정 주황·추가 연두)가 트랙 안 세그먼트로 통합. */
+.doc-scroll {
+	position: absolute;
+	top: 2px; /* TRACK_INSET — 패널 상하 끝과 간격(월월 방지) */
+	bottom: 2px;
+	right: 0;
 	width: 8px;
+	z-index: 2;
+	outline: none;
 }
-.doc::-webkit-scrollbar-track {
-	background: transparent;
+.doc-scroll:focus-visible {
+	outline: 1px solid var(--primary);
+	outline-offset: -1px;
 }
-.doc::-webkit-scrollbar-thumb {
+.doc-scroll-thumb {
+	position: absolute;
+	right: 0;
+	width: 8px;
+	border-radius: 4px;
 	background: var(--border-strong);
-	border-radius: 999px;
+	touch-action: none; /* 드래그 중 브라우저 제스처 차단 */
 }
-.doc::-webkit-scrollbar-thumb:hover {
+.doc-scroll-thumb:hover {
 	background: var(--text);
+}
+.doc-rail-mark {
+	position: absolute;
+	right: 0;
+	width: 8px; /* thumb 와 동일 폭·4px 라운딩 — 트랙의 색 세그먼트 */
+	border-radius: 4px;
+	background: rgba(217, 119, 6, 0.55); /* 수정 — 반투명이라 thumb 비침 */
+	pointer-events: none; /* 트랙 클릭·드래그 방해 금지 */
+}
+.doc-rail-mark.added {
+	background: rgba(140, 168, 60, 0.6); /* 추가 */
 }
 .doc h1 {
 	font-size: calc(1.75rem * var(--fs, 1));

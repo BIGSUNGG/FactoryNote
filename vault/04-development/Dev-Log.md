@@ -27,6 +27,16 @@ tags: [development, dev-log]
 
 **후속 4(버그 — 연출 1회성·하이라이트 즉시 소멸)**: (1) 등장 애니메이션이 첫 재작성에만 실행 — 원인: `key={b.id}` 위치 기반이라 재작성 시 같은 DOM 노드가 `added` 클래스를 유지한 채 재사용 → CSS 애니메이션 미재실행. 수정: key 를 `blockKey(b)#출현순서`(콘텐츠 지문)로 전환 — 신규·변경 블록만 마운트(연출 재실행), 동일 콘텐츠 블록은 위치가 밀려나도 노드 유지. (2) 새 변경 시 기존 하이라이트 즉시 소멸 — `.block` transition 을 `background·border-color 0.5s` 로 교체, 클래스 제거 시 천천히 페이드아웃(호버도 동일 타이밍). 자체체크 무변경(CSS·key 동작은 jsdom 단언 불가). 214 pass.
 
+**후속 5(스크롤 레일 변경 마커)**: 문서 스크롤바 트랙에 변경 블록 위치를 색 마커로 표시(수정 주황·추가 연두 — 블록 하이라이트 동일 체계). `Document.jsx` 가 변경 블록의 `offsetTop/offsetHeight` 를 `scrollHeight→clientHeight` 비율로 환원해 `doc-rail` 오버레이에 마커 렌더(블록·하이라이트·글자 배율 변경·리사이즈·이미지 로드 시 재계산). 레이아웃: `.doc` 의 그리드 슬롯·폭 클램프를 `.doc-wrap` 래퍼로 승격(position:relative — 레일 기준), `.doc` 는 내부 스크롤 유지. 클릭 불가 장식 전용(pointer-events:none). 자체체크 무변경(시각·레이아웃). 214 pass.
+
+**후속 6(마커-스크롤바 일체화)**: 3px 세선 마커가 8px thumb 와 별도 요소로 보인다는 피드백 — 마커를 thumb 동일 폼(폭 8px·radius 999px)의 트랙 색 세그먼트로 전환, 반투명(0.55/0.6)이라 thumb 가 아래로 비쳐 단일 스크롤바로 읽힘. 후속: `border-radius 999px` 이 짧은 마커에서 렌즈(타원) 모양을 만들어 thumb 와 이질 — 4px 로 교체(thumb 코너 곡률 동일, 짧은 마커는 자동 클램프로 둥근 바).
+
+**후속 7(커스텀 스크롤바 — /goal)**: 네이티브+오버레이 조합의 이질감을 근본 해소: `.doc` 네이티브 바 완전 숨김(`scrollbar-width: none`, `::-webkit-scrollbar` 규칙 삭제) + `DocScrollbar` 컴포넌트 신규. 트랙 8px + thumb(비율 크기·MIN_THUMB 32 하한), thumb 드래그(pointermove 윈도우 리스너)·트랙 클릭 점프·트랙 키보드(화살표 40px/Page/Home/End), `role="scrollbar"`·`aria-controls="doc-content"`·`aria-valuenow`. 휠·touch 는 `.doc` 네이티브 유지(overflow-y:auto 유지 — 스크롤 물리 재구현 없음). 마커는 트랙 자식 세그먼트로 통합(thumb 위·반투명). 지오메트리 순수 모듈 `lib/scrollbar.js`(thumbGeom/scrollForTrackClick/dragToScroll). 자체체크 6건(미렌더·지오메트리 동기화+aria·트랙 클릭·드래그·키보드·마커 통합). 검증: 오르카 내장 브라우저 실물 확인 — 새 포트(5190, 내장 브라우저 모듈 캐시로 기존 탭은 stale)에서 thumb+연두 세그먼트 단일 객체 렌더 확인. 220 pass.
+
+**후속 8(스크롤바 끝단 인셋)**: '최상단·최하단을 조금 넘는다' 피드백 — 트랙에 상하 2px 인셋(`TRACK_INSET`, `.doc-scroll{top:2px;bottom:2px}`)을 주고 thumb·마커 지오메트리를 트랙 높이 기준으로 환산, 마커는 `clampMark` 로 최소 높이 강제분이 트랙 하단을 넘지 않게 클램프, thumb top 도 [0,avail] 클램프. 실측: scrollTop 0/max 양단에서 thumb 가 트랙 안에 정확히 정착. 자체체크 기대값 갱신. 220 pass.
+
+**후속 9(마커 양 끝 정규화)**: '문서 첫/끝 블록 변경 시 마커가 스크롤바 최상단·최하단과 같은 높이' 요구 — 마커 매핑을 패딩 포함 비율에서 **콘텐츠 박스(패딩 제외) 기준 정규화**로 전환(`markGeom`: 첫 블록 상단→트랙 0, 마지막 블록 하단→트랙 끝). 실측: 첫 블록 변경 시 마커 상단 119 = 트랙 상단 119. 자체체크 +3건(scrollbar.test.js). 223 pass.
+
 ### 에이전트 채팅 숨기기 — 축소/복원 버튼
 
 **맥락**: 사용자 /goal — 채팅 우측 상단 축소 버튼, 누르면 우측으로 슬라이드하며 사라지고 우측 가장자리 복원 버튼으로 재펼침. 게이트 통과 전 질문으로 복원 버튼 위치(우측 가장자리 고정)·상태 유지(세션 내만)·축소 중 새 메시지(복원 버튼 badge) 확정.

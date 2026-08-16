@@ -1,6 +1,8 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import Block from "./Block";
+import DocScrollbar from "./DocScrollbar";
 import { blockKey } from "../lib/blockDiff";
+import { trackHeight, markGeom } from "../lib/scrollbar";
 import { activeHeadingId } from "../lib/activeHeading";
 
 // 산출물 본문 = 마크다운 블록 시퀀스.
@@ -23,6 +25,48 @@ export default function Document({
 }) {
 	const skipRef = useRef(false); // 직전 mouseup 이 드래그였으면 뒤따르는 click 무시
 	const mainRef = useRef(null);
+	const [railMarks, setRailMarks] = useState([]); // ADR-027 스크롤 레일 변경 마커
+
+	// 스크롤 레일 마커(ADR-027): 변경·추가 블록의 콘텐츠 내 위치를 스크롤바 트랙
+	// 비율로 환원. 블록·하이라이트·글자 배율 변경 + 리사이즈·이미지 로드 시 재계산.
+	useEffect(() => {
+		const doc = mainRef.current;
+		if (!doc) return;
+		const compute = () => {
+			const total = doc.scrollHeight;
+			const client = doc.clientHeight;
+			if (!trackHeight(client) || !total) return setRailMarks([]);
+			const cs = getComputedStyle(doc);
+			const padTop = parseFloat(cs.paddingTop) || 0;
+			const padBottom = parseFloat(cs.paddingBottom) || 0;
+			const next = [];
+			for (const b of blocks) {
+				if (!changedIds?.has(b.id)) continue;
+				const node = doc.querySelector(`[data-block-id="${b.id}"]`);
+				if (!node) continue;
+				const gm = markGeom(node.offsetTop, node.offsetHeight, {
+					total,
+					client,
+					padTop,
+					padBottom,
+				});
+				next.push({
+					id: b.id,
+					top: gm.top,
+					h: gm.h,
+					added: addedIds?.has(b.id),
+				});
+			}
+			setRailMarks(next);
+		};
+		compute();
+		window.addEventListener("resize", compute);
+		doc.addEventListener("load", compute, true); // 이미지 로드 후 오프셋 재계산
+		return () => {
+			window.removeEventListener("resize", compute);
+			doc.removeEventListener("load", compute, true);
+		};
+	}, [blocks, changedIds, addedIds, fontScale]);
 
 	// scroll-spy: .doc 스크롤 시 상단 기준선(80px)을 지난 가장 마지막 h2/h3 헤딩 보고.
 	// rAF 로 스로틀(스크롤 이벤트 빈도 완화), 블록/헤딩 변경·마운트·리사이즈에서 재계산.
@@ -85,38 +129,43 @@ export default function Document({
 	};
 
 	return (
-		<main
-			ref={mainRef}
-			className="doc"
-			style={{ "--fs": String(fontScale) }}
-			onMouseUp={handleMouseUp}
-			onClick={handleClick}
-		>
-			{(() => {
-				// key = 콘텐츠 지문 + 출현 순서(ADR-027 연출 안정성).
-				// 위치 기반 id(b0..) 는 재작성 시 같은 DOM 노드가 재사용돼 등장
-				// 애니메이션이 재실행되지 않는다. 콘텐츠 키 기준으로는 새 블록만
-				// 신규 마운트(연출 실행), 유지 블록은 노드를 지켜 하이라이트가
-				// transition 으로 천천히 사라진다(위치 밀려남도 키 유지).
-				const seen = {};
-				return blocks.map((b) => {
-					const k = blockKey(b);
-					const occ = (seen[k] = (seen[k] ?? 0) + 1);
-					return (
-						<Block
-							key={`${k}#${occ}`}
-							block={b}
-							changed={changedIds?.has(b.id)}
-							added={addedIds?.has(b.id)}
-							comments={comments}
-							onAddComment={onAddComment}
-							onActivate={onActivate}
-							activeTargetId={activeTargetId}
-							graphData={graphData}
-						/>
-					);
-				});
-			})()}
-		</main>
+		<div className="doc-wrap">
+			<main
+				ref={mainRef}
+				id="doc-content"
+				className="doc"
+				style={{ "--fs": String(fontScale) }}
+				onMouseUp={handleMouseUp}
+				onClick={handleClick}
+			>
+				{(() => {
+					// key = 콘텐츠 지문 + 출현 순서(ADR-027 연출 안정성).
+					// 위치 기반 id(b0..) 는 재작성 시 같은 DOM 노드가 재사용돼 등장
+					// 애니메이션이 재실행되지 않는다. 콘텐츠 키 기준으로는 새 블록만
+					// 신규 마운트(연출 실행), 유지 블록은 노드를 지켜 하이라이트가
+					// transition 으로 천천히 사라진다(위치 밀려남도 키 유지).
+					const seen = {};
+					return blocks.map((b) => {
+						const k = blockKey(b);
+						const occ = (seen[k] = (seen[k] ?? 0) + 1);
+						return (
+							<Block
+								key={`${k}#${occ}`}
+								block={b}
+								changed={changedIds?.has(b.id)}
+								added={addedIds?.has(b.id)}
+								comments={comments}
+								onAddComment={onAddComment}
+								onActivate={onActivate}
+								activeTargetId={activeTargetId}
+								graphData={graphData}
+							/>
+						);
+					});
+				})()}
+			</main>
+			{/* 커스텀 스크롤바 — 네이티브 바 대체, ADR-027 마커 트랙 내 통합 */}
+			<DocScrollbar docRef={mainRef} marks={railMarks} blocks={blocks} />
+		</div>
 	);
 }
