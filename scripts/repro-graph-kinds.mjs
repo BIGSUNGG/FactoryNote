@@ -11,24 +11,17 @@ import {
 	initialState,
 	saveState,
 	writeArtifact,
-} from "./packages/factorynote/src/index.ts";
-import { buildViewerState } from "./apps/pi-extension/src/viewer-state.ts";
+} from "../packages/factorynote/src/index.ts";
+import { buildViewerState } from "../apps/pi-extension/src/viewer-state.ts";
+import { serveViewer, resolveRepoRoot } from "./repro-serve.mjs";
 
 // 서빙 전 최신 dist 보장 — 소스 변경 후 낡은 dist 로 그래프가 안 보이는 회귀 방지.
 // 모듈 로드 시 ensureViewerDist() 가(stale 이면) vite 빌드를 실행한다.
-import "./ensure-viewer-dist.ts";
+import "../ensure-viewer-dist.ts";
 
-const DIST = join(process.cwd(), "apps", "plan-viewer", "dist");
+const DIST = resolveRepoRoot("apps/plan-viewer/dist");
 const FEATURE = "graph-showcase";
 
-const MIME = {
-	".html": "text/html; charset=utf-8",
-	".js": "text/javascript",
-	".css": "text/css",
-	".svg": "image/svg+xml",
-	".png": "image/png",
-	".json": "application/json",
-};
 
 // --- 1. 임시 워크스페이스 조립 ---
 const root = await mkdtemp(join(tmpdir(), "fn-showcase-"));
@@ -219,41 +212,7 @@ await writeArtifact(root, FEATURE, "stage2/02-design.md", designMd);
 const payload = await buildViewerState(root, FEATURE);
 const stateJson = JSON.stringify({ ...payload, gateOpen: true });
 
-const server = Bun.serve({
-	port: 0,
-	async fetch(req) {
-		let url;
-		try {
-			url = new URL(req.url);
-		} catch {
-			return new Response("bad request", { status: 400 });
-		}
-		if (url.pathname === "/api/state")
-			return new Response(stateJson, {
-				headers: { "Content-Type": "application/json" },
-			});
-		if (url.pathname.startsWith("/api/")) {
-			if (url.pathname === "/api/chat" && req.method === "GET")
-				return new Response("[]", {
-					headers: { "Content-Type": "application/json" },
-				});
-			return new Response("{}", {
-				headers: { "Content-Type": "application/json" },
-			});
-		}
-		const path = url.pathname === "/" ? "/index.html" : url.pathname;
-		try {
-			const body = await readFile(join(DIST, path));
-			return new Response(body, {
-				headers: {
-					"Content-Type": MIME[extname(path)] ?? "application/octet-stream",
-				},
-			});
-		} catch {
-			return new Response("not found", { status: 404 });
-		}
-	},
-});
+const server = serveViewer(DIST, stateJson);
 
 const url = server.url.toString();
 console.log(`✅ 그래프 쇼케이스 게이트 서빙 중: ${url}`);

@@ -7,63 +7,17 @@ import { spawn, spawnSync } from "node:child_process"; // spawnSync 는 finally 
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { extname, join } from "node:path";
-import { buildViewerState } from "./apps/pi-extension/src/viewer-state.ts";
+import { buildViewerState } from "../apps/pi-extension/src/viewer-state.ts";
+import { serveViewer, resolveRepoRoot } from "./repro-serve.mjs";
 
 const ROOT = "C:/Projects/Test/.factorynote";
 const FEATURE = "chat-program";
-const DIST = join(process.cwd(), "apps", "plan-viewer", "dist");
+const DIST = resolveRepoRoot("apps/plan-viewer/dist");
 const CHROME = "C:/Program Files/Google/Chrome/Application/chrome.exe";
 const CDP_PORT = 9400 + Math.floor(Math.random() * 400); // 실행별 고유 포트
 
-const MIME = {
-	".html": "text/html; charset=utf-8",
-	".js": "text/javascript",
-	".css": "text/css",
-	".svg": "image/svg+xml",
-	".png": "image/png",
-	".json": "application/json",
-};
+const server = serveViewer(DIST, stateJson);
 
-// 실제 feature 데이터로 /api/state 조립 — 게이트만 강제로 연 상태(reviewing 재현).
-const payload = await buildViewerState(ROOT, FEATURE);
-const stateJson = JSON.stringify({ ...payload, gateOpen: true });
-
-const server = Bun.serve({
-	port: 0,
-	async fetch(req) {
-		let url;
-		try {
-			url = new URL(req.url);
-		} catch {
-			return new Response("bad request", { status: 400 });
-		}
-		if (url.pathname === "/api/state")
-			return new Response(stateJson, {
-				headers: { "Content-Type": "application/json" },
-			});
-		if (url.pathname.startsWith("/api/")) {
-			if (url.pathname === "/api/chat" && req.method === "GET")
-				return new Response("[]", {
-					headers: { "Content-Type": "application/json" },
-				});
-			return new Response("{}", {
-				headers: { "Content-Type": "application/json" },
-			});
-		}
-		const path = url.pathname === "/" ? "/index.html" : url.pathname;
-		try {
-			const body = await readFile(join(DIST, path));
-			return new Response(body, {
-				headers: {
-					"Content-Type": MIME[extname(path)] ?? "application/octet-stream",
-				},
-			});
-		} catch {
-			const body = await readFile(join(DIST, "index.html"));
-			return new Response(body, { headers: { "Content-Type": MIME[".html"] } });
-		}
-	},
-});
 const base = `http://127.0.0.1:${server.port}`;
 
 // 서빙 자체 검증(브라우저 무관).

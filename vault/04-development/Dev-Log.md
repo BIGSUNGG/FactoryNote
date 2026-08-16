@@ -9,6 +9,14 @@ tags: [development, dev-log]
 
 ## 2026-08-16
 
+### repro 스크립트 통합 — scripts/ 이동·공용 서버 추출
+
+**맥락**: 하드닝 루프 이터레이션 17. 백로그 루트 산재 repro-*.mjs 4종(jscpd 중복 34줄 + console 규칙 위반 다수).
+
+**작업**: scripts/ 로 git mv → 공용 `repro-serve.mjs`(serveViewer + resolveRepoRoot) 추출로 복제 40줄 제거. 도중 cwd 상대 경로가 루트 실행 시 붕괴하는 버그 발견(`..` 잘못 추가) → import.meta 기준 절대 해결로 교체. console.log 는 스모크 스크립트의 출력 수단이므로 유지(도구 CLI 예외 — install.mjs 와 동일 근거).
+
+**검증**: 스모크 2종 실증(graph-kinds 서빙·drive 구동) · jscpd scripts 0 클론 · `bun test` 200 pass · `bun run build` 0 종료.
+
 ### 번들 감사 — mermaid 고아 의존성 제거
 
 **맥락**: 하드닝 루프 이터레이션 16. 스펙 영역 (4) 성능/번들 첫 본격 감사 — dist 420KB JS / 40KB CSS.
@@ -329,7 +337,7 @@ tags: [development, dev-log]
 
 ### 그래프 쇼케이스 미출력 수정 — 낡은 뷰어 dist 서빙 ([[graph-showcase-stale-dist]])
 
-**맥락**: 사용자 보고 — `bun repro-graph-kinds.mjs` 실행 시 그래프 박스는 나오나 "그래프 데이터(...)를 찾을 수 없습니다" 빈 상태. 그래프 파일을 못 찾았다며 안 보인다.
+**맥락**: 사용자 보고 — `bun scripts/repro-graph-kinds.mjs` 실행 시 그래프 박스는 나오나 "그래프 데이터(...)를 찾을 수 없습니다" 빈 상태. 그래프 파일을 못 찾았다며 안 보인다.
 
 **조사**: (1) repro 서버의 `/api/state` 를 curl — stage-2 산물의 `graphs` 배열에 4종(tree·sequence·flowchart·legacy) 이 모두 정상 인라인. 백엔드/코어는 정상. (2) 그런데 게이트가 서빙하는 dist(`apps/plan-viewer/dist`, gitignore) 의 graphData 조립 로직이 구 버전 — `f?.graph ? {[f.graph.file]: f.graph.tree} : {}` (단일 그래프 API). 현재 state 는 `graphs`(배열). 그래서 `graphData={}`. (3) dist 빌드 시각(08-11) 이 소스 App.jsx 커밋(08-12) 보다 **이전** — dist 가 stale. (4) `gate-server.test.ts` 는 통과하지만 /api/state JSON(백엔드)만 검증하고 렌더링(dist 소비)은 안 돌려서 이 클래스를 못 잡음. `ensure-viewer-dist.ts` preload 도 dist 가 없을 때만 빌드하고 stale 일 때는 빌드 안 함.
 

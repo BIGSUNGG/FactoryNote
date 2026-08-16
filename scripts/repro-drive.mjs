@@ -1,10 +1,11 @@
+import { resolveRepoRoot } from "./repro-serve.mjs";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { drivePlan } from "./apps/pi-extension/src/plan-tool.ts";
+import { drivePlan } from "../apps/pi-extension/src/plan-tool.ts";
 
 const root = await mkdtemp(join(tmpdir(), "fn-repro-"));
-const VIEWER_DIST = join(process.cwd(), "apps", "plan-viewer", "dist");
+const VIEWER_DIST = resolveRepoRoot("apps/plan-viewer/dist");
 let gateUrl = "(no onReady)";
 
 const out = await drivePlan({

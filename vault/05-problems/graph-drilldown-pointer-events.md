@@ -28,7 +28,7 @@ GraphView 는 읽기 전용 뷰(`nodesDraggable={false}` · `elementsSelectable=
 - `GraphView.jsx`: 의도적 no-op `onNodeClick` 1줄 추가 — 클릭 계열 핸들러 존재를 알려 `pointer-events: all` 유지(주석으로 이유 명시). CSS `!important` 해킹 대신 API 내 해결.
 - 회귀 체크 2종:
   - `bun test` — `GraphView.test.jsx`(happy-dom): 드릴다운 토글·패널 렌더 + wrapper 인라인 `pointerEvents !== "none"` assertion.
-  - `bun repro-drilldown.mjs` — 실제 Chrome headless(CDP)로 게이트 페이지 서빙(실제 chat-program 데이터) 후 마우스 더블클릭 → 패널 증가·"선택:" 제목 검증. Chrome 설치 필요(기계 의존).
+  - `bun scripts/repro-drilldown.mjs` — 실제 Chrome headless(CDP)로 게이트 페이지 서빙(실제 chat-program 데이터) 후 마우스 더블클릭 → 패널 증가·"선택:" 제목 검증. Chrome 설치 필요(기계 의존).
 
 ## 영향
 
