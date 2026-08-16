@@ -9,6 +9,14 @@ tags: [development, dev-log]
 
 ## 2026-08-16
 
+### implementation-flows 작성 — 동작 시나리오별 내부 Flow 문서
+
+**맥락**: 사용자 /goal — 시나리오별 내부 Flow 개발 문서. 게이트 통과 전 질문으로 범위(4그룹 14시나리오)·위치(01-architecture)·형식(시퀀스 다이어그램+설명)·경계(문서 전용) 확정.
+
+**작업**: `vault/01-architecture/implementation-flows.md` 신규 — 그룹 1 메인 파이프라인·게이트 결정 4건(confirm/modify/revert/완료) · 그룹 2 채팅·큐·검토 요청 4건(chatPending/pendingChats/stage-request/review-request) · 그룹 3 복구·예외 5건(인터럽트/재작성 반영/그래프 강제/미수렴/추락) · 그룹 4 관찰 모드 1건. 시나리오별 mermaid sequenceDiagram 1개 + 참여자·분기 설명. Home.md 링크 추가. 코드-문서 불일치 발견 없음(불일치 노트 '없음' 명시).
+
+**검증**: 시나리오 소섹션 14·sequenceDiagram 14 펜스 실측 · 게이트 이벤트 kind 3종·API 6종·nextAction 값 코드 대조 일치 · 변경 파일 vault/ 한정 · `bun test` 199 pass · `bun run build` 0 종료.
+
 ### 자리표시·고아 폴더 정리
 
 **맥락**: 사용자 요청 — codex/claude-code 용 폴더 + README 만 있는 안 쓰는 폴더 + 불필요 폴더 삭제.

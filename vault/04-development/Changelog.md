@@ -12,6 +12,8 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ### Added
 
+- **동작 시나리오별 내부 Flow 문서 `implementation-flows.md`** — `vault/01-architecture/` 신규. 코드 실측 기반 4그룹 14시나리오: 메인 파이프라인·게이트 결정(confirm·modify·revert·완료), 채팅·큐·검토 요청(chatPending 루프·pendingChats read-wins·stage-request 단일 채널·+1 사이클), 복구·예외(인터럽트 복구·게이트 중 재작성·그래프 강제·미수렴 에스컬레이션·안전 추락), 관찰 모드(auto-advance). 시나리오별 mermaid sequenceDiagram + 참여자·분기·상태 전이 설명, 코드 식별자(GateEvent kind·게이트 API·nextAction) 대조 검증. 문서 전용 작업 — 코드 무변경. Home.md 링크 추가.
+
 - **파이프라인 상태·그래프 파서 거부 분기 자체체크 — `state.ts`·`graph.ts` 브랜치 커버리지 100%** — 기존 테스트가 안 때리던 방어 분기 보강: (1) `validateState` 가드 8건 — valid JSON 이지만 형태가 틀린 state(스칼라·null·feature 누락/숫자·stage 0/4/NaN·history 누락) → `loadState` 가 백업 후 undefined 로 복구하는지. 이 경로가 열려 있으면 stage 9 같은 불량 상태가 파이프라인에 그대로 적재된다. (2) `coerceRef`·`coerceNode` 거부 6건 — refs 항목 비객체·`refs[].to` 누락/빈값·노드 비객체·노드 id 누락/빈값 → 모두 throw. 스펙 지명 저커버리 영역(state.ts·graph.ts) 마무리. 하드닝 루프 이터레이션 6.
 
 - **Stage Registry 불변식 자체체크 9건 — `stages.ts` 커버리지 66.67%→100%** — 전용 테스트 부재로 무방비하던 3단계 정의 테이블의 프로토콜 불변식 검증: 단계 id 1→3 순서, 산출물 markdown+kebab 파일명+단계 번호 접두 중복 없음, **그래프 의무(none/required/optional) — 게이트 분기의 원천 데이터 드리프트 방어**, Design 프롬프트 비었음 검사, Stage 2 프롬프트의 그래프 트리 규약(`"version":2`·`<!-- graph:`) 지시 확인, stageById/currentStageDef 조회 동일성·범위 밖 id 방어(런타임 StageId 위반). 하드닝 루프 이터레이션 5.
