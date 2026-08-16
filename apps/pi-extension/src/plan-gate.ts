@@ -3,7 +3,6 @@
 import {
 	CHILD_SPAWN_OPTIONS,
 	DEFAULT_FEEDBACK_LEVEL,
-	STAGES,
 	applyVerdict,
 	atLoopCeiling,
 	graphRefFiles,
@@ -31,6 +30,28 @@ import {
 
 /** #4 게이트 자동 만료(ms). 30분. */
 export const GATE_TIMEOUT_MS = 30 * 60 * 1000;
+
+/** 게이트 결정 후 다음 스텝 안내 메시지 조립(순수) — 에스컬레이션/수정 요청/승인 분기. */
+function gateOutcomeMessage(
+	decision: GateDecision,
+	state: PipelineState,
+	nextDef: ReturnType<typeof stageById>,
+	internalEscalation: { issues: string[]; loops: number } | undefined,
+	resume: boolean,
+): string {
+	const commentsBlock = `\n코멘트:\n${formatComments(decision.comments)}`;
+	let base: string;
+	if (internalEscalation) {
+		base = `⚠ 내부 Design→Feedback 사이클 상한(${internalEscalation.loops}회) 도달 — Feedback 이 수렴하지 못하고 아래 이슈가 잔존한다. 게이트에서 결정: (a) 코멘트로 근본적 재작성 지시 (b) '검토 요청' 버튼으로 +1 사이클 (c) 이전 단계로 회귀. 잔존 이슈:\n${internalEscalation.issues.map((i) => `- ${i}`).join("\n")}`;
+	} else if (decision.verdict === "modify" && atLoopCeiling(state)) {
+		base = `⚠ FR-2 에스컬레이션: Stage ${state.stage}(${nextDef.name}) 가 ${state.loopCount}회 수정되었으나 아래 이슈가 잔존한다. 선택: (a) 코멘트를 근본적으로 반영해 재작성 (b) 이전 단계로 회귀 (c) 범위·제약 조건 재협의. 잔존 이슈:${commentsBlock}`;
+	} else if (decision.verdict === "modify") {
+		base = `사용자가 Stage ${state.stage}(${nextDef.name}) 산출물의 수정을 요청했다. 코멘트를 반영해 Design 자식에게 재작성시킬 것.${commentsBlock}`;
+	} else {
+		base = `Stage ${state.stage}(${nextDef.name}) 승인. 다음 단계로 진행 — Design 자식 스폰부터 새 내부 사이클을 시작한다.`;
+	}
+	return (resume ? "[게이트 재오픈(인터럽트 복구)] " : "") + base;
+}
 
 /** 게이트 오픈 → 결정/채팅/검토요청 → 처리 → 다음 안내 반환. */
 export async function runOpenGate(
@@ -143,18 +164,13 @@ export async function runOpenGate(
 	}
 
 	const nextDef = stageById(state.stage);
-	const commentsBlock = `\n코멘트:\n${formatComments(decision.comments)}`;
-	let base: string;
-	if (internalEscalation) {
-		base = `⚠ 내부 Design→Feedback 사이클 상한(${internalEscalation.loops}회) 도달 — Feedback 이 수렴하지 못하고 아래 이슈가 잔존한다. 게이트에서 결정: (a) 코멘트로 근본적 재작성 지시 (b) '검토 요청' 버튼으로 +1 사이클 (c) 이전 단계로 회귀. 잔존 이슈:\n${internalEscalation.issues.map((i) => `- ${i}`).join("\n")}`;
-	} else if (decision.verdict === "modify" && atLoopCeiling(state)) {
-		base = `⚠ FR-2 에스컬레이션: Stage ${state.stage}(${nextDef.name}) 가 ${state.loopCount}회 수정되었으나 아래 이슈가 잔존한다. 선택: (a) 코멘트를 근본적으로 반영해 재작성 (b) 이전 단계로 회귀 (c) 범위·제약 조건 재협의. 잔존 이슈:${commentsBlock}`;
-	} else if (decision.verdict === "modify") {
-		base = `사용자가 Stage ${state.stage}(${nextDef.name}) 산출물의 수정을 요청했다. 코멘트를 반영해 Design 자식에게 재작성시킬 것.${commentsBlock}`;
-	} else {
-		base = `Stage ${state.stage}(${nextDef.name}) 승인. 다음 단계로 진행 — Design 자식 스폰부터 새 내부 사이클을 시작한다.`;
-	}
-	const message = (resume ? "[게이트 재오픈(인터럽트 복구)] " : "") + base;
+	const message = gateOutcomeMessage(
+		decision,
+		state,
+		nextDef,
+		internalEscalation,
+		resume,
+	);
 
 	// 전이 직후 자식이 읽을 작성 지시·메뉴를 다음 단계 것으로 갱신 — 낡은 이전 단계
 	// 파일을 읽은 자식이 규격 이탈(예: 그래프 프로토콜 누락)하는 것을 차단한다.
@@ -203,7 +219,7 @@ function complete(stage: number): DrivePlanOutput {
 	return {
 		done: true,
 		stage,
-		stageName: STAGES[2]!.name,
+		stageName: stageById(3).name,
 		nextAction: "done",
 		dfLoop: 0,
 		designPrompt: "",

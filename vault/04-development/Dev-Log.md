@@ -9,6 +9,14 @@ tags: [development, dev-log]
 
 ## 2026-08-16
 
+### runOpenGate 메시지 조립 추출 — plan-gate 경고 0
+
+**맥락**: 하드닝 루프 이터레이션 9. 백로그 plan-gate.ts(runOpenGate 복잡도 22·fan-out 24·STAGES[2]! 단언).
+
+**작업**: 결과 메시지 4분기 합성을 순수 `gateOutcomeMessage()` 로 추출, `STAGES[2]!` → `stageById(3)` 로 단언 제거. 직전 이터레이션 커밋 후 포매터가 재정렬한 plan-tool.ts 잔여 8줄 승차 커밋.
+
+**검증**: pi-lens full plan-gate 경고 0 · `bun test` 200 pass · `bun run build` 0 종료.
+
 ### drivePlan 그래프 강제 추출 — plan-tool 복잡도 경고 소멸
 
 **맥락**: 하드닝 루프 이터레이션 8. 백로그 plan-tool.ts 항목(drivePlan 복잡도 23·no-return-await 4).
