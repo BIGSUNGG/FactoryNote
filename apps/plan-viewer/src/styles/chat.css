@@ -199,32 +199,41 @@
 	font-family: var(--mono);
 	color: var(--text);
 }
+.chat-queue-hint {
+	margin-left: var(--s1);
+	font-weight: 400;
+	text-transform: none;
+	letter-spacing: 0;
+	color: var(--muted);
+}
+/* 큐 카드 — 일반 채팅 버블과 같은 회색 모노톤, 카드 전체 클릭 = 전송 취소.
+ * 확정 요청(stage-request)만 검정(아래 .chat-queued-msg.stage-request). */
 .chat-queued-msg {
 	display: flex;
 	align-items: flex-start;
 	gap: var(--s1);
-	background: var(--surface);
-	border: 1px solid var(--border);
+	background: rgba(17, 24, 39, 0.15);
+	color: var(--text);
+	border: none;
 	border-radius: 10px;
 	padding: var(--s2) var(--s3);
+	cursor: pointer;
 }
-.chat-queued-tag {
-	font-family: var(--mono);
-	font-size: 9px;
-	text-transform: uppercase;
-	letter-spacing: 0.05em;
-	color: var(--muted);
-	background: rgba(17, 24, 39, 0.06);
-	border-radius: 999px;
-	padding: 2px 8px;
-	flex: none;
-	margin-top: 1px;
+.chat-queued-msg:hover {
+	background: rgba(17, 24, 39, 0.2);
+}
+.chat-queued-msg:focus-visible {
+	outline: 2px solid var(--text);
+	outline-offset: 1px;
 }
 .chat-queued-msg .chat-text {
 	flex: 1;
 	margin-top: 0;
 	font-size: 12.5px;
-	color: var(--text);
+	color: inherit;
+}
+.chat-queued-msg .chat-block {
+	color: var(--muted);
 }
 /* 큐 미리보기 — 첫 줄만 한 줄로(줄바꿈·넒침 말줄임). */
 .chat-queued-preview {
@@ -232,35 +241,6 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	min-width: 0;
-}
-.chat-cancel {
-	flex: none;
-	background: transparent;
-	border: none;
-	color: var(--muted);
-	cursor: pointer;
-	font-size: 13px;
-	line-height: 1;
-	padding: 2px 4px;
-	border-radius: var(--radius-sm);
-}
-.chat-cancel:hover:not(:disabled) {
-	color: var(--text);
-	background: rgba(17, 24, 39, 0.08);
-}
-.chat-cancel:disabled {
-	opacity: 0.4;
-	cursor: not-allowed;
-}
-/* stage-request 큐 카드(--primary 채운 배경)의 ✕ — muted 회색은 배경과 대비가 없어
- * 안 보였다. on-color 계열로 대비 확보(ADR-026 후속 수정). */
-.chat-queued-msg.stage-request .chat-cancel {
-	color: var(--on-color);
-	opacity: 0.9;
-}
-.chat-queued-msg.stage-request .chat-cancel:hover:not(:disabled) {
-	color: var(--on-color);
-	background: rgba(255, 255, 255, 0.25);
 }
 /* 확정(단계 진행) 요청 대기 중 채팅 입력 잠금 안내. */
 .chat-lock-notice {
@@ -277,7 +257,7 @@
 }
 
 /* === 단계 진행 요청(stage-request) — 일반 채팅과 동일 레이아웃 ===
- * 본문(fulfilled): user 버블과 같은 우측 잉크 버블. 큐(pending): 큐 카드 스타일 유지. */
+ * 본문(fulfilled): 우측 검정 버블. 큐(pending): 일반 큐 카드와 동일 레이아웃, 검정 배경으로 구분. */
 .chat-msg.stage-request {
 	background: var(--text);
 	color: var(--on-color);
@@ -286,7 +266,12 @@
 .chat-queued-msg.stage-request {
 	background: var(--primary);
 	color: var(--on-color);
-	border: none;
+}
+.chat-queued-msg.stage-request:hover {
+	background: #000000;
+}
+.chat-queued-msg.stage-request .chat-block {
+	color: rgba(255, 255, 255, 0.65);
 }
 .chat-stage-badge {
 	display: block;

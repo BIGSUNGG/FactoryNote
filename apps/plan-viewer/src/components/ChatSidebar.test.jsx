@@ -1,7 +1,7 @@
 // ChatSidebar 전송 대기 큐 테스트:
-// 1) 대기 채팅은 본문 미노출 플레이스홀더로 큐 영역에 ✕ 버튼과 함께 렌더.
-// 2) ✕ 클릭 → POST /api/chat/cancel 호출 후 큐에서 제거.
-// 3) 큐의 단계 진행 요청은 강조 + ✕(취소 허용) + 채팅 입력 잠금·안내.
+// 1) 대기 채팅은 본문 미노출 한 줄 미리보기로 큐 영역에 렌더(카드 클릭 = 취소).
+// 2) 큐 카드 클릭 → POST /api/chat/cancel 호출 후 큐에서 제거.
+// 3) 큐의 단계 진행 요청은 검정 카드 + 클릭 취소 허용 + 채팅 입력 잠금·안내.
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 GlobalRegistrator.register();
 
@@ -67,7 +67,7 @@ function flush() {
 	return new Promise((r) => setTimeout(r, 0));
 }
 
-test("대기 채팅은 '대기' 태그 + 한 줄 미리보기로 큐 렌더, 채팅 입력은 유지", async () => {
+test("대기 채팅은 한 줄 미리보기로 큐 렌더(카드=취소 버튼), 채팅 입력은 유지", async () => {
 	chatResp = {
 		messages: [{ id: "m1", role: "agent", text: "안녕", at: 1 }],
 		queue: [
@@ -91,12 +91,13 @@ test("대기 채팅은 '대기' 태그 + 한 줄 미리보기로 큐 렌더, 채
 	const items = container.querySelectorAll(".chat-queued-msg");
 	expect(items).toHaveLength(2);
 	// 미리보기 — 무엇이 대기 중인지 식별 가능(첫 줄 + 말줄임 40자).
-	expect(items[0].textContent).toContain("대기");
 	expect(items[0].textContent).toContain("수정해줘");
 	expect(items[1].textContent).toContain("[b3]");
 	expect(items[1].textContent).toContain("a".repeat(40));
 	expect(items[1].textContent).not.toContain("a".repeat(41)); // 40자 넘으면 말줄임
-	expect(container.querySelector(".chat-cancel")).toBeDefined();
+	// 카드 전체가 취소 트리거(버블 role) — 별도 ✕ 버튼 없음.
+	expect(items[0].getAttribute("role")).toBe("button");
+	expect(items[0].querySelector("button")).toBeNull();
 	// 본 채팅 영역(.chat-body)에는 대기 메시지가 노출되지 않는다.
 	const sentMsgs = container.querySelectorAll(".chat-body .chat-msg");
 	expect([...sentMsgs].some((el) => el.textContent.includes("수정해줘"))).toBe(
@@ -108,7 +109,7 @@ test("대기 채팅은 '대기' 태그 + 한 줄 미리보기로 큐 렌더, 채
 	);
 });
 
-test("✕ 클릭 → /api/chat/cancel POST 후 큐에서 제거", async () => {
+test("큐 카드 클릭 → /api/chat/cancel POST 후 큐에서 제거", async () => {
 	chatResp = {
 		messages: [],
 		queue: [{ id: "q9", role: "user", text: "취소될메시지", at: 1 }],
@@ -119,9 +120,9 @@ test("✕ 클릭 → /api/chat/cancel POST 후 큐에서 제거", async () => {
 	await React.act(async () => {
 		await flush();
 	});
-	const cancelBtn = container.querySelector(".chat-cancel");
+	const card = container.querySelector(".chat-queued-msg");
 	await React.act(async () => {
-		cancelBtn.dispatchEvent(
+		card.dispatchEvent(
 			new window.MouseEvent("click", { bubbles: true, cancelable: true }),
 		);
 		await flush();
@@ -132,7 +133,7 @@ test("✕ 클릭 → /api/chat/cancel POST 후 큐에서 제거", async () => {
 	expect(container.textContent).not.toContain("취소될메시지");
 });
 
-test("큐의 단계 요청은 강조 + ✕(취소 허용) 렌더, 채팅 입력 잠금·안내", async () => {
+test("큐의 단계 요청은 검정 카드 + 클릭 취소 허용 렌더, 채팅 입력 잠금·안내", async () => {
 	chatResp = {
 		messages: [],
 		queue: [
@@ -156,8 +157,8 @@ test("큐의 단계 요청은 강조 + ✕(취소 허용) 렌더, 채팅 입력 
 	const pending = container.querySelector(".chat-queued-msg.stage-request");
 	expect(pending).toBeDefined();
 	expect(pending.textContent).toContain("Stage 2 진행 요청");
-	// 채팅과 동일하게 취소 허용 → ✕ 버튼 존재.
-	expect(pending.querySelector(".chat-cancel")).toBeDefined();
+	// 채팅과 동일하게 카드 클릭으로 취소 허용.
+	expect(pending.getAttribute("role")).toBe("button");
 	// 확정 대기 중 채팅 입력 잠금 + 안내 표시.
 	expect(container.querySelector(".chat-input-row textarea").disabled).toBe(
 		true,
@@ -169,13 +170,11 @@ test("큐의 단계 요청은 강조 + ✕(취소 허용) 렌더, 채팅 입력 
 	expect(
 		container.querySelector(".chat-body .chat-msg.stage-request"),
 	).toBeNull();
-	// ✕ 클릭 → /api/chat/cancel POST 로 확정 요청 취소(큐 비면 잠금 해제).
+	// 카드 클릭 → /api/chat/cancel POST 로 확정 요청 취소(큐 비면 잠금 해제).
 	await React.act(async () => {
-		pending
-			.querySelector(".chat-cancel")
-			.dispatchEvent(
-				new window.MouseEvent("click", { bubbles: true, cancelable: true }),
-			);
+		pending.dispatchEvent(
+			new window.MouseEvent("click", { bubbles: true, cancelable: true }),
+		);
 		await flush();
 	});
 	expect(cancelCalls).toHaveLength(1);

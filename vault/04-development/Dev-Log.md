@@ -13,7 +13,7 @@ tags: [development, dev-log]
 
 **맥락**: 사용자 피드백 — 채팅 사이드바에서 user(좌측 세로선 인용형)와 AI(회색 카드) 스타일이 너무 다르고, 확정 요청(stage-request)만 채운 액센트 카드로 튀어 대화가 끊겨 보임.
 
-**작업**: `ChatSidebar.jsx` + `styles/chat.css` — 역할 라벨(나/AI) 제거, user 우측 회색 버블·agent 좌측 옅은 버블(꼬리 모서리 축소로 방향 암시). fulfilled stage-request 는 별도 강조 카드 대신 `chat-msg user stage-request` 로 일반 채팅과 동일 레이아웃의 검정 버블로 기록(✓ Stage N 진행 요청 뱃지, mono→본문 서체) — 후속 요청으로 일반 채팅 회색·확정 검정 색상 구분. 큐 영역·게이트 바·thinking 점 애니메이션 무변경.
+**작업**: `ChatSidebar.jsx` + `styles/chat.css` — 역할 라벨(나/AI) 제거, user 우측 회색 버블·agent 좌측 옅은 버블(꼬리 모서리 축소로 방향 암시). fulfilled stage-request 는 별도 강조 카드 대신 `chat-msg user stage-request` 로 일반 채팅과 동일 레이아웃의 검정 버블로 기록(✓ Stage N 진행 요청 뱃지) — 일반 채팅 회색·확정 검정 색상 구분. 큐 영역도 동일 체계로 재디자인: [대기] 태그·✕ 버튼 제거, 일반 대기 카드 회색 모노톤(user 버블과 동일색 0.15)·확정 대기 카드 검정, **카드 전체 클릭 = 전송 취소**(role=button·Enter/Space 키보드 지원·disabled 가드·헤더 힌트 '— 카드 클릭 시 취소'). ✕ 관련 CSS 블록·테스트 4건 카드 클릭 방식으로 갱신. 게이트 바·thinking 점 애니메이션 무변경.
 
 **검증**: `bun test` 199 pass(stage-request 렌더 테스트 포함) · `bun run build` 0 종료(뷰어 빌드+확장 배포).
 

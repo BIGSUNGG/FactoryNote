@@ -146,6 +146,7 @@ export default function ChatSidebar({
 					<div className="chat-queue-head">
 						전송 대기 중{" "}
 						<span className="chat-queue-count">{queue.length}</span>
+						<span className="chat-queue-hint">— 카드 클릭 시 취소</span>
 					</div>
 					{queue.map((m) => (
 						<div
@@ -153,6 +154,18 @@ export default function ChatSidebar({
 							className={`chat-queued-msg${
 								m.kind === "stage-request" ? " stage-request" : ""
 							}`}
+							role="button"
+							tabIndex={0}
+							title="클릭하면 전송을 취소합니다"
+							onClick={() => {
+								if (!disabled) cancelQueued(m.id);
+							}}
+							onKeyDown={(e) => {
+								if (!disabled && (e.key === "Enter" || e.key === " ")) {
+									e.preventDefault();
+									cancelQueued(m.id);
+								}
+							}}
 						>
 							{m.kind === "stage-request" ? (
 								<span className="chat-stage-badge">
@@ -160,8 +173,7 @@ export default function ChatSidebar({
 								</span>
 							) : (
 								<>
-									{/* 대기 콘텍스트 태그 + 한 줄 미리보기 — 전체 본문은 전송 후 채팅 로그에 공개. */}
-									<span className="chat-queued-tag">대기</span>
+									{/* 한 줄 미리보기 — 전체 본문은 전송 후 채팅 로그에 공개. 카드 클릭 = 취소. */}
 									{m.blockId && (
 										<span className="chat-block">[{m.blockId}]</span>
 									)}
@@ -170,15 +182,6 @@ export default function ChatSidebar({
 									</div>
 								</>
 							)}
-							<button
-								type="button"
-								className="chat-cancel"
-								onClick={() => cancelQueued(m.id)}
-								disabled={disabled}
-								aria-label="전송 취소"
-							>
-								✕
-							</button>
 						</div>
 					))}
 				</div>
