@@ -9,6 +9,14 @@ tags: [development, dev-log]
 
 ## 2026-08-16
 
+### gate-server 죽은 export 제거·중복 추출
+
+**맥락**: 하드닝 루프 이터레이션 7. 백로그의 gate-server.ts 항목(knip 미사용 export 2·jscpd 17줄 중복).
+
+**작업**: knip 지적 라인이 스털였던 것을 실측으로 재확인 — `resolveViewerDist` 는 정의→gate-server 재export→무소비 죽은 사슬(본체 포함 삭제), `GateEvent` 재export도 무소비(gate-http 는 gate-events 직접 import). runGate·observeGate 중복 17줄(게이트 확보+SSE 하트비트 조건부 브라우저 오픈)을 `acquireGateAndMaybeOpen()` 으로 추출, 두 함수는 사용 옵션만 구조분해로 정리.
+
+**검증**: `tsc -b` 클린 · `bun test` 200 pass · `bun run build` 0 종료 · jscpd gate-server.ts 소스 중복 소멸(테스트 스캐폴드 중복은 별개 잔존).
+
 ### state·graph 거부 분기 테스트 — 스펙 지명 저커버리 영역 완료
 
 **맥락**: 하드닝 루프 이터레이션 6. 스펙 지명 저커버리(state.ts·graph.ts)의 미커버 라인이 전부 '거부 분기'(validateState invalid-shape throw · coerceRef/coerceNode throw)였음을 확인 — 방어 코드가 테스트 무방비 상태.

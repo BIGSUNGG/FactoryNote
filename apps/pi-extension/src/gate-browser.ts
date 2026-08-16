@@ -48,12 +48,3 @@ export { openBrowser };
 export function moduleDir(importMetaUrl: string): string {
 	return join(fileURLToPath(importMetaUrl), "..");
 }
-
-/** 뷰어 dist 디렉토리 후보를 순서대로 탐색. */
-export function resolveViewerDist(candidates: string[]): string | null {
-	// 동기 존재 여부는 호출측에서 비동기로 확인; 여기선 후보만 정리.
-	for (const c of candidates) {
-		if (c) return c;
-	}
-	return null;
-}

@@ -15,13 +15,12 @@ import {
 import { openBrowser } from "./gate-browser.ts";
 import type { ChatMessage, GateEvent } from "./gate-events.ts";
 
-export type { GateEvent } from "./gate-events.ts";
 export {
 	closeGate,
 	appendAgentChat,
 	notifyViewerState,
 } from "./gate-manager.ts";
-export { moduleDir, resolveViewerDist } from "./gate-browser.ts";
+export { moduleDir } from "./gate-browser.ts";
 
 export interface RunGateOptions {
 	root: string;
@@ -39,28 +38,20 @@ export interface RunGateOptions {
 	reopenAfterMs?: number;
 }
 
-/**
- * 게이트: 영속 서버에서 이번 단계의 사용자 결정을 대기한다.
- * 서버는 플랜 전체에서 재사용 → 브라우저는 첫 게이트에서 1회만 오픈.
- * 결정·중단·시간초과 시 결정을 반환하되 서버는 닫지 않는다(완료 시 closeGate).
- */
-export async function runGate(opts: RunGateOptions): Promise<GateEvent> {
-	const {
-		root,
-		feature,
-		viewerDistDir,
-		signal,
-		open = true,
-		timeoutMs = 0,
-		onReady,
-		browserOpener,
-		reopenAfterMs,
-	} = opts;
-
+/** runGate·observeGate 공통 전주곡 — 게이트 확보 + 조건부 브라우저 오픈.
+ *  브라우저 오픈: 최초(또는 탭이 닫혀 하트비트가 오래된 경우)에만. SSE 클라이언트가 살아있거나
+ *  최근 요청이 있으면 재오픈하지 않는다(다중 탭 방지 + 폴링 제거 후 SSE 연결이 하트비트). */
+async function acquireGateAndMaybeOpen(opts: {
+	root: string;
+	feature: string;
+	viewerDistDir: string;
+	open?: boolean;
+	browserOpener?: (url: string) => void;
+	reopenAfterMs?: number;
+}) {
+	const { root, feature, viewerDistDir, open = true, browserOpener, reopenAfterMs } =
+		opts;
 	const gate = await getOrCreateGate({ root, feature, viewerDistDir });
-
-	// 브라우저 오픈: 최초(또는 탭이 닫혀 하트비트가 오래된 경우)에만. SSE 클라이언트가 살아있거나
-	// 최근 요청이 있으면 재오픈하지 않는다(다중 탭 방지 + 폴링 제거 후 SSE 연결이 하트비트).
 	if (
 		open &&
 		gate.sseClients.size === 0 &&
@@ -68,6 +59,18 @@ export async function runGate(opts: RunGateOptions): Promise<GateEvent> {
 	) {
 		(browserOpener ?? openBrowser)(gate.url);
 	}
+	return gate;
+}
+
+/**
+ * 게이트: 영속 서버에서 이번 단계의 사용자 결정을 대기한다.
+ * 서버는 플랜 전체에서 재사용 → 브라우저는 첫 게이트에서 1회만 오픈.
+ * 결정·중단·시간초과 시 결정을 반환하되 서버는 닫지 않는다(완료 시 closeGate).
+ */
+export async function runGate(opts: RunGateOptions): Promise<GateEvent> {
+	const { signal, timeoutMs = 0, onReady } = opts;
+
+	const gate = await acquireGateAndMaybeOpen(opts);
 
 	let resolveEvent: ((e: GateEvent) => void) | null = null;
 	const settled = new Promise<GateEvent>((resolve) => {
@@ -159,22 +162,7 @@ export interface ObserveGateOptions {
  * runGate 와 별개 — 게이트 결정 대기(블로킹)를 하지 않는다.
  */
 export async function observeGate(opts: ObserveGateOptions): Promise<void> {
-	const {
-		root,
-		feature,
-		viewerDistDir,
-		open = true,
-		onReady,
-		browserOpener,
-		reopenAfterMs,
-	} = opts;
-	const gate = await getOrCreateGate({ root, feature, viewerDistDir });
-	if (
-		open &&
-		gate.sseClients.size === 0 &&
-		Date.now() - gate.lastSeen > (reopenAfterMs ?? BROWSER_REOPEN_AFTER_MS)
-	) {
-		(browserOpener ?? openBrowser)(gate.url);
-	}
+	const { onReady } = opts;
+	const gate = await acquireGateAndMaybeOpen(opts);
 	await onReady?.(gate.url);
 }
