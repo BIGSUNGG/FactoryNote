@@ -9,6 +9,14 @@ tags: [development, dev-log]
 
 ## 2026-08-16
 
+### makeGateHandler 해체 — 라우터/핸들러 분리
+
+**맥락**: 하드닝 루프 이터레이션 14. 백로그 최대 덩어리(gate-http 복잡도 35·fan-out 28·deep-nesting 6).
+
+**작업**: 모놀리스 클로저를 평탄 라우터 + 엔드포인트별 핸들러 6개(모듈 레벨) + 채널 클로저 3개로 분리. `sendJson`·`readJson`(불량 본문 400 — 기존 500 폴백보다 정확)·`resolveGateEvent` 공용 유틸. 리라이트 중 죽은 chatCancelHandler(throw 플레이스홀더) 남김 → 디스패처 블록이 즉시 차단해 제거. await-void 8건 제거.
+
+**검증**: `bun test` 200 pass(기존 게이트 테스트 48건 무변경 통과 — 의미 불변) · `tsc -b` 클린 · `bun run build` 0 종료.
+
 ### 산재 경고 일괄 정리 — 4파일
 
 **맥락**: 하드닝 루프 이터레이션 13. 백로그의 소항목들(non-null 단언·mixed-async·중첩 삼항·reverse 변형) 일괄 처리.
