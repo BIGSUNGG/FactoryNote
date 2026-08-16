@@ -9,6 +9,14 @@ tags: [development, dev-log]
 
 ## 2026-08-16
 
+### df-transition 케이스 핸들러 분리 — 경고 0
+
+**맥락**: 하드닝 루프 이터레이션 12. 백로그 df-transition.ts(nextDesignFeedbackStep 복잡도 27·long-param).
+
+**작업**: 공개 시그니처 유지한 채 내부 3층 분리 — 디스패처 + 케이스별 핸들러 3개 + 지시문 생성자 3개(gate/spawnDesign/spawnFeedback). 반복 객체 리터럴 8건 통일.
+
+**검증**: pi-lens full df-transition 0건 · `bun test` 200 pass(전이 케이스 전부 무변경 통과) · `bun run build` 0 종료.
+
 ### graph.ts async 스타일 통일 — 모듈 경고 0
 
 **맥락**: 하드닝 루프 이터레이션 11. 백로그 graph.ts mixed-async 4건 — 실측 결과 잔여 혼용은 `await readRel(x).catch(()=>null)` 2개 호출점.
