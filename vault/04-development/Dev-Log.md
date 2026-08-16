@@ -9,6 +9,16 @@ tags: [development, dev-log]
 
 ## 2026-08-16
 
+### 번들 감사 — mermaid 고아 의존성 제거
+
+**맥락**: 하드닝 루프 이터레이션 16. 스펙 영역 (4) 성능/번들 첫 본격 감사 — dist 420KB JS / 40KB CSS.
+
+**발견**: `mermaid@^11.16.0` 이 plan-viewer package.json 에 선언됐으나 소스 무참조·번일 미포함 — 선언만 남은 고아. 그래프 렌더는 전부 자체 SVG(react-flow+layout 라이브러리). 잔재 npm `package-lock.json`(유일하게 plan-viewer 만 보유, bun 통일 이전 잔재)에 mermaid 잔류.
+
+**작업**: (1) package.json 에서 mermaid 제거 → bun.lock -143줄. (2) 스테일 npm lock 삭제 — npm 경로로 고아가 되살아나는 것 차단. 번들 해시 무변(420KB 동일)으로 동일성 확인.
+
+**검증**: `bun test` 200 pass · `bun run build` 0 종료 · dist 크기·해시 무변.
+
 ### 아키텍처 문서 동기화 + async-noise 정리
 
 **맥락**: 하드닝 루프 이터레이션 15. command/index async-noise 처리 중 아키텍처 문서 검증에서 발견 — 모듈 상세 6곳이 현재 코드와 불일치(폴링→SSE 이전 세대 서술 다수).
