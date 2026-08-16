@@ -33,7 +33,10 @@ function openBrowser(url: string): void {
 	if (!spec) return;
 	// pi-lens-ignore: opengrep:javascript.lang.security.detect-child-process.detect-child-process
 	// nosemgrep: javascript.lang.security.detect-child-process.detect-child-process — URL 은 GATE_URL_RE 전일치 허용 목록 통과 후 인자 배열로 전달(shell:false), 셸 문자열 조립 경로 없음.
-	const child = spawn(spec.command, spec.args, { shell: false, stdio: "ignore" });
+	const child = spawn(spec.command, spec.args, {
+		shell: false,
+		stdio: "ignore",
+	});
 	child.on("error", () => {
 		/* 열기 실패는 무시 — 사용자가 URL을 직접 열 수 있음 */
 	});

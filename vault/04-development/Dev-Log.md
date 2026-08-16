@@ -9,6 +9,16 @@ tags: [development, dev-log]
 
 ## 2026-08-16
 
+### 코어 순환의존 해체 — feedback-agents 타입을 types/ 로 이동
+
+**맥락**: 하드닝 루프 이터레이션 3. pi-lens full 이 잡은 madge 순환의존 3건(`feedback-agents.ts` ↔ 변형 데이터 파일) 처리.
+
+**작업**: `FeedbackAgent`·`FeedbackCapability` 를 `types/feedback.ts`(오케스트레이션 타입의 기존 주거지)로 이동. 변형 3파일은 `./types/feedback.ts` 에서 import, 레지스트리는 재export 로 공개 API 호환 유지. `types/index.ts` 배럴에도 추가. StageId 는 `./gate.ts`(무import 순수 타입 모듈)에서 — 새 사이클 없음 확인.
+
+**검증**: `bunx madge --circular` 전체(코어+pi-extension) 0 순환 · `bun test` 187 pass · `bun run build` 0 종료.
+
+**남은 백로그**: Block.jsx dangerouslySetInnerHTML XSS 검증, gate-server.ts 미사용 export 2·17줄 중복, stages.ts 커버리지 66%, CSS 중복, plan-tool.ts no-return-await 4건.
+
 ### 하드닝 루프 시작 — 진단 스캔 + 게이트 브라우저 오픈 명령 주입 구조 제거
 
 **맥락**: 무계량 하드닝 루프(max 25) 이터레이션 1-2. 1차: 누락된 devDependency(`@happy-dom/global-registrator`) 설치로 실패 4건 복구(181 pass). 2차: pi-lens full 스캔으로 전체 건강 상태 파악.

@@ -2,6 +2,7 @@
 // vault/01-architecture/multi-agent-pipeline · ADR(Tier 1) 근거.
 // Tier 0(단일 에이전트 인라인 자기검토)는 폐기. 이제 산출물은 항상
 // Design 자식 → Feedback 자식 루프를 거쳐 사용자 게이트로 간다.
+import type { StageId } from "./gate.ts";
 
 /** 스폰 역할(M4 AgentSpawn). */
 export type AgentRole = "design" | "feedback";
@@ -15,6 +16,29 @@ export type DesignFeedbackPhase = "design" | "feedback";
  * 수준별 에이전트 수 스펙은 orchestration 의 FEEDBACK_LEVELS.
  */
 export type FeedbackLevel = "none" | "low" | "medium" | "high" | "ultra";
+
+/** feedback 에이전트 역량(도구 티어). */
+export type FeedbackCapability = "static" | "web" | "graph";
+
+/**
+ * 전문 feedback 에이전트 정의. name → factorynote-feedback-<name>.md 와 1:1.
+ * Director 가 stages(적용 단계)로 필터링된 메뉴에서 focus·checklist 를 보고 선택한다.
+ * 정의 목록의 단일 진실은 feedback-agents.ts(FEEDBACK_AGENTS) — 이 타입은
+ * 역량별 데이터 파일(feedback-agents-{static,web,graph}.ts) 이 레지스트리를
+ * 역방향 import 하지 않도록 여기(types/)에 둔다(순환의존 방지).
+ */
+export interface FeedbackAgent {
+	/** 에이전트 슬러그 → factorynote-feedback-<name>.md. */
+	name: string;
+	/** 무엇을 검토하는지(메뉴 표시 + 에이전트 프롬프트 주입). */
+	focus: string;
+	/** 검토 체크리스트. */
+	checklist: string[];
+	/** 도구 티어 — 에이전트 파일 tools allowlist 결정. */
+	capability: FeedbackCapability;
+	/** 적용 단계(1=요구사항·2=설계·3=구현계획). 빈 배열이면 전 단계. */
+	stages: StageId[];
+}
 
 /** 자식 스폰 툴 호출 카운트 예산 — pi-subagents toolBudget(hard 필수, hard≥1) 에 매핑.
  *  hard 초과 후 남은 도구(기본 read/grep/find/ls) 차단 → 자식 종료 유도.

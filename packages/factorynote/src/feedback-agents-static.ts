@@ -1,6 +1,8 @@
 // static 역량 feedback 에이전트 정의(24개) — tools: read/write/bash.
 // 단일 진실은 feedback-agents.ts 의 FEEDBACK_AGENTS 조합. 이 파일은 데이터만.
-import type { FeedbackAgent } from "./feedback-agents.ts";
+// 타입은 types/feedback.ts 에서 — 이 파일이 레지스트리(feedback-agents.ts)를
+// 역참조하면 순환의존이 생긴다(2026-08 하드닝으로 해체됨).
+import type { FeedbackAgent } from "./types/feedback.ts";
 
 export const FEEDBACK_AGENTS_STATIC: readonly FeedbackAgent[] = [
 	{

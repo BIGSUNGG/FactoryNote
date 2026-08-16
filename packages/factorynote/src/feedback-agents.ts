@@ -4,29 +4,17 @@
 //   static = read/write/bash · web = +web_search · graph = +edit(그래프 fence 구조 수정)
 // 이 파일이 레지스트리 단일 진실; apps/pi-extension/agents/factorynote-feedback-<name>.md 는 생성기 산출물.
 import type { StageId } from "./types/index.ts";
+import type {
+	FeedbackAgent,
+	FeedbackCapability,
+} from "./types/feedback.ts";
 import { FEEDBACK_AGENTS_GRAPH } from "./feedback-agents-graph.ts";
 import { FEEDBACK_AGENTS_STATIC } from "./feedback-agents-static.ts";
 import { FEEDBACK_AGENTS_WEB } from "./feedback-agents-web.ts";
 
-/** feedback 에이전트 역량(도구 티어). */
-export type FeedbackCapability = "static" | "web" | "graph";
-
-/**
- * 전문 feedback 에이전트 정의. name → factorynote-feedback-<name>.md 와 1:1.
- * Director 가 stages(적용 단계)로 필터링된 메뉴에서 focus·checklist 를 보고 선택한다.
- */
-export interface FeedbackAgent {
-	/** 에이전트 슬러그 → factorynote-feedback-<name>.md. */
-	name: string;
-	/** 무엇을 검토하는지(메뉴 표시 + 에이전트 프롬프트 주입). */
-	focus: string;
-	/** 검토 체크리스트. */
-	checklist: string[];
-	/** 도구 티어 — 에이전트 파일 tools allowlist 결정. */
-	capability: FeedbackCapability;
-	/** 적용 단계(1=요구사항·2=설계·3=구현계획). 빈 배열이면 전 단계. */
-	stages: StageId[];
-}
+// 공개 API 호환: 타입 정의는 types/feedback.ts 로 이동(순환의존 방지 — 변형 데이터
+// 파일이 이 레지스트리를 역참조하지 않도록). 기존 import 경로 유지를 위해 재export.
+export type { FeedbackAgent, FeedbackCapability };
 
 /** 도구 티어 → tools allowlist (에이전트 파일 생성기가 사용). */
 export const FEEDBACK_TOOLS: Readonly<Record<FeedbackCapability, string>> =
