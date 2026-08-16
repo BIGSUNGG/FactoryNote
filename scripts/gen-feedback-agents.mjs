@@ -56,9 +56,8 @@ ${checklist}
 
 // 레지스트리에서 제거된 특수 파일 정리(공유 factorynote-feedback.md 는 별도 삭제 대상 아님).
 await mkdir(agentsDir, { recursive: true });
-const stale = (await readdir(agentsDir)).filter((f) =>
-	/^factorynote-feedback-.+\.md$/.test(f),
-);
+const all = await readdir(agentsDir);
+const stale = all.filter((f) => /^factorynote-feedback-.+\.md$/.test(f));
 for (const f of stale) await rm(join(agentsDir, f));
 let n = 0;
 for (const a of FEEDBACK_AGENTS) {

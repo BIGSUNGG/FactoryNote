@@ -19,3 +19,15 @@
 - `repro-drive.mjs` — `drivePlan` 1스텝 실구동(게이트 오픈→confirm→결과).
 
 실행: `bun scripts/repro-*.mjs` (레포 루트 기준).
+
+## Console 정책(의도적 예외)
+
+`install.mjs`·`gen-feedback-agents.mjs`·`repro-*.mjs` 의 `console.log/warn/info` 는 **도구 CLI 의 출력 매커니즘**이다 — ast-grep `no-console-except-error-js` 경고를 의도적으로 억제한다.
+
+| 스크립트 | 용도 | console 사용 근거 |
+| -------- | ---- | ------------------ |
+| `install.mjs` | 설치 CLI | 설치 진행 상황·결과를 사용자 터미널에 보고 |
+| `gen-feedback-agents.mjs` | 생성 CLI | 생성 개수·대상 디렉토리를 사용자 터미널에 보고 |
+| `repro-*.mjs` | 스모크 검증 | 서빙 URL·진행 로그를 개발자 터미널에 보고 |
+
+이들 스크립트에 logger 도입은 과잉 — 스크립트는 단일 목적 CLI 도구이며, 로그는 사용자 피드백 수단이다.
