@@ -23,6 +23,8 @@ export default function App() {
 	const notifiedRef = useRef(false); // 전환 알림 1회 가드(preparing→reviewing)
 	// F1: 채팅 부분 코멘트용 현재 선택 블록(PlanPage 가 갱신).
 	const [activeBlockId, setActiveBlockId] = useState(null);
+	// 채팅 사이드바 축소 여부(세션 내만 유지 — 새로고침 시 초기화).
+	const [chatCollapsed, setChatCollapsed] = useState(false);
 	// ADR-026 후속: 확정(단계 진행) 요청이 큐에 대기 중인지. 채팅 응답 루프로 게이트가
 	// 같은 단계로 재오픈해도(gateOpen=true) GateBar 로딩이 풀리지 않게 하는 상태.
 	const [stageQueued, setStageQueued] = useState(false);
@@ -202,11 +204,14 @@ export default function App() {
 	// 읽기 전용(이전 단계 보기)에서는 채팅 입력을 비활성화한다.
 	return (
 		<div className="review-shell">
-			<div className="review-main">{main}</div>
+			<div className={`review-main${chatCollapsed ? " chat-collapsed" : ""}`}>
+				{main}
+			</div>
 			<ChatSidebar
-				stage={state.stage}
 				activeBlockId={activeBlockId}
 				disabled={readOnly}
+				collapsed={chatCollapsed}
+				onToggleCollapse={() => setChatCollapsed((v) => !v)}
 			/>
 		</div>
 	);

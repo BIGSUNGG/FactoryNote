@@ -4,15 +4,27 @@ import { useState, useEffect, useRef } from "react";
 // GET /api/chat 폴링(2s)으로 대화 표시, POST /api/chat 으로 전송.
 // 부분 코멘트: 상위(PlanPage)가 선택한 블록(activeBlockId)에 한정해 전송 가능.
 export default function ChatSidebar({
-	stage,
 	activeBlockId,
 	disabled = false,
+	collapsed = false,
+	onToggleCollapse,
 }) {
 	const [messages, setMessages] = useState([]);
 	const [queue, setQueue] = useState([]);
 	const [draft, setDraft] = useState("");
 	const [scopeBlock, setScopeBlock] = useState(false);
+	// 축소 중 새 에이전트 메시지 도착 알림(펼치면 해제).
+	const [unread, setUnread] = useState(false);
 	const endRef = useRef(null);
+	// 폴링/SSE 콜백이 최신 축소 여부를 보도록 ref 미러.
+	const collapsedRef = useRef(collapsed);
+	collapsedRef.current = collapsed;
+	// 마지막으로 본 메시지 id — 축소 중 id 가 바뀌면 unread 표시.
+	const lastMsgIdRef = useRef(null);
+
+	useEffect(() => {
+		if (!collapsed) setUnread(false);
+	}, [collapsed]);
 
 	const fetchChat = async () => {
 		try {
@@ -21,6 +33,11 @@ export default function ChatSidebar({
 			const data = await r.json();
 			setMessages(data.messages || []);
 			setQueue(data.queue || []);
+			const lastId = data.messages?.length ? data.messages.at(-1).id : null;
+			if (collapsedRef.current && lastId !== lastMsgIdRef.current) {
+				setUnread(true);
+			}
+			lastMsgIdRef.current = lastId;
 		} catch {
 			/* 무시 — 다음 폴링 */
 		}
@@ -92,144 +109,159 @@ export default function ChatSidebar({
 	};
 
 	return (
-		<aside className="chat-sidebar">
-			<div className="chat-head">
-				<h4>에이전트 채팅</h4>
-				<span className="chat-stage">Stage {stage}</span>
-			</div>
-			<div className="chat-body">
-				{messages.length === 0 ? (
-					<p className="chat-empty">
-						게이트가 열려 있습니다. 계획에 대해 질문하거나 수정을 요청하면
-						에이전트가 답변하거나 그 자리에서 반영합니다. 최종 확정·수정·정정은
-						하단 게이트 바로 합니다.
-					</p>
-				) : (
-					messages.map((m) => {
-						if (m.kind === "stage-request") {
-							// pending 은 큐 영역에서만 표시(본문 미노출), fulfilled 는 일반
-							// 채팅과 같은 우측 버블로 기록.
-							if (m.status === "pending") return null;
+		<>
+			{/* 우측 상단 고정 — 사이드바 밖에서 렌더해 축소 트랜지션에 끌려가지 않음. */}
+			<button
+				type="button"
+				className={collapsed ? "chat-restore" : "chat-collapse"}
+				title={collapsed ? "에이전트 채팅 펼치기" : "채팅 숨기기"}
+				onClick={onToggleCollapse}
+			>
+				{collapsed ? "‹" : "›"}
+				{collapsed && unread && (
+					<span className="chat-badge" aria-label="새 메시지" />
+				)}
+			</button>
+			<aside className={`chat-sidebar${collapsed ? " collapsed" : ""}`}>
+				<div className="chat-head">
+					<h4>에이전트 채팅</h4>
+				</div>
+				<div className="chat-body">
+					{messages.length === 0 ? (
+						<p className="chat-empty">
+							게이트가 열려 있습니다. 계획에 대해 질문하거나 수정을 요청하면
+							에이전트가 답변하거나 그 자리에서 반영합니다. 최종
+							확정·수정·정정은 하단 게이트 바로 합니다.
+						</p>
+					) : (
+						messages.map((m) => {
+							if (m.kind === "stage-request") {
+								// pending 은 큐 영역에서만 표시(본문 미노출), fulfilled 는 일반
+								// 채팅과 같은 우측 버블로 기록.
+								if (m.status === "pending") return null;
+								return (
+									<div key={m.id} className="chat-msg user stage-request">
+										<span className="chat-stage-badge">
+											✓ Stage {m.targetStage} 진행 요청
+										</span>
+									</div>
+								);
+							}
 							return (
-								<div key={m.id} className="chat-msg user stage-request">
-									<span className="chat-stage-badge">
-										✓ Stage {m.targetStage} 진행 요청
-									</span>
-								</div>
-							);
-						}
-						return (
-							<div key={m.id} className={`chat-msg ${m.role}`}>
-								{m.blockId && <span className="chat-block">[{m.blockId}]</span>}
-								{m.quote && (
-									<blockquote className="chat-quote">“{m.quote}”</blockquote>
-								)}
-								<div className="chat-text">{m.text}</div>
-							</div>
-						);
-					})
-				)}
-				{thinking && (
-					<div className="chat-msg agent thinking">
-						<div className="chat-text">
-							thinking
-							<span className="think-dots">
-								<i /> <i /> <i />
-							</span>
-						</div>
-					</div>
-				)}
-				<div ref={endRef} />
-			</div>
-			{queue.length > 0 && (
-				<div className="chat-queue">
-					<div className="chat-queue-head">
-						전송 대기 중{" "}
-						<span className="chat-queue-count">{queue.length}</span>
-						<span className="chat-queue-hint">— 카드 클릭 시 취소</span>
-					</div>
-					{queue.map((m) => (
-						<div
-							key={m.id}
-							className={`chat-queued-msg${
-								m.kind === "stage-request" ? " stage-request" : ""
-							}`}
-							role="button"
-							tabIndex={0}
-							title="클릭하면 전송을 취소합니다"
-							onClick={() => {
-								if (!disabled) cancelQueued(m.id);
-							}}
-							onKeyDown={(e) => {
-								if (!disabled && (e.key === "Enter" || e.key === " ")) {
-									e.preventDefault();
-									cancelQueued(m.id);
-								}
-							}}
-						>
-							{m.kind === "stage-request" ? (
-								<span className="chat-stage-badge">
-									➡ Stage {m.targetStage} 진행 요청
-								</span>
-							) : (
-								<>
-									{/* 한 줄 미리보기 — 전체 본문은 전송 후 채팅 로그에 공개. 카드 클릭 = 취소. */}
+								<div key={m.id} className={`chat-msg ${m.role}`}>
 									{m.blockId && (
 										<span className="chat-block">[{m.blockId}]</span>
 									)}
-									<div className="chat-text chat-queued-preview">
-										{previewOf(m.text)}
-									</div>
-								</>
-							)}
+									{m.quote && (
+										<blockquote className="chat-quote">“{m.quote}”</blockquote>
+									)}
+									<div className="chat-text">{m.text}</div>
+								</div>
+							);
+						})
+					)}
+					{thinking && (
+						<div className="chat-msg agent thinking">
+							<div className="chat-text">
+								thinking
+								<span className="think-dots">
+									<i /> <i /> <i />
+								</span>
+							</div>
 						</div>
-					))}
+					)}
+					<div ref={endRef} />
 				</div>
-			)}
-			{stagePending && (
-				<div className="chat-lock-notice">
-					다음 단계 요청이 대기 중입니다 — 앞선 채팅 응답이 끝나면 진행됩니다.
-					(채팅 입력 잠금)
-				</div>
-			)}
-			{activeBlockId && (
-				<label className="chat-scope">
-					<input
-						type="checkbox"
-						checked={scopeBlock}
-						onChange={(e) => setScopeBlock(e.target.checked)}
-						disabled={disabled}
-					/>
-					블록 <code>{activeBlockId}</code>에 한정해 질문/수정
-				</label>
-			)}
-			<div className="chat-input-row">
-				<textarea
-					value={draft}
-					placeholder={
-						scopeBlock && activeBlockId
-							? `${activeBlockId} 블록에 질문/수정…`
-							: "질문 또는 수정 요청… (Shift+Enter 줄바꿈)"
-					}
-					rows={2}
-					disabled={inputDisabled}
-					onChange={(e) => setDraft(e.target.value)}
-					onKeyDown={(e) => {
-						if (e.key === "Enter" && !e.shiftKey) {
-							e.preventDefault();
-							send();
+				{queue.length > 0 && (
+					<div className="chat-queue">
+						<div className="chat-queue-head">
+							전송 대기 중{" "}
+							<span className="chat-queue-count">{queue.length}</span>
+							<span className="chat-queue-hint">— 카드 클릭 시 취소</span>
+						</div>
+						{queue.map((m) => (
+							<div
+								key={m.id}
+								className={`chat-queued-msg${
+									m.kind === "stage-request" ? " stage-request" : ""
+								}`}
+								role="button"
+								tabIndex={0}
+								title="클릭하면 전송을 취소합니다"
+								onClick={() => {
+									if (!disabled) cancelQueued(m.id);
+								}}
+								onKeyDown={(e) => {
+									if (!disabled && (e.key === "Enter" || e.key === " ")) {
+										e.preventDefault();
+										cancelQueued(m.id);
+									}
+								}}
+							>
+								{m.kind === "stage-request" ? (
+									<span className="chat-stage-badge">
+										➡ Stage {m.targetStage} 진행 요청
+									</span>
+								) : (
+									<>
+										{/* 한 줄 미리보기 — 전체 본문은 전송 후 채팅 로그에 공개. 카드 클릭 = 취소. */}
+										{m.blockId && (
+											<span className="chat-block">[{m.blockId}]</span>
+										)}
+										<div className="chat-text chat-queued-preview">
+											{previewOf(m.text)}
+										</div>
+									</>
+								)}
+							</div>
+						))}
+					</div>
+				)}
+				{stagePending && (
+					<div className="chat-lock-notice">
+						다음 단계 요청이 대기 중입니다 — 앞선 채팅 응답이 끝나면 진행됩니다.
+						(채팅 입력 잠금)
+					</div>
+				)}
+				{activeBlockId && (
+					<label className="chat-scope">
+						<input
+							type="checkbox"
+							checked={scopeBlock}
+							onChange={(e) => setScopeBlock(e.target.checked)}
+							disabled={disabled}
+						/>
+						블록 <code>{activeBlockId}</code>에 한정해 질문/수정
+					</label>
+				)}
+				<div className="chat-input-row">
+					<textarea
+						value={draft}
+						placeholder={
+							scopeBlock && activeBlockId
+								? `${activeBlockId} 블록에 질문/수정…`
+								: "질문 또는 수정 요청… (Shift+Enter 줄바꿈)"
 						}
-					}}
-				/>
-				<button
-					type="button"
-					className="chat-send"
-					onClick={send}
-					disabled={inputDisabled}
-				>
-					전송
-				</button>
-			</div>
-		</aside>
+						rows={2}
+						disabled={inputDisabled}
+						onChange={(e) => setDraft(e.target.value)}
+						onKeyDown={(e) => {
+							if (e.key === "Enter" && !e.shiftKey) {
+								e.preventDefault();
+								send();
+							}
+						}}
+					/>
+					<button
+						type="button"
+						className="chat-send"
+						onClick={send}
+						disabled={inputDisabled}
+					>
+						전송
+					</button>
+				</div>
+			</aside>
+		</>
 	);
 }

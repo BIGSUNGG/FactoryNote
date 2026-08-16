@@ -9,6 +9,20 @@ tags: [development, dev-log]
 
 ## 2026-08-16
 
+### 에이전트 채팅 숨기기 — 축소/복원 버튼
+
+**맥락**: 사용자 /goal — 채팅 우측 상단 축소 버튼, 누르면 우측으로 슬라이드하며 사라지고 우측 가장자리 복원 버튼으로 재펼침. 게이트 통과 전 질문으로 복원 버튼 위치(우측 가장자리 고정)·상태 유지(세션 내만)·축소 중 새 메시지(복원 버튼 badge) 확정.
+
+**작업**: `ChatSidebar.jsx` — 헤더에 `.chat-collapse`(›) 추가, 축소 시 우측 가장자리 고정 `.chat-restore`(💬) 렌더. `fetchChat` 에서 마지막 메시지 id 변화 추적(`collapsedRef` 미러) → 축소 중 새 메시지면 `unread` badge, 펼치면 effect 로 해제. `App.jsx` — `chatCollapsed` 상태 소유, `.review-main` 에 `chat-collapsed` 클래스로 margin-right 0 확장. `chat.css` — 사이드바 translateX(100%) + visibility 지연 트랜지션(0.25s), 메인 margin 트랜지션, 복원 버튼·badge 스타일, prefers-reduced-motion 시 트랜지션 제거. 저장소 미사용(localStorage/sessionStorage 없음) — 새로고침 시 항상 펼쳐진 상태로 시작. 자체체크 1건 추가(CollapseHarness 로 App 패턴 모사: 축소→숨김·복원 버튼 등장→fn-chat-update 로 badge→복원·badge 해제).
+
+**검증**: `bun test` 200 pass · `bun run build` 0 종료 · grep 으로 저장소 미사용 확인.
+
+**후속(사용자 피드백)**: 축소/복원 버튼 위치를 동일하게 — 복원 버튼을 우측 가장자리 세로 중앙에서 축소 버튼과 같은 우측 상단 고정(`position: fixed; top: var(--s3); right: var(--s4)`)으로 이동, 두 버튼이 같은 자리에서 교체되도록. `.chat-collapse` 도 flow 에서 빼 같은 좌표 고정, `.chat-head` 에 버튼 자리만큼 우측 패딩 확보(Stage 라벨 겹침 방지).
+
+**후속 2(사용자 피드백 — 2건)**: (1) 축소/복원 버튼 모양 통일 — 테두리 없는 › 텍스트 버튼 ↔ 💬 상자 버튼의 이질감 제거: 두 버튼 동일 26×22 상자(테두리·배경·radius·hover 동일), 글리프만 방향 반전(축소 › / 복원 ‹). (2) 축소 시 상단바 텍스트가 버튼에 가리는 문제 — `.review-main` 이 전체 폭으로 확장되며 `.topbar` 우측 요소가 고정 버튼 아래로 밀려남. `.review-main.chat-collapsed .topbar` 에 우측 패딩(버튼 폭+여백) 추가해 겹침 방지. (3) 채팅 헤더도 동일 문제 — `.chat-head` 우측 패딩이 버튼 점유 영역보다 2px 부족해 Stage 라벨이 버튼 아래로 들어감. topbar 와 동일 공식(`calc(var(--s4) * 2 + 26px)`)으로 통일.
+
+**후속 3(사용자 피드백 — 3건)**: (1) 상단바·채팅 헤더 우측 상단 텍스트 제거 — `.plan-meta`(검토 대기/Stage/담당)·`.chat-stage`(Stage N) 삭제, 미사용 `.badge`·`.plan-meta` CSS 도 제거, Topbar 무인자화(`<Topbar />`) + ChatSidebar 의 미사용 `stage` prop 제거. (2) 축소 버튼이 사이드바 트랜지션에 끌려가는 문제 — `position: fixed` 자식이 transform 된 조상(.chat-sidebar.collapsed) 기준으로 배치되는 CSS 스펙 동작이 원인. 축소/복원을 단일 토글 버튼으로 합쳐 **aside 밖**(fragment 직속)에서 렌더 → 사이드바 슬라이드에 미동반. (3) topbar 하단 선과 chat-head 하단 선 높이 불일치 — `.chat-head` 를 `height: 56px`(topbar 동일) + 세로 패딩 제거로 정렬.
+
 ### 에이전트 채팅 메신저 버블 재디자인
 
 **맥락**: 사용자 피드백 — 채팅 사이드바에서 user(좌측 세로선 인용형)와 AI(회색 카드) 스타일이 너무 다르고, 확정 요청(stage-request)만 채운 액센트 카드로 튀어 대화가 끊겨 보임.

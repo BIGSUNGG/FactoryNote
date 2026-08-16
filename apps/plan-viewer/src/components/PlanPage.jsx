@@ -211,7 +211,7 @@ export default function PlanPage({
 
 	return (
 		<>
-			<Topbar stage={stage} total={3} />
+			<Topbar />
 			<Stepper stages={stages} onSelect={onSelectStage} />
 			{readOnly && (
 				<div className="readonly-banner" role="status">

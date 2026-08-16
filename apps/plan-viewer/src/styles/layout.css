@@ -13,26 +13,6 @@
 	letter-spacing: -0.02em;
 	color: var(--primary);
 }
-.plan-meta {
-	display: flex;
-	gap: var(--s3);
-	align-items: center;
-	color: var(--muted);
-	font-size: 13px;
-	margin-left: auto;
-}
-.badge {
-	padding: 2px var(--s2);
-	border-radius: 999px;
-	font-size: 11px;
-	font-weight: 500;
-	color: var(--warning);
-	border: 1px solid rgba(217, 119, 6, 0.25);
-}
-.badge.ok {
-	color: var(--success);
-	border-color: rgba(22, 163, 74, 0.25);
-}
 .stepper {
 	display: flex;
 	flex: none;

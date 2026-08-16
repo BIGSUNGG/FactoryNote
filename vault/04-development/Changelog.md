@@ -12,6 +12,8 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ### Added
 
+- **에이전트 채팅 숨기기(축소/복원)** — 채팅 사이드바 우측 상단 고정 축소 버튼(›)을 누르면 사이드바가 우측으로 슬라이드 아웃하며 사라지고 메인 콘텐츠가 전체 폭으로 확장. 축소/복원 버튼은 같은 우측 상단 위치 고정 — 축소 후 그 자리에 복원 버튼(💬)으로 교체. 축소 중 새 에이전트 메시지 도착 시 복원 버튼에 badge 표시, 펼치면 해제. 축소 상태는 세션 내에서만 유지(새로고침 시 초기화, 저장소 미사용). `App.jsx` 가 `chatCollapsed` 상태 소유(review-main 폭 확장), `ChatSidebar.jsx` 가 축소/복원 버튼·unread 추적, `chat.css` 가 트랜지션·버튼 고정 위치·badge 스타일(prefers-reduced-motion 대응). 신규 자체체크 1건(축소→badge→복원 흐름). 자체체크 200 pass.
+
 - **동작 시나리오별 내부 Flow 문서 `implementation-flows.md`** — `vault/01-architecture/` 신규. 코드 실측 기반 4그룹 14시나리오: 메인 파이프라인·게이트 결정(confirm·modify·revert·완료), 채팅·큐·검토 요청(chatPending 루프·pendingChats read-wins·stage-request 단일 채널·+1 사이클), 복구·예외(인터럽트 복구·게이트 중 재작성·그래프 강제·미수렴 에스컬레이션·안전 추락), 관찰 모드(auto-advance). 시나리오별 mermaid sequenceDiagram + 참여자·분기·상태 전이 설명, 코드 식별자(GateEvent kind·게이트 API·nextAction) 대조 검증. 문서 전용 작업 — 코드 무변경. Home.md 링크 추가.
 
 - **파이프라인 상태·그래프 파서 거부 분기 자체체크 — `state.ts`·`graph.ts` 브랜치 커버리지 100%** — 기존 테스트가 안 때리던 방어 분기 보강: (1) `validateState` 가드 8건 — valid JSON 이지만 형태가 틀린 state(스칼라·null·feature 누락/숫자·stage 0/4/NaN·history 누락) → `loadState` 가 백업 후 undefined 로 복구하는지. 이 경로가 열려 있으면 stage 9 같은 불량 상태가 파이프라인에 그대로 적재된다. (2) `coerceRef`·`coerceNode` 거부 6건 — refs 항목 비객체·`refs[].to` 누락/빈값·노드 비객체·노드 id 누락/빈값 → 모두 throw. 스펙 지명 저커버리 영역(state.ts·graph.ts) 마무리. 하드닝 루프 이터레이션 6.

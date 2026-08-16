@@ -46,7 +46,6 @@ function installStubs() {
 
 let container;
 let root;
-
 beforeEach(async () => {
 	installStubs();
 	container = document.createElement("div");
@@ -208,4 +207,67 @@ test("fulfilled 단계 요청은 채팅 본문에 강조 렌더", async () => {
 	expect(done.textContent).toContain("Stage 2 진행 요청");
 	// 큐 영역엔 fulfilled 는 노출되지 않음.
 	expect(container.querySelector(".chat-queued-msg.stage-request")).toBeNull();
+});
+
+// 축소 상태 토글을 App 처럼 상위에서 소유하는 테스트 하니스.
+function CollapseHarness(props) {
+	const [collapsed, setCollapsed] = React.useState(false);
+	return h(ChatSidebar, {
+		...props,
+		collapsed,
+		onToggleCollapse: () => setCollapsed((v) => !v),
+	});
+}
+
+test("축소 버튼 → 사이드바 숨김 + 우측 복원 버튼, 축소 중 새 메시지 badge·펼치면 해제", async () => {
+	chatResp = {
+		messages: [{ id: "m1", role: "agent", text: "안녕", at: 1 }],
+		queue: [],
+	};
+	await React.act(async () => {
+		root.render(h(CollapseHarness, { stage: 1 }));
+	});
+	await React.act(async () => {
+		await flush();
+	});
+	// 헤더 우측 축소 버튼 존재 → 클릭 시 사이드바 collapsed + 복원 버튼 등장.
+	const collapseBtn = container.querySelector(".chat-collapse");
+	expect(collapseBtn).toBeDefined();
+	await React.act(async () => {
+		collapseBtn.dispatchEvent(
+			new window.MouseEvent("click", { bubbles: true, cancelable: true }),
+		);
+		await flush();
+	});
+	expect(
+		container.querySelector(".chat-sidebar").classList.contains("collapsed"),
+	).toBe(true);
+	expect(container.querySelector(".chat-restore")).toBeDefined();
+	// 축소 중 새 메시지 도착(fn-chat-update) → 복원 버튼에 badge.
+	chatResp = {
+		messages: [
+			{ id: "m1", role: "agent", text: "안녕", at: 1 },
+			{ id: "m2", role: "agent", text: "새 답변", at: 2 },
+		],
+		queue: [],
+	};
+	await React.act(async () => {
+		window.dispatchEvent(new Event("fn-chat-update"));
+		await flush();
+	});
+	expect(container.querySelector(".chat-restore .chat-badge")).toBeDefined();
+	// 복원 → 사이드바 다시 표시 + badge 해제.
+	await React.act(async () => {
+		container
+			.querySelector(".chat-restore")
+			.dispatchEvent(
+				new window.MouseEvent("click", { bubbles: true, cancelable: true }),
+			);
+		await flush();
+	});
+	expect(
+		container.querySelector(".chat-sidebar").classList.contains("collapsed"),
+	).toBe(false);
+	expect(container.querySelector(".chat-restore")).toBeNull();
+	expect(container.querySelector(".chat-badge")).toBeNull();
 });
