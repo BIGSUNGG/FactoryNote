@@ -28,7 +28,7 @@ export default function (pi: ExtensionAPI): void {
 	registerFactoryNoteCommand(pi);
 
 	// plan 모드 ON 시 매 턴 계획 전용 프롬프트 주입.
-	pi.on("before_agent_start", async (event) => {
+	pi.on("before_agent_start", (event) => {
 		if (!isPlanMode()) return;
 		return {
 			systemPrompt: `${event.systemPrompt}\n\n${PLAN_MODE_PROMPT}`,

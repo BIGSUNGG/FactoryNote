@@ -9,6 +9,14 @@ tags: [development, dev-log]
 
 ## 2026-08-16
 
+### 아키텍처 문서 동기화 + async-noise 정리
+
+**맥락**: 하드닝 루프 이터레이션 15. command/index async-noise 처리 중 아키텍처 문서 검증에서 발견 — 모듈 상세 6곳이 현재 코드와 불일치(폴링→SSE 이전 세대 서술 다수).
+
+**작업**: (1) command.ts handler 의 async 는 pi API 계약(Promise<void> 반환)상 필수 — 제거 시도가 디스패처 타입 차단으로 확인되어 원복, index.ts before_agent_start async 는 불필요해 제거. (2) implementation-architecture.md 6개 스테일 서술 동기화(stages·types·plan-tool·gate-server·App·GraphView) + updated 갱신.
+
+**검증**: `bun test` 200 pass · `bun run build` 0 종료 · pi-lens command/index 경고 0.
+
 ### makeGateHandler 해체 — 라우터/핸들러 분리
 
 **맥락**: 하드닝 루프 이터레이션 14. 백로그 최대 덩어리(gate-http 복잡도 35·fan-out 28·deep-nesting 6).

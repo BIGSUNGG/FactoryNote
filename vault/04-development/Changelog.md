@@ -22,6 +22,8 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ### Changed
 
+- **`implementation-architecture.md` 모듈 상세를 현재 코드로 동기화** — 6개 스테일 서술 수정: (1) `stages.ts` 의 `feedbackChecklist` 언급 → `graph` 의무 필드 + FEEDBACK_AGENTS 레지스트리 이관(ADR-014) 반영, (2) `types.ts` 단일 파일 → `types/` 디렉터리(FeedbackAgent 타입 이동 근거 포함), (3) `plan-tool.ts` 구 플로우(artifactMd 제출·블로킹 runGate) → Tier 1 오케스트레이션(인터럽트 복구·파일 프로토콜·그래프 강제·순수 전이 라우팅), (4) `gate-server.ts` 2s 폴링 서술 → SSE push(ADR-022)·채팅 큐 엔드포인트·채널별 분리 모듈 구조, (5) `App.jsx` 폴링 상태머신 → SSE 수신·이전 단계 읽기 전용 보기(ADR-023), (6) `artifacts[].graph.tree` 단일 그래프 → `artifacts[].graphs[]` 다중·3종(ADR-020·021). 스펙 영역 (3) 문서-코드 동기화. 하드닝 루프 이터레이션 15.
+
 - **`makeGateHandler` 모놀리스 해체 — 라우터 + 엔드포인트 핸들러 분리** — 단일 클로저(사이클로매틱 복잡도 35·fan-out 28·deep-nesting 6)를 평탄한 라우터(엔드포인트 8조건 순차 디스패치) + 엔드포인트별 핸들러(`stateHandler`·`eventsHandler`·`decisionHandler`·`reviewRequestHandler`·`chatGetHandler`·`serveStatic` + 채널 클로저 `chatStageRequest`·`chatPost`·`chatCancel`)로 분리. 공용 유틸 추가: `sendJson`(응답 정규화)·`readJson`(불량 본문 → 400, 원본의 500 폴백 개선)·`resolveGateEvent`(resolver 소비 1회 보장). 게이트 파라미터 타입을 인라인 리터럴에서 `PersistentGate` import 로 정리(순환 없음 — gate-manager 가 gate-http 를 단방향 import). 기존 48개 gate-server 테스트 무변경 통과로 의미 불변 확인. 하드닝 루프 이터레이션 14.
 
 - **산재 경고 일괄 정리 4파일 — viewer-state·plan-paths·df-task·ChatSidebar** — (1) `viewer-state.ts`: `STAGES[stage-1] ?? STAGES[0]!` non-null 단언을 `stageById` 안전 조회로 교체, 그래프 루프의 `.catch(()=>undefined)` 체인을 try/catch 로 통일(mixed-async 해소) → 경고 0. (2) `plan-paths.ts`: `m[1]!`·`sections.get(cur)!` non-null 단언 2건을 옵셔널 체이닝 가드로 교체. (3) `df-task.ts`: 그래프 의무별 주석의 중첩 삼항을 `GRAPH_REVISION_NOTES` 테이블 조회로 교체 → 경고 0. (4) `ChatSidebar.jsx`: `[...messages].reverse()` 를 `toReversed()` 로(변경 불변 의도 명시). 하드닝 루프 이터레이션 13.

@@ -97,7 +97,9 @@ async function decisionHandler(gate: PersistentGate, req: Req, res: Res) {
 		verdict: parsed.verdict,
 		comments: Array.isArray(parsed.comments) ? parsed.comments : [],
 		// FR-7: 회귀 대상 단계(revertTo) 뷰어→엔진으로 전달.
-		...(typeof parsed.revertTo === "number" ? { revertTo: parsed.revertTo } : {}),
+		...(typeof parsed.revertTo === "number"
+			? { revertTo: parsed.revertTo }
+			: {}),
 	};
 	res.writeHead(200, { "Content-Type": "application/json" });
 	res.end(JSON.stringify({ ok: true }), () => {
@@ -127,8 +129,11 @@ function parseStageRequestDecision(parsed: {
 	targetStage?: unknown;
 	decision?: unknown;
 }): { target: number; decision: GateDecision } {
-	const target = typeof parsed.targetStage === "number" ? parsed.targetStage : 0;
-	const pd = parsed.decision as { comments?: unknown; revertTo?: unknown } | undefined;
+	const target =
+		typeof parsed.targetStage === "number" ? parsed.targetStage : 0;
+	const pd = parsed.decision as
+		| { comments?: unknown; revertTo?: unknown }
+		| undefined;
 	return {
 		target,
 		decision: {
@@ -204,7 +209,9 @@ export function makeGateHandler(
 				id: crypto.randomUUID(),
 				role: "user",
 				text,
-				...(typeof parsed.blockId === "string" ? { blockId: parsed.blockId } : {}),
+				...(typeof parsed.blockId === "string"
+					? { blockId: parsed.blockId }
+					: {}),
 				...(typeof parsed.quote === "string" && parsed.quote.trim()
 					? { quote: parsed.quote }
 					: {}),
@@ -263,12 +270,12 @@ export function makeGateHandler(
 				if (req.method === "POST") {
 					const parsed = (await readJson(req)) as {
 						text?: unknown;
-					blockId?: unknown;
-					quote?: unknown;
-					kind?: unknown;
-					targetStage?: unknown;
-					decision?: unknown;
-				} | null;
+						blockId?: unknown;
+						quote?: unknown;
+						kind?: unknown;
+						targetStage?: unknown;
+						decision?: unknown;
+					} | null;
 					if (parsed === null) {
 						res.writeHead(400);
 						res.end("bad request");
@@ -301,6 +308,8 @@ async function serveStatic(gate: PersistentGate, url: string, res: Res) {
 	}
 	const data = await readFile(target);
 	const ext = target.slice(target.lastIndexOf("."));
-	res.writeHead(200, { "Content-Type": MIME[ext] ?? "application/octet-stream" });
+	res.writeHead(200, {
+		"Content-Type": MIME[ext] ?? "application/octet-stream",
+	});
 	res.end(data);
 }

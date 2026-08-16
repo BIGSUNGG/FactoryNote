@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-11
+updated: 2026-08-16
 tags: [architecture, implementation, code-map, data-flow]
 ---
 
@@ -27,10 +27,10 @@ FactoryNote MVP의 **실제 코드 구조·모듈 책임·런타임 데이터 �
 
 판정·실행의 **제어흐름과 신뢰성**만 담당한다. 산출물 *내용* 판단은 에이전트(LLM)가 한다(하이브리드 원칙, [[01-requirements|NFR-4]]).
 
-- **`stages.ts`** — M1 Stage Registry. `STAGES` 배열(3개 `StageDefinition`: id·이름·산출물·포맷·`designPrompt`·`feedbackChecklist`·`artifactFile`). 3단계 모두 산출물을 생성한다.
+- **`stages.ts`** — M1 Stage Registry. `STAGES` 배열(3개 `StageDefinition`: id·이름·산출물·포맷·`designPrompt`·`artifactFile`·`graph` — none/optional/required 로 단계별 그래프 의무 분기, ADR-019). 3단계 모두 산출물을 생성한다. Feedback 검토 축은 여기 없음 — 전역 `FEEDBACK_AGENTS` 레지스트리([[ADR-014-dynamic-feedback-agents]]).
 - **`engine.ts`** — 순수 상태기계. `initialState` · `markArtifactReady` · `applyVerdict(state, decision)`(confirm→다음 단계/완료, modify→loopCount++·`atLoopCeiling` 경성 에스컬레이션, revert→`revertTo`(생략 시 1단계, clamp `1..현단계-1`) 점프 + `validThrough` 갱신) · `MAX_LOOPS`/`atLoopCeiling`(FR-2). 부작용 없는 함수 — `engine.test.ts` 로 LLM/pi 없이 검증.
 - **`persistence.ts`** — M3. `.factorynote/<feature>/state.json` atomic 쓰기(write-then-rename), 손상 시 `.corrupt-<ts>` 백업 후 `undefined` 복구(NFR-2). 산출물 r/w — 단계 산출물(`STAGES.artifactFile` 등록 파일)은 `<feature>/stageN/` 서브폴더에 배치, 보조 파일(draft·design-prompt·feedback-menu)은 feature 루트([[ADR-015-stage-artifact-folders]]). 경로를 인자로 받아 pi 의존 0.
-- **`types.ts`** — `StageId`·`GateVerdict`(`confirm`/`modify`/`revert`)·`Comment`·`GateDecision`·`PipelineState`.
+- **`types/`** — 타입 디렉터리(`gate.ts`·`pipeline.ts`·`feedback.ts`·`graph.ts` + `index.ts` 배럴). `StageId`·`GateVerdict`·`GateDecision`·`PipelineState` 와 오케스트레이션 계약(`SpawnOptions`·`DesignFeedbackDirective`·`ArtifactPaths`)·그래프 프로토콜 타입. `FeedbackAgent`·`FeedbackCapability` 는 `feedback.ts` 에 — 레지스트리(feedback-agents.ts)와 데이터 파일 간 순환 import 방지(2026-08 하드닝).
 
 > 코어는 `@factorynote/core` 로 import된다. 런타임 npm 의존이 0이라 **복사만으로 다른 harness에 이식** 가능하다(NFR-1).
 
@@ -43,25 +43,24 @@ Pi 와 코어를 잇는 유일한 계층. pi가 jiti로 TS 를 직접 로드한�
   - `pi.on("before_agent_start", …)` — `planMode` 가 ON 일 때 매 턴 **계획 전용 시스템 프롬프트**를 주입("코드 금지, `factorynote_plan` 으로 3단계 구동").
   - `pi.registerTool("factorynote_plan", …)` — 파이프라인 구동 도구(아래).
   - `resolveViewerDistDir(cwd)` — 뷰어 dist 후보 탐색: `FACTORYNOTE_VIEWER_DIST` 환경변수 → `<extdir>/viewer/dist`(설치형) → `<cwd>/apps/plan-viewer/dist`(개발).
-- **`plan-tool.ts`** — `drivePlan(input)`. 도구의 단일 구동 단위:
-  1. 상태 로드(없으면 `initialState`). 완료 시 완료 메시지.
-  2. 현 단계가 산출물 단계인데 `artifactMd` 가 없으면 → 작성 지시(`designPrompt`+`feedbackChecklist`) 반환.
-  3. `artifactMd` 제출 → 산출물 저장 → `markArtifactReady` → `runGate`(블로킹) → 결정 → `applyVerdict` → 저장.
-  4. 결과로 에이전트에게 다음 행동 안내(modify=재작성, confirm=다음 단계, done=종료).
-- **`gate-server.ts`** — 웹 게이트. **기능별 영속 서버**(`runGate(opts)`):
-  - `getOrCreateGate(root, feature)` 가 기능별로 `node:http` 서버를 **하나만** 구동(`127.0.0.1:0`)해 Map 에 캐싱 → 같은 기능은 **항상 같은 포트/URL**. 단계마다 새 포트가 열리지 않는다.
-  - `GET /api/state` → `ViewerState` JSON(현 단계 + `gateOpen` + 산출물 마크다운 목록).
-  - `GET /` · `GET /assets/*` → 뷰어 dist 정적 서빙(SPA fallback).
-  - `POST /api/decision` → `{verdict, comments}` 수집 → 이번 단계 결정 Promise 해결. **서버는 닫지 않는다**(플랜 전체에서 재사용).
-  - 브라우저 자동 오픈(Win=`start`, mac=`open`, linux=`xdg-open`)은 **탭이 없을 때만**(하트비트 경과 시). 뷰어가 `/api/state` 를 2s 폴링해 `gate.lastSeen` 갱신 → 탭이 살아있으면 재오픈하지 않고(다중 탭 방지), 닫혔거나 최초면 다음 게이트 시작 시 다시 연다. `signal` 중단·`timeoutMs` 만료 시 modify 로 복귀(서버 유지 — 인터럽트 복구가 같은 탭 재사용). `closeGate(root, feature)` 로 플랜 완료 시에만 종료.
+- **`plan-tool.ts`** — `drivePlan(input)`. 도구의 단일 구동 단위(Tier 1, [[ADR-009-tier-1-agent-orchestration]]):
+  1. 상태 로드(손상 시 복구). 완료 시 종료 안내.
+  2. **인터럽트 복구**: 게이트 열린 채 재진입 시 디스크 산출물로 게이트 재오픈. 게이트 열림 중 `designArtifact` 재제출(채팅 수정)은 draft 반영 후 재오픈.
+  3. 산출물 단계 진입 시 `design-prompt.md`·`feedback-menu.md` 기록(파일 프로토콜, ADR-010) 후 **Stage 2 그래프 강제**(`enforceRequiredGraph` — 미충족 시 재작성 반려/상한 소진 시 게이트 에스컬레이션, ADR-019).
+  4. `nextDesignFeedbackStep`(`df-transition.ts`) 순수 전이로 Design↔Feedback 스폰 지시문 라우팅 → `spawnDirective` 가 Director 에이전트에게 자식 스폰 과제 반환(동기 스폰 불가 하네스 — 파일 경로 교환).
+  5. 내부 사이클 수렴/에스컬레이션 → `runOpenGate`(`plan-gate.ts`) 게이트.
+- **`gate-server.ts`** — 웹 게이트. **기능별 영속 서버**(`runGate(opts)`·`observeGate`). 채널별 분리 모듈: `gate-manager.ts`(서버 풀·채팅 상태) · `gate-http.ts`(/api/* 라우터 + 엔드포인트 핸들러·정적 SPA) · `viewer-state.ts`(/api/state 페이로드 조립) · `gate-browser.ts`(브라우저 오픈 — `spawn` 인자 배열·shell:false 로 주입 구조 차단) · `gate-events.ts`(이벤트 계약).
+  - `GET /api/state` → `ViewerState` JSON. **`GET /api/events` → SSE push**(폴링 대체, [[ADR-022-viewer-sse-push]]) — 산출물 기록·채팅 변동 시에만 push, SSE 연결 자체가 탭 하트비트(재오픈 판정 흡수).
+  - `POST /api/decision`(결정) · `POST /api/review-request`(+1 재검토 사이클, 게이트 유지) · `GET/POST /api/chat`·`POST /api/chat/cancel`(채팅 큐 — read-wins 취소, [[ADR-024-chat-send-queue]]·[[ADR-026-stage-request-queue-transit]]).
+  - 브라우저 자동 오픈은 탭이 없을 때만(SSE 클라이언트 없음 + 하트비트 경과). `closeGate(root, feature)` 로 플랜 완료 시에만 종료.
 
 ### Viewer — `apps/plan-viewer/` (React + Vite)
 
 빌드 산출물 `dist/` 가 게이트 서버를 통해 서빙된다.
 
-- **`App.jsx`** — **폴링 상태머신**(loading/reviewing/preparing/closed). `/api/state` 의 `gateOpen` 으로 구동: `gateOpen=true` 면 현 단계 렌더(3단계 모두 `PlanPage` 동일 문서 경로) + 게이트 바, `false` 면 "다음 준비 중…" 화면으로 1초 폴링. 결정 POST 후 preparing 전환 → `gateOpen` 이 다시 true 가 되면(preparing→reviewing) **같은 탭에서 다음 단계로 교체 + 알림**(Web Notification + 타이틀 점멸 + `window.focus`, 백그라운드 탭 대응). 서버 종료/`done` 시 마감 화면.
+- **`App.jsx`** — **SSE push 수신 상태머신**(loading/reviewing/preparing/closed, [[ADR-022-viewer-sse-push]]). 단일 `EventSource` 로 `state`·`chat` 이벤트 수신 — 폴링 없음. 확정·검토 요청 중에도 기존 페이지 유지 + 게이트 바 로딩 연출, 게이트 재오픈 시 같은 탭에서 다음 단계로 교체(알림). 헤더 스텝퍼로 **이전 단계 읽기 전용 보기** 전환 가능([[ADR-023-viewer-transition-ux]]).
 - **`PlanPage.jsx`** — 마크다운 단계(1/2/3 공통). 마크다운 → 블록(`mdToBlocks`) 렌더 + 블록/셀/드래그 영역 코멘트 + pending 큐([[core-features]] 사양). 게이트 버튼 → `onGate({verdict, comments})`. 그래프는 md 의 `<!-- graph: <파일명> -->` 참조 블록으로 렌더(아래 `GraphView`).
-- **`GraphView.jsx`** — 읽기 전용 계층 드릴다운 그래프(react-flow). 게이트 서버가 조립한 트리(`/api/state` 의 `artifacts[].graph.tree`)의 루트 레벨을 기본 표시하고, 자식이 있는 노드 더블클릭 시 하단에 자식 레벨 패널을 스택(토글·다중 선택 병합·미선택 참조 숨김·임의 깊이). 배치는 `layoutGraph`(layer/관계 방향 행 배치 + barycenter 정돈 + 그룹 포함) — 드래그·연결·편집 없음, 수정은 채팅으로([[ADR-018-hierarchical-graph-tree]]).
+- **`GraphView.jsx`** — 읽기 전용 계층 드릴다운 그래프(react-flow). `/api/state` 의 `artifacts[].graphs[]`(산출물당 다중·에이전트 자유 네이밍, [[ADR-020-multi-named-graphs]]) 참조 위치에 인라인 렌더 — 종류는 envelope `type` 으로 분기: 계층 트리(드릴다운, [[ADR-018-hierarchical-graph-tree]]) · sequence · flowchart([[ADR-021-sequence-flowchart-graphs]]). 배치는 뷰어 자동 배치(좌표 필드 금지) — 드래그·연결·편집 없음, 수정은 채팅으로.
 - **`GateBar.jsx`** — 하단 게이트 바: **✓ 확정**(confirm) / **✎ 수정 지시**(modify, pending 코멘트 전송) / **← 정정**(revert).
 
 ## 런타임 데이터 흐름
