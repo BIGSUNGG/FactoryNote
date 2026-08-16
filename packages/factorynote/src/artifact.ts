@@ -129,7 +129,12 @@ export async function invalidateArtifactsAfter(
 	for (const s of stale) {
 		const md = s.artifactFile as string;
 		// 무효화 전 md 를 읽어 그래프 이름(에이전트 자유 네이밍) 수집 — 이름 추론 불가(ADR-020).
-		const raw = await readArtifact(root, feature, md).catch(() => undefined);
+		let raw: string | undefined;
+		try {
+			raw = await readArtifact(root, feature, md);
+		} catch {
+			raw = undefined;
+		}
 		const refs = raw !== undefined ? graphRefFiles(raw) : [];
 		const targets: Promise<void>[] = [
 			unlink(artifactPath(root, feature, md)).catch(ignoreEnoent),

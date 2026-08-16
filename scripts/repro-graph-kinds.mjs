@@ -22,7 +22,6 @@ import "./ensure-viewer-dist.ts";
 const DIST = resolveRepoRoot("apps/plan-viewer/dist");
 const FEATURE = "graph-showcase";
 
-
 // --- 1. 임시 워크스페이스 조립 ---
 const root = await mkdtemp(join(tmpdir(), "fn-showcase-"));
 await saveState(root, { ...initialState(FEATURE), stage: 2 });

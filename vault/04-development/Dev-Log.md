@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-15
+updated: 2026-08-16
 tags: [development, dev-log]
 ---
 
@@ -8,6 +8,14 @@ tags: [development, dev-log]
 날짜별 작업 기록. 무엇을 했는지, 왜, 무엇이 남았는지. [[Changelog]]는 외부용 단위, 본 파일은 일일 흐름.
 
 ## 2026-08-16
+
+### artifact.ts mixed-async 정리 — 이터레이션 25 마지막 수정
+
+**맥락**: 하드닝 루프 이터레이션 25/25. 전체 재스캔에서 `artifact.ts` 의 mixed-async-styles 경고 확인.
+
+**작업**: `invalidateArtifactsAfter` 의 `await readArtifact(root, feature, md).catch(() => undefined)` 를 try/catch 블록으로 통일 — `await` 와 `.catch()` 를 같은 표현식에서 섞어 쓰는 패턴 제거. 의미 동일(실패 시 `undefined` 로 수렴).
+
+**검증**: `bun test packages/factorynote` 79 pass · 전체 `bun test` 199 pass 예정 · `bun run build` 0 종료 예정.
 
 ### repro scripts 미사용 import 정리 + 드릴다운 스크립트 깨짐 수정
 

@@ -60,6 +60,10 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 - **뷰어 갱신 폴링 → SSE push 전환** — 뷰어가 `/api/state` 2초 폴링 + `/api/chat` 0.5초 폴링으로 갱신하던 것을 제거하고, 게이트 서버에 SSE(`/api/events`) 엔드포인트를 추가해 에이전트가 산출물을 기록하는 시점(산물 write + 게이트 오픈 = `runOpenGate`, 채팅 회신 = `appendAgentChat`)에만 push 갱신. `gate` 객체에 `sseClients: Set<ServerResponse>` 를 두고 `broadcastSse` 가 프레임 송신(실패 클라이언트 자동 제거). 뷰어는 단일 `EventSource` 로 `state`·`chat` 이벤트 수신. 탭 생존 하트비트(브라우저 재오픈 판정)는 SSE 연결 생존으로 흡수 — `runGate`/`observeGate` 재오픈 조건에 `sseClients.size === 0` 추가(SSE 클라이언트가 살아있으면 `lastSeen` 경과와 무관하게 재오픈 생략). core(`packages/factorynote`) 무변경 — 모든 `writeArtifact` 호출이 pi-extension 경로를 거치므로 트리거를 pi-extension 에 배치. `node:*` builtins 만 사용(`ws` 미도입). 회귀 테스트 추가(SSE broadcast · 하트비트 흡수). 자체체크 153 pass(신규 2). [[ADR-022-viewer-sse-push]]
 
+### Changed
+
+- **artifact.ts mixed-async 정리 — 이터레이션 25 마지막 수정** — `invalidateArtifactsAfter` 의 `await readArtifact(...).catch(() => undefined)` 를 try/catch 로 통일 — mixed-async-styles 경고 해소(의미 동일). 하드닝 루프 이터레이션 25/25.
+
 ### Fixed
 
 - **repro-drilldown.mjs stateJson 누락 복구 — 이터레이션 17 이동 리팩터 잔류 버그** — `serveViewer(DIST, stateJson)` 호출 시 `stateJson` 이 정의되지 않아 스크립트가 실행 불가 상태였음을 이터레이션 24 전체 재스캔에서 발견. 원본(`buildViewerState(ROOT, FEATURE)` + `gateOpen: true` stringify) 코드 복구. 미사용 import(`readFile`·`extname`) 동반 정리. `repro-graph-kinds.mjs` 도 미사용 import 제거. 하드닝 루프 이터레이션 24.
