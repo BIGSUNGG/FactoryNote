@@ -9,6 +9,14 @@ tags: [development, dev-log]
 
 ## 2026-08-16
 
+### graph.ts async 스타일 통일 — 모듈 경고 0
+
+**맥락**: 하드닝 루프 이터레이션 11. 백로그 graph.ts mixed-async 4건 — 실측 결과 잔여 혼용은 `await readRel(x).catch(()=>null)` 2개 호출점.
+
+**작업**: 모듈 헬퍼 `readOrNull()`(try/catch)로 교체 — 누락/IO 실패 null 처리 정책 단일화. delete 제거(이터레이션 10)에 이어 graph.ts pi-lens 경고 0 달성.
+
+**검증**: pi-lens full graph.ts 0건 · `bun test` 200 pass · `bun run build` 0 종료.
+
 ### graph.ts delete 제거 — coerceNode rest 분해
 
 **맥락**: 하드닝 루프 이터레이션 10. 백로그 graph.ts delete-연산자 2건.

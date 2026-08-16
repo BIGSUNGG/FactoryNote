@@ -100,7 +100,8 @@ function coerceNode(n: unknown, i: number): GraphFileNode {
 	const { refs: rawRefs, children: rawChildren, ...rest } = o;
 	const out: GraphFileNode = { ...rest, id: o.id };
 	if (rawRefs !== undefined) {
-		if (!Array.isArray(rawRefs)) throw new Error(`node ${o.id}: refs not array`);
+		if (!Array.isArray(rawRefs))
+			throw new Error(`node ${o.id}: refs not array`);
 		out.refs = rawRefs.map((r, j) => coerceRef(r, `node ${o.id} ref #${j}`));
 	}
 	if (rawChildren !== undefined) {
@@ -371,6 +372,18 @@ export function parseAnyGraphKind(raw: string): GraphKind | null {
 	return null;
 }
 
+/** readRel 실패(누락·IO)는 null 로 우아하게 처리 — .catch 체인 대신 async/await 로 통일. */
+async function readOrNull(
+	readRel: (path: string) => Promise<string | null>,
+	path: string,
+): Promise<string | null> {
+	try {
+		return await readRel(path);
+	} catch {
+		return null;
+	}
+}
+
 /** 루트 raw + 자식 파일 리더 → 조립된 트리. 루트 불량 → null.
  * 자식 파일 누락/불량은 해당 노드의 children 생략으로 우아하게 처리(트리 전체는 유지). */
 export async function loadGraphTree(
@@ -390,7 +403,7 @@ export async function loadGraphTree(
 			const { children, ...rest } = n;
 			let childLevel: GraphLevel | undefined;
 			if (children) {
-				const raw = await readRel(children).catch(() => null);
+				const raw = await readOrNull(readRel, children);
 				const parsed = raw !== null ? parseGraphLevelFile(raw) : null;
 				if (parsed) childLevel = await toLevel(parsed, children);
 			}
@@ -428,7 +441,7 @@ export async function collectGraphChildFiles(
 			if (!rel || seen.has(rel)) continue;
 			seen.add(rel);
 			out.push(rel);
-			const raw = await readRel(rel).catch(() => null);
+			const raw = await readOrNull(readRel, rel);
 			const parsed = raw !== null ? parseGraphLevelFile(raw) : null;
 			if (parsed) await walk(parsed);
 		}

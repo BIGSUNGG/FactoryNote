@@ -22,6 +22,8 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ### Changed
 
+- **`graph.ts` async 스타일 통일 — mixed-async 경고 0** — `loadGraphTree`·`collectGraphChildFiles` 내부의 `await readRel(x).catch(() => null)` 혼용(프라미스 체인 + async/await)을 모듈 헬퍼 `readOrNull()`(try/catch)로 교체 — 자식 파일 누락/IO 실패를 null 로 우아하게 처리하는 정책이 한 곳에 모임. 이로써 graph.ts 는 pi-lens 경고 0(delete 제거에 이어). 하드닝 루프 이터레이션 11.
+
 - **`coerceNode` 속성 삭제(delete) 제거 — `graph.ts`** — `{...o}` 스프레드가 원시 `refs`·`children` 키를 끌고 온 뒤 `delete out.refs`·`delete out.children` 로 지우던 후처리를, rest 분해(`const { refs, children, ...rest } = o`)로 애초에 제외하는 구성으로 교체 — 검증을 거친 값만 노드에 담긴다는 의도가 코드에 직접 드러남(동작 불변, 불투명 표시 필드 보존 테스트 포함 전체 통과). pi-lens ast-grep:ts-delete-property 발견분. 하드닝 루프 이터레이션 10.
 
 - **`runOpenGate` 결과 메시지 조립 추출 — `plan-gate.ts` 경고 0** — 게이트 결정 후 안내 메시지 합성(내부 에스컬레이션·FR-2 에스컬레이션·수정 요청·승인 4분기 + 코멘트 블록 + resume 접두)을 순수 함수 `gateOutcomeMessage()` 로 추출 — `runOpenGate` 사이클로매틱 복잡도 경고(22)·fan-out 경고(24) 소멸, 메시지 분기가 한 곳에 모임. 부수: `complete()` 의 `STAGES[2]!` non-null 단언을 `stageById(3).name` 로 교체(단언 제거, 불변 import 정리). pi-lens complexity·fan-out·no-non-null-assertion 발견분. 하드닝 루프 이터레이션 9.
