@@ -1,8 +1,21 @@
 # scripts
 
-설치·빌드·릴리스 스크립트.
+설치·생성·검증 스크립트. 루트에 소스를 두지 않는다(2026-08 하드닝 — 레이아웃 정합).
 
-- `install.mjs` — Pi 확장 설치(순수 Node, Windows/macOS/Linux 공통)
-- `build.ts` — 코어 + pi-extension 빌드 (bun)
+## 설치·생성
 
-> plannotator 패턴: harness-agnostic 설치(one installer, 자동 감지).
+- `install.mjs` — Pi 확장 설치(순수 Node, Windows/macOS/Linux 공통). `bun run build` 의 마지막 단계로도 실행(빌드=배포).
+- `gen-feedback-agents.mjs` — `packages/factorynote/src/feedback-agents*.ts` 레지스트리에서 `apps/pi-extension/agents/factorynote-feedback-<name>.md` 생성(ADR-014).
+
+## 테스트 지원
+
+- `ensure-viewer-dist.ts` — `bunfig.toml` preload. 뷰어 dist(gitignore 빌드 산출물)가 없거나 소스보다 낡으면 vite 재빌드 — 신규 클론·소스 변경 어느 쪽이든 게이트 테스트가 최신 dist 로 동작. `viewerDistIsStale` 단위 테스트 동반(`ensure-viewer-dist.test.ts`).
+
+## repro 스모크(수동 검증)
+
+- `repro-serve.mjs` — 공용 뷰어 서빙 미니 서버 + `resolveRepoRoot`(실행 cwd 무관 경로 해석).
+- `repro-drilldown.mjs` + `repro-drilldown-browser.mjs` — 실제 Chrome headless(CDP)로 그래프 드릴다운 회귀([[../vault/05-problems/graph-drilldown-pointer-events]]). Chrome 설치 필요.
+- `repro-graph-kinds.mjs` — 4종 그래프(트리·sequence·flowchart·구 고정이름) 쇼케이스 게이트 서빙.
+- `repro-drive.mjs` — `drivePlan` 1스텝 실구동(게이트 오픈→confirm→결과).
+
+실행: `bun scripts/repro-*.mjs` (레포 루트 기준).

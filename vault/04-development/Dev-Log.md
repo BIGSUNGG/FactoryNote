@@ -9,6 +9,14 @@ tags: [development, dev-log]
 
 ## 2026-08-16
 
+### scripts/README 재작성 — 스테일 참조 제거
+
+**맥락**: 하드닝 루프 이터레이션 20. 제거·이동 심볼의 문서 잔여 스캔(currentStageDef 무참조·mermaid는 ADR 역사 맥락으로 유효 확인) 중 발견 — scripts/README 가 구 `build.ts` 참조(존재하지 않음)·신규 파일 전부 누락.
+
+**작업**: README 을 현재 실체로 재작성(설치·생성/테스트 지원/repro 스모크 3분류, 실행 경로 포함).
+
+**검증**: `bun test` 199 pass · `bun run build` 0 종료.
+
 ### currentStageDef 제거 — pass-through 래퍼 마무리
 
 **맥락**: 하드닝 루프 이터레이션 19. 백로그 pass-through-wrapper 2건 종결.

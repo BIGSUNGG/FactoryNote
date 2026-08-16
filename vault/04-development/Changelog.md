@@ -22,6 +22,8 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ### Changed
 
+- **`scripts/README.md` 를 현재 실체로 재작성** — 구 체계 잔재(`build.ts` — 존재하지 않음, tsc -b 전환 이전) 참조 제거, 이번 하드닝으로 scripts/ 에 이동·추가된 파일 전부 기재: gen-feedback-agents(레지스트리→에이전트 md 생성, ADR-014)·ensure-viewer-dist(preload staleness)·repro-serve(공용 서버+resolveRepoRoot)·repro 스모크 4종(실행 경로 `bun scripts/...` 포함). 스펙 영역 (3) — 루트 소스 0 달성으로 scripts/ 가 실질적 스크립트 홈이 됐으나 안내서가 비었었다. 하드닝 루프 이터레이션 20.
+
 - **`ensure-viewer-dist` 루트 잔류 해소 — scripts/ 로 이동으로 루트 클린업 완성** — 루트에 남아 있던 마지막 산재 파일 `ensure-viewer-dist.ts`·`ensure-viewer-dist.test.ts` 를 `scripts/` 로 이동(이제 루트에 소스 파일 0). `bunfig.toml` preload 경로 갱신, `VIEWER_DIR` 를 스크립트 위치 기준 `..` 로 수정, repro-graph-kinds import 도 동반 수정. 이동 후 preload 회귀 실증: 소스 mtime 을 낡추고 `bun test` 실행 → preload 가 dist 재빌드(7.5초 소요) 확인 — 신규 클론·소스 변경 어느 쪽이든 최신 dist 보장 유지. 하드닝 루프 이터레이션 18.
 
 - **repro 스모크 스크립트 scripts/ 로 통합 + 공용 서버 모듈 추출** — 루트에 무분별 배치됐던 `repro-{drive,drilldown,drilldown-browser,graph-kinds}.mjs` 4종을 `scripts/` 로 이동(레포 레이아웃 정합). drilldown·graph-kinds 가 복제하던 뷰어 서빙 블록(Bun.serve + /api 폴백 + 정적 SPA + MIME 테이블, ~40줄)을 공용 `scripts/repro-serve.mjs` 로 추출 — jscpd scripts/ **0 클론**. 경로는 cwd 의존(`process.cwd()/apps/...`)에서 스크립트 위치 기준 `resolveRepoRoot()` 로 교체 — 어느 디렉터리에서 실행해도 동작(루트 실행 시 경로 붕괴 버그 수정 동반). 스모크 실증: graph-kinds 서빙 정상, drive 파이프라인 구동 확인. 05-problems·Dev-Log 의 실행 명령 경로 갱신. 하드닝 루프 이터레이션 17.
