@@ -31,10 +31,7 @@ import type {
 	PipelineState,
 	StageDefinition,
 } from "@factorynote/core";
-import type {
-	DrivePlanInput,
-	DrivePlanOutput,
-} from "./plan-types.ts";
+import type { DrivePlanInput, DrivePlanOutput } from "./plan-types.ts";
 import { buildMenuMarkdown, deriveReport, resolvePaths } from "./plan-paths.ts";
 import { spawnDirective } from "./plan-directive.ts";
 import { runOpenGate } from "./plan-gate.ts";
@@ -60,7 +57,11 @@ async function enforceRequiredGraph(opts: {
 }): Promise<DrivePlanOutput | null> {
 	const { input, state, def, paths, draftFile, feedbackLevel, report } = opts;
 	if (report?.role !== "design" || def.graph !== "required") return null;
-	const graphIssue = await checkRequiredGraph(input.root, input.feature, draftFile);
+	const graphIssue = await checkRequiredGraph(
+		input.root,
+		input.feature,
+		draftFile,
+	);
 	if (!graphIssue) return null;
 	if (state.dfLoop < DEFAULT_MAX_LOOPS) {
 		const next = { ...state, dfLoop: state.dfLoop + 1 };
@@ -74,8 +75,8 @@ async function enforceRequiredGraph(opts: {
 				loop: next.dfLoop,
 				spawnOptions: CHILD_SPAWN_OPTIONS.design,
 			},
-				paths,
-				feedbackLevel,
+			paths,
+			feedbackLevel,
 		);
 	}
 	// 상한 소진: 게이트로 에스컬레이션해 사용자 판단에 맡긴다(Feedback 미수렴과 동일 기제).
