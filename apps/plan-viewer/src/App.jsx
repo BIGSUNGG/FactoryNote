@@ -180,6 +180,7 @@ export default function App() {
 	const main = (
 		<PlanPage
 			mdSource={pickMarkdown(state, curStage)}
+			prevMdSource={cur?.prevMd}
 			stage={curStage}
 			activeStage={state.stage} // 스테퍼 작성여부 기준(실제 서버 단계)
 			stageName={state.stageName}

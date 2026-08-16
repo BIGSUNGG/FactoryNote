@@ -62,11 +62,13 @@ export {
 export {
 	artifactPath,
 	checkRequiredGraph,
+	clearArtifactPrev,
 	featureDir,
 	invalidateArtifactsAfter,
 	loadState,
 	promoteGraphTree,
 	readArtifact,
+	readArtifactPrev,
 	saveState,
 	statePath,
 	writeArtifact,

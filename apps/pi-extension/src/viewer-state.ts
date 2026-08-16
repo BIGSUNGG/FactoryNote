@@ -9,6 +9,7 @@ import {
 	parseGraphFlowchartFile,
 	parseGraphSequenceFile,
 	readArtifact,
+	readArtifactPrev,
 	stageById,
 } from "@factorynote/core";
 import type {
@@ -34,6 +35,9 @@ export interface ViewerState {
 		file: string;
 		format: ArtifactFormat;
 		md?: string;
+		/** 직전 버전 md(ADR-027 변경 하이라이트 기준). 게이트 중 재작성된 산출물에만 존재 —
+		 * 확정 시 서버가 삭제하므로 승인된 단계에는 없다. 뷰어는 md↔prevMd 블록 diff. */
+		prevMd?: string;
 		/** md 의 `<!-- graph: ... -->` 참조들이 가리키는 그래프들(ADR-018·020·021). 없으면 미포함.
 		 * type: tree = 중첩 조립 트리, sequence·flowchart = 단일 파일 데이터. */
 		graphs?: {
@@ -59,6 +63,8 @@ export async function buildViewerState(
 		if (state && s.id > state.stage) continue;
 		const raw = await readArtifact(root, feature, s.artifactFile);
 		if (raw === undefined) continue;
+		// 변경 하이라이트 기준(ADR-027): 재작성 전 버전. 없으면(최초 작성·확정 후) 생략.
+		const prevRaw = await readArtifactPrev(root, feature, s.artifactFile);
 		// 그래프 서빙(ADR-018·020·021): 참조마다 stageN/ 에서 읽어 종류별 파싱·조립.
 		// tree 는 자식 파일 트리 조립, sequence·flowchart 는 단일 파일 파싱.
 		const graphs: NonNullable<ViewerState["artifacts"][number]["graphs"]> = [];
@@ -98,6 +104,7 @@ export async function buildViewerState(
 			file: s.artifactFile,
 			format: s.format,
 			md: raw,
+			...(prevRaw !== undefined ? { prevMd: prevRaw } : {}),
 			...(graphs.length > 0 ? { graphs } : {}),
 		});
 	}

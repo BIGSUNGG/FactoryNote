@@ -5,6 +5,7 @@ import {
 	DEFAULT_FEEDBACK_LEVEL,
 	applyVerdict,
 	atLoopCeiling,
+	clearArtifactPrev,
 	graphRefFiles,
 	invalidateArtifactsAfter,
 	isComplete,
@@ -155,6 +156,10 @@ export async function runOpenGate(
 	state = applyVerdict(state, decision);
 	if (decision.verdict === "revert") {
 		await invalidateArtifactsAfter(root, feature, state.stage);
+	} else if (decision.verdict === "confirm" && def.artifactFile) {
+		// ADR-027: 확정 = 승인된 단계의 하이라이트 기준(.prev) 리셋 —
+		// 이후 하이라이트는 다음 게이트에서의 수정만 표시한다.
+		await clearArtifactPrev(root, feature, def.artifactFile);
 	}
 	await saveState(root, state);
 

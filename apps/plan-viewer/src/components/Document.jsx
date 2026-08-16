@@ -8,6 +8,8 @@ import { activeHeadingId } from "../lib/activeHeading";
 //  - 그 외 클릭 → 블록 코멘트 팝오버(onActivate)
 export default function Document({
 	blocks,
+	changedIds, // ADR-027 변경 하이라이트: 추가·수정된 블록 id 집합
+	addedIds, // ADR-027: 순수 추가 블록(등장 연출 대상) — changedIds 부분집합
 	comments,
 	onAddComment,
 	onActivate,
@@ -93,6 +95,8 @@ export default function Document({
 				<Block
 					key={b.id}
 					block={b}
+					changed={changedIds?.has(b.id)}
+					added={addedIds?.has(b.id)}
 					comments={comments}
 					onAddComment={onAddComment}
 					onActivate={onActivate}

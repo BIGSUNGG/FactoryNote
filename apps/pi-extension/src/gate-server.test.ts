@@ -272,6 +272,50 @@ test("gate /api/state returns Stage 2 design md + 그래프 3종 혼합 서빙(A
 	expect(captured.flowNodes).toBe(3);
 });
 
+test("gate /api/state exposes prevMd for rewritten artifact (ADR-027)", async () => {
+	// 단계 산출물 재작성 → .prev 스냅샷 → /api/state 페이로드에 prevMd 포함.
+	await writeArtifact(
+		root,
+		"prevdemo",
+		"01-understanding-and-scenarios.md",
+		"v1 draft",
+	);
+	await writeArtifact(
+		root,
+		"prevdemo",
+		"01-understanding-and-scenarios.md",
+		"v2 revised",
+	);
+	await saveState(root, markArtifactReady(initialState("prevdemo")));
+
+	const captured: { md?: string | undefined; prevMd?: string | undefined } = {};
+	await runGate({
+		root,
+		feature: "prevdemo",
+		viewerDistDir: VIEWER_DIST,
+		open: false,
+		onReady: async (url) => {
+			const res = await fetch(`${url}/api/state`);
+			const st = (await res.json()) as {
+				artifacts: Array<{ file: string; md?: string; prevMd?: string }>;
+			};
+			const art = st.artifacts.find(
+				(a) => a.file === "01-understanding-and-scenarios.md",
+			);
+			captured.md = art?.md;
+			captured.prevMd = art?.prevMd;
+			await fetch(`${url}/api/decision`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ verdict: "confirm", comments: [] }),
+			});
+		},
+	});
+
+	expect(captured.md).toBe("v2 revised");
+	expect(captured.prevMd).toBe("v1 draft");
+});
+
 test("gate /api/state hides artifacts past current stage on revert", async () => {
 	// 회귀 시뮬레이션: state.stage=2 이지만 3단계 산출물이 디스크에 남아 있음.
 	await writeArtifact(

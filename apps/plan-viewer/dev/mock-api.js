@@ -6,7 +6,8 @@
 // 실서버 대응:
 //   idle 즉시 전달(=resolver 대기 중) / busy(=3초 가짜 회신 중) 큐 적재·선두 1개씩
 //   드레인 / stage-request 대기 채팅 뒤 적재 → 채팅 잠금 → 선두 실행 시 단계 진행
-//   ·fulfilled 기록 / cancel(already-sent 거부) / GET {messages, queue}.
+//   ·fulfilled 기록 / cancel(already-sent 거부) / GET {messages, queue} /
+//   재작성 시 prevMd 스냅샷·확정 시 리셋(ADR-027 변경 하이라이트).
 
 /** 목업 상태·큐를 소유하는 핸들러 팩토리. opts 로 타이머/문서 주입(테스트용). */
 export function createMockApi({
@@ -55,8 +56,11 @@ export function createMockApi({
 			});
 			// 정해진 파일 수정(맨 위 배너 prepend) — 산출물 갱신 시연.
 			const art = state.artifacts.find((a) => a.stage === state.stage);
-			if (art && edits.length > 0)
+			if (art && edits.length > 0) {
+				// ADR-027 모방: 덮어쓰기 전 버전을 prevMd 로 스냅샷 — 뷰어 블록 diff 기준.
+				art.prevMd = art.md;
 				art.md = edits[editIdx++ % edits.length] + art.md;
+			}
 			emit("state");
 			busy = false;
 			drainOne();
@@ -145,8 +149,13 @@ export function createMockApi({
 		},
 		/** POST /api/decision — 최종 확정·수정·회귀(데모: 마지막 단계 확정만 완료). */
 		postDecision: (d = {}) => {
-			if (d.verdict === "confirm" && state.stage >= 3) {
-				state.done = true;
+			if (d.verdict === "confirm") {
+				// ADR-027 모방: 확정 = 현 단계 하이라이트 기준(prevMd) 리셋.
+				const art = state.artifacts.find((a) => a.stage === state.stage);
+				if (art) delete art.prevMd;
+				if (state.stage >= 3) {
+					state.done = true;
+				}
 				emit("state");
 			}
 			return { ok: true };

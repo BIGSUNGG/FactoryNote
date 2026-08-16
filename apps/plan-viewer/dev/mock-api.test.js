@@ -1,4 +1,4 @@
-// 테스트 뷰어 목업 API 자체체크 — 실서버 의미론(ADR-024/026) 모방 검증.
+// 테스트 뷰어 목업 API 자체체크 — 실서버 의미론(ADR-024/026/027) 모방 검증.
 // 가짜 타이머로 3초 회신 창(busy)을 제어한다. 실행: bun test apps/plan-viewer
 import { describe, expect, test } from "bun:test";
 import { createMockApi } from "./mock-api.js";
@@ -152,5 +152,30 @@ describe("mock-api: 실서버 큐 의미론", () => {
 		expect(api._debug().stage).toBe(3);
 		expect(api.postDecision({ verdict: "confirm" })).toEqual({ ok: true });
 		expect(api._debug().done).toBe(true);
+	});
+});
+
+describe("mock-api: ADR-027 변경 하이라이트 의미론", () => {
+	test("채팅 재작성 → prevMd = 재작성 전 버전, 확정 → 기준 리셋", () => {
+		const c = fakeClock();
+		const api = createMockApi({
+			artifacts: [{ stage: 1, name: "요청 이해", md: "# a\n\n본문." }],
+			replies: ["회신"],
+			edits: ["> 추가 배너\n\n"],
+			setTimeoutFn: c.setTimeoutFn,
+			now: () => 1,
+		});
+		// 최초 게이트: prev 없음(하이라이트 생략)
+		expect(api.getState().artifacts[0].prevMd).toBeUndefined();
+		api.postChat({ text: "추가해줘" });
+		c.flush(); // 회신 완료 → 재작성
+		const art = api.getState().artifacts.find((a) => a.stage === 1);
+		expect(art.prevMd).toBe("# a\n\n본문.");
+		expect(art.md).toContain("추가 배너");
+		// 확정 → 하이라이트 기준 삭제
+		api.postDecision({ verdict: "confirm" });
+		expect(
+			api.getState().artifacts.find((a) => a.stage === 1).prevMd,
+		).toBeUndefined();
 	});
 });

@@ -6,6 +6,7 @@ import Toc from "./Toc";
 import Document from "./Document";
 import GateBar from "./GateBar";
 import { mdToBlocks } from "../lib/mdToBlocks";
+import { diffBlockChanges } from "../lib/blockDiff";
 
 // plan 스타일 페이지 — 마크다운 문서 + 블록/영역 코멘트. Stage 1·3 이 공유.
 const STAGE_DEFS = [
@@ -68,6 +69,7 @@ function highlightRange(range, className) {
 
 export default function PlanPage({
 	mdSource,
+	prevMdSource, // 게이트 중 재작성 전 버전(ADR-027 변경 하이라이트 기준). 없으면 하이라이트 생략.
 	stage,
 	activeStage, // 실제 서버 단계(state.stage) — 스테퍼 작성여부 기준
 	onGate,
@@ -86,6 +88,12 @@ export default function PlanPage({
 	// '아직 안 쓴 단계(locked)'처럼 보이지 않는다. onSelectStage 없으면 레거시 해시 라우팅.
 	const stages = stagesFor(stage, activeStage ?? stage);
 	const blocks = useMemo(() => mdToBlocks(mdSource), [mdSource]);
+
+	// 변경 하이라이트(ADR-027): prev 가 있을 때만 prev↔현재 블록 diff 로 변경·추가 블록 마킹.
+	const blockChanges = useMemo(() => {
+		if (!prevMdSource) return { changed: new Set(), added: new Set() };
+		return diffBlockChanges(mdToBlocks(prevMdSource), blocks);
+	}, [prevMdSource, blocks]);
 
 	const toc = useMemo(() => {
 		const hs = blocks.filter(
@@ -230,6 +238,8 @@ export default function PlanPage({
 				<Toc items={toc} activeId={activeHeading} />
 				<Document
 					blocks={blocks}
+					changedIds={blockChanges.changed}
+					addedIds={blockChanges.added}
 					comments={comments}
 					onAddComment={commentFreeze.onAddComment ?? addComment}
 					onActivate={commentFreeze.onActivate ?? activate}

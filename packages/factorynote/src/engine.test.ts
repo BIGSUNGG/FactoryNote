@@ -8,6 +8,7 @@ import {
 	applyVerdict,
 	atLoopCeiling,
 	checkRequiredGraph,
+	clearArtifactPrev,
 	initialState,
 	invalidateArtifactsAfter,
 	isComplete,
@@ -15,6 +16,7 @@ import {
 	MAX_LOOPS,
 	markArtifactReady,
 	readArtifact,
+	readArtifactPrev,
 	requiresArtifact,
 	saveState,
 	writeArtifact,
@@ -130,6 +132,49 @@ test("stage artifacts go to stageN/ subdirs, aux files stay at feature root", as
 	expect(dirname(p2)).toBe(join(root, "layout", "stage2"));
 	expect(dirname(p3)).toBe(join(root, "layout", "stage3"));
 	expect(dirname(aux)).toBe(join(root, "layout"));
+});
+
+test("rewrite of stage artifact snapshots previous version (.prev) — ADR-027", async () => {
+	const file = "02-design.md";
+	// 최초 작성 — prev 없음(뷰어는 하이라이트 생략)
+	await writeArtifact(root, "prev", file, "v1");
+	expect(await readArtifactPrev(root, "prev", file)).toBeUndefined();
+	// 재작성 — prev = 직전 버전
+	await writeArtifact(root, "prev", file, "v2");
+	expect(await readArtifactPrev(root, "prev", file)).toBe("v1");
+	expect(await readArtifact(root, "prev", file)).toBe("v2");
+	// 확정 시 하이라이트 기준 리셋
+	await clearArtifactPrev(root, "prev", file);
+	expect(await readArtifactPrev(root, "prev", file)).toBeUndefined();
+	// 없는 prev 삭제도 안전(no-op)
+	await clearArtifactPrev(root, "prev", file);
+});
+
+test("prev snapshot only for stage artifacts — aux/graph files excluded", async () => {
+	await writeArtifact(root, "prev", "design-prompt.md", "a");
+	await writeArtifact(root, "prev", "design-prompt.md", "b");
+	expect(
+		await readArtifactPrev(root, "prev", "design-prompt.md"),
+	).toBeUndefined();
+});
+
+test("invalidateArtifactsAfter also removes .prev — ADR-027", async () => {
+	await writeArtifact(
+		root,
+		"prev-inv",
+		"01-understanding-and-scenarios.md",
+		"s1",
+	);
+	await writeArtifact(root, "prev-inv", "02-design.md", "d1");
+	await writeArtifact(root, "prev-inv", "02-design.md", "d2"); // prev=d1
+	await invalidateArtifactsAfter(root, "prev-inv", 1);
+	expect(await readArtifact(root, "prev-inv", "02-design.md")).toBeUndefined();
+	expect(
+		await readArtifactPrev(root, "prev-inv", "02-design.md"),
+	).toBeUndefined();
+	expect(
+		await readArtifact(root, "prev-inv", "01-understanding-and-scenarios.md"),
+	).toBe("s1");
 });
 
 test("corrupt state recovers to undefined", async () => {

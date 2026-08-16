@@ -246,6 +246,8 @@ function TableBlock({
 // Block은 표시 + 내부 팝오버(블록/셀)만 담당.
 export default function Block({
 	block,
+	changed = false, // ADR-027: 게이트 중 재작성으로 추가·수정된 블록 하이라이트
+	added = false, // ADR-027: 순수 추가 블록 — 등장 연출 적용(changed 포함)
 	comments,
 	onAddComment,
 	onActivate,
@@ -267,9 +269,17 @@ export default function Block({
 
 	return (
 		<div
-			className={`block ${pending.length ? "has-comment" : ""}`}
+			className={`block ${pending.length ? "has-comment" : ""} ${
+				changed ? "changed" : ""
+			} ${added ? "added" : ""}`}
 			data-block-id={block.id}
-			title="클릭하여 코멘트 · 드래그하여 영역 코멘트"
+			title={
+				added
+					? "이번 게이트에서 추가된 블록 · 클릭하여 코멘트"
+					: changed
+						? "이번 게이트에서 수정된 블록 · 클릭하여 코멘트"
+						: "클릭하여 코멘트 · 드래그하여 영역 코멘트"
+			}
 		>
 			{cs.length > 0 && (
 				<span className="comment-count" title={`${pending.length}개 코멘트`}>

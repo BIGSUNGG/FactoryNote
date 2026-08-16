@@ -9,6 +9,20 @@ tags: [development, dev-log]
 
 ## 2026-08-16
 
+### 게이트 중 수정 블록 하이라이트 (.prev 스냅샷 + 블록 LCS diff)
+
+**맥락**: 사용자 /goal — 채팅·코멘트 회신으로 문서가 수정되면 수정된 부분을 표시. 방식 협의에서 3결정 확정: (1) prev 기준은 게이트 확정 시 삭제('이번 게이트 수정'만 표시), (2) 토글 없이 항상 표시, (3) 마크다운 문서만(그래프 JSON·word-level 제외).
+
+**작업**: 감지 시점은 쓰기 직전이 유일하게 old/new 를 정확히 아는 때 — `artifact.ts` 의 `writeArtifact` 가 STAGES 등록 md 산출물 덮어쓰기 전 버전을 `<파일>.prev` 로 저장(`isStageArtifactFile` 판정으로 그래프 json·design-prompt 등 보조 파일 제외). 수명: `plan-gate.ts` 가 confirm 판정 시 `clearArtifactPrev` 호출, revert 시 `invalidateArtifactsAfter` 가 무효화 산출물의 `.prev` 동반 삭제. 서빙: `viewer-state.ts` 가 `readArtifactPrev` 로 읽어 `prevMd` 필드 포함. 뷰어: `lib/blockDiff.js` 신규 — 블록 id 는 위치 기반(`b0..`)이라 비교 불가 → 콘텐츠 지문(`blockKey`: 헤딩·문단 html, 코드·리스트·표 직렬화)으로 LCS 매칭, 매칭 안 된 현재 블록 = 변경. `App.jsx → PlanPage(prevMdSource) → Document(changedIds) → Block(changed 클래스)` 전달, `blocks.css` 에 `.block.changed` 앰버 배경.
+
+**배제**: word-level 인라인 diff(필요 시 마킹된 블록만 diff-match-patch 세밀화 가능), 토글 UI, 그래프 JSON diff.
+
+**검증**: 자체체크 11건 추가 — 코어(prev 생성·초기 없음·clear·보조 파일 제외·회귀 동반 삭제 3건), 게이트(prevMd 서빙 1건), 뷰어(동일 문서 0건·수정 1건·추가·삭제·초기 작성·키 동일성·리스트/표/코드 7건). `bun run build` 0 종료, `bun test` 211 pass.
+
+**후속(사용자 피드백 — 추가 블록 연출)**: '추가된 블록 연출도 있어?' — 초기 구현은 추가·수정 동일 정적 하이라이트. 확장: `diffBlockChanges` 가 `{changed, added}` 반환 — 미매칭 prev↔new 를 순서대로 짝짓고(짝 = 수정), 짝 없이 남은 new = 순수 추가. `Block.jsx` 에 `added` 클래스 + 툴팁 '추가된 블록', `blocks.css` 등장 연출(`block-added-in` 0.5s: opacity 0·translateY(6px)·진한 앰버 → .changed 색 정착, prefers-reduced-motion 시 제거). 수정 블록은 연출 없이 하이라이트만. 부수: 코드 주석의 ADR 참조 오류(ADR-022 → 027) 17곳 수정. 자체체크 +2건(추가/수정 구분·혼합 짝짓기). 213 pass.
+
+**후속 2(버그 — `dev:viewer` 목업에 하이라이트 미반영)**: '테스트 뷰어에서 채팅으로 내용 추가해도 변경점이 없다' 보고. 원인 추적: (1) 실게이트 테스트는 기능 배포 전 세션(확장은 세션 시작 시 로드)에서 돌아 `.prev` 미생성, (2) `bun run dev:viewer` 의 목업(`dev/mock-api.js`)은 채팅 회신 시 산출물에 배너를 prepend 하면서도 `prevMd` 를 만들지 않아 뷰어 diff 기준 부재. 수정: 목업 `scheduleReply` 가 재작성 전 `art.prevMd = art.md` 스냅샷, `postDecision(confirm)` 이 기준 삭제 — 실서버 의미(ADR-027) 동일. 자체체크 +1건(스냅샷·확정 리셋). 214 pass.
+
 ### 에이전트 채팅 숨기기 — 축소/복원 버튼
 
 **맥락**: 사용자 /goal — 채팅 우측 상단 축소 버튼, 누르면 우측으로 슬라이드하며 사라지고 우측 가장자리 복원 버튼으로 재펼침. 게이트 통과 전 질문으로 복원 버튼 위치(우측 가장자리 고정)·상태 유지(세션 내만)·축소 중 새 메시지(복원 버튼 badge) 확정.

@@ -13,8 +13,10 @@ export {
 } from "./state.ts";
 export {
 	checkRequiredGraph,
+	clearArtifactPrev,
 	invalidateArtifactsAfter,
 	promoteGraphTree,
 	readArtifact,
+	readArtifactPrev,
 	writeArtifact,
 } from "./artifact.ts";

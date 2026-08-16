@@ -17,7 +17,19 @@ async function ensureDir(dir: string): Promise<void> {
 	await mkdir(dir, { recursive: true });
 }
 
-/** 단계 산출물(마크다운) 저장. 경로 반환. */
+/** STAGES 에 등록된 단계 산출물(md 문서) 파일명인가 — 변경 하이라이트(ADR-027)
+ * prev 스냅샷 대상 판정. 그래프 json·보조 파일(design-prompt 등)은 제외. */
+function isStageArtifactFile(file: string): boolean {
+	return STAGES.some((s) => s.artifactFile === file);
+}
+
+const ignoreEnoent = (err: unknown): void => {
+	if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+};
+
+/** 단계 산출물(마크다운) 저장. 경로 반환.
+ * 단계 산출물 덮어쓰기 시 직전 버전을 `<파일>.prev` 로 스냅샷(ADR-027 변경 하이라이트
+ * 기준) — 뷰어가 prev↔현재 블록 diff 로 수정 부분을 표시한다. 게이트 확정 시 삭제. */
 export async function writeArtifact(
 	root: string,
 	feature: string,
@@ -26,6 +38,14 @@ export async function writeArtifact(
 ): Promise<string> {
 	const path = artifactPath(root, feature, file);
 	await ensureDir(dirname(path));
+	if (isStageArtifactFile(file)) {
+		try {
+			const prev = await readFile(path, "utf8");
+			await writeFile(`${path}.prev`, prev, "utf8");
+		} catch (err) {
+			ignoreEnoent(err); // 최초 작성 — prev 없음(뷰어는 하이라이트 생략)
+		}
+	}
 	await writeFile(path, markdown, "utf8");
 	return path;
 }
@@ -42,6 +62,31 @@ export async function readArtifact(
 		if ((err as NodeJS.ErrnoException).code === "ENOENT") return undefined;
 		throw err;
 	}
+}
+
+/** 단계 산출물의 직전 버전(.prev) 읽기(ADR-027 변경 하이라이트). 없으면 undefined.
+ * artifactPath 에 `.prev` 를 붙인 실제 경로 사용 — 파일명 기반 단계 추론 우회. */
+export async function readArtifactPrev(
+	root: string,
+	feature: string,
+	file: string,
+): Promise<string | undefined> {
+	try {
+		return await readFile(`${artifactPath(root, feature, file)}.prev`, "utf8");
+	} catch (err) {
+		if ((err as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+		throw err;
+	}
+}
+
+/** 단계 산출물의 .prev 삭제(ADR-027) — 게이트 확정 시 하이라이트 기준 리셋.
+ * ENOENT 무시(이미 없음). */
+export async function clearArtifactPrev(
+	root: string,
+	feature: string,
+	file: string,
+): Promise<void> {
+	await unlink(`${artifactPath(root, feature, file)}.prev`).catch(ignoreEnoent);
 }
 
 /** 게이트 오픈 시 그래프 트리 승격(ADR-018): 루트에서 도달 가능한 파일만
@@ -123,9 +168,6 @@ export async function invalidateArtifactsAfter(
 	const stale = STAGES.filter(
 		(s) => s.artifactFile !== null && s.id > afterStage,
 	);
-	const ignoreEnoent = (err: unknown) => {
-		if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
-	};
 	for (const s of stale) {
 		const md = s.artifactFile as string;
 		// 무효화 전 md 를 읽어 그래프 이름(에이전트 자유 네이밍) 수집 — 이름 추론 불가(ADR-020).
@@ -138,6 +180,8 @@ export async function invalidateArtifactsAfter(
 		const refs = raw !== undefined ? graphRefFiles(raw) : [];
 		const targets: Promise<void>[] = [
 			unlink(artifactPath(root, feature, md)).catch(ignoreEnoent),
+			// 동반 .prev(변경 하이라이트 기준, ADR-027) 도 함께 무효화.
+			unlink(`${artifactPath(root, feature, md)}.prev`).catch(ignoreEnoent),
 		];
 		for (const ref of refs) {
 			targets.push(
