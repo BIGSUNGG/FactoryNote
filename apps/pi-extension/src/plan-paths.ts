@@ -75,12 +75,13 @@ export function parseFeedbackBatch(
 	let cur: string | null = null;
 	for (const line of lines) {
 		const m = line.match(/^\[([^\]]+)\]\s*$/);
-		if (m) {
-			cur = m[1]!.trim();
+		const heading = m?.[1];
+		if (heading !== undefined) {
+			cur = heading.trim();
 			if (!sections.has(cur)) sections.set(cur, []);
 			continue;
 		}
-		if (cur) sections.get(cur)!.push(line);
+		if (cur) sections.get(cur)?.push(line);
 	}
 	if (sections.size === 0) {
 		return menu.map((a) => ({ axis: a.name, outcome: parseFeedback(raw) }));

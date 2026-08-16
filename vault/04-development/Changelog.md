@@ -22,6 +22,8 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ### Changed
 
+- **산재 경고 일괄 정리 4파일 — viewer-state·plan-paths·df-task·ChatSidebar** — (1) `viewer-state.ts`: `STAGES[stage-1] ?? STAGES[0]!` non-null 단언을 `stageById` 안전 조회로 교체, 그래프 루프의 `.catch(()=>undefined)` 체인을 try/catch 로 통일(mixed-async 해소) → 경고 0. (2) `plan-paths.ts`: `m[1]!`·`sections.get(cur)!` non-null 단언 2건을 옵셔널 체이닝 가드로 교체. (3) `df-task.ts`: 그래프 의무별 주석의 중첩 삼항을 `GRAPH_REVISION_NOTES` 테이블 조회로 교체 → 경고 0. (4) `ChatSidebar.jsx`: `[...messages].reverse()` 를 `toReversed()` 로(변경 불변 의도 명시). 하드닝 루프 이터레이션 13.
+
 - **`nextDesignFeedbackStep` 케이스 핸들러 분리 — `df-transition.ts` 경고 0** — 전이 스테이트머신을 디스패처(4 케이스 라우팅) + 케이스별 핸들러(`designReportStep`·`feedbackReportStep`·`feedbackReentryStep`) + 지시문 생성자(`gate`·`spawnDesign`·`spawnFeedback`) 3층으로 분리 — 사이클로매틱 복잡도 경고(27) 소멸, 반복되던 객체 리터럴 8건이 생성자 호출로 통일. 공개 시그니처·전이 의미 불변(전이 테이블 문서 보존, orchestration.test.ts 전 전이 케이스 무변경 통과). 하드닝 루프 이터레이션 12.
 
 - **`graph.ts` async 스타일 통일 — mixed-async 경고 0** — `loadGraphTree`·`collectGraphChildFiles` 내부의 `await readRel(x).catch(() => null)` 혼용(프라미스 체인 + async/await)을 모듈 헬퍼 `readOrNull()`(try/catch)로 교체 — 자식 파일 누락/IO 실패를 null 로 우아하게 처리하는 정책이 한 곳에 모임. 이로써 graph.ts 는 pi-lens 경고 0(delete 제거에 이어). 하드닝 루프 이터레이션 11.

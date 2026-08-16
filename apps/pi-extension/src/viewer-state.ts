@@ -9,6 +9,7 @@ import {
 	parseGraphFlowchartFile,
 	parseGraphSequenceFile,
 	readArtifact,
+	stageById,
 } from "@factorynote/core";
 import type {
 	ArtifactFormat,
@@ -49,7 +50,7 @@ export async function buildViewerState(
 ): Promise<ViewerState> {
 	const state = (await loadState(root, feature)) ?? null;
 	const stage = state?.stage ?? 1;
-	const def = STAGES[stage - 1] ?? STAGES[0]!;
+	const def = stageById(stage as 1 | 2 | 3);
 	const artifacts: ViewerState["artifacts"] = [];
 	for (const s of STAGES) {
 		if (!s.artifactFile) continue;
@@ -63,9 +64,12 @@ export async function buildViewerState(
 		const graphs: NonNullable<ViewerState["artifacts"][number]["graphs"]> = [];
 		for (const ref of graphRefFiles(raw)) {
 			const staged = `stage${s.id}/${ref}`;
-			const rootRaw = await readArtifact(root, feature, staged).catch(
-				() => undefined,
-			);
+			let rootRaw: string | undefined;
+			try {
+				rootRaw = await readArtifact(root, feature, staged);
+			} catch {
+				rootRaw = undefined;
+			}
 			if (rootRaw === undefined) continue;
 			const seq = parseGraphSequenceFile(rootRaw);
 			if (seq) {

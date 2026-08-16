@@ -9,6 +9,14 @@ tags: [development, dev-log]
 
 ## 2026-08-16
 
+### 산재 경고 일괄 정리 — 4파일
+
+**맥락**: 하드닝 루프 이터레이션 13. 백로그의 소항목들(non-null 단언·mixed-async·중첩 삼항·reverse 변형) 일괄 처리.
+
+**작업**: viewer-state(stageById 교체·try/catch 통일)·plan-paths(옵셔널 체이닝 2건)·df-task(GRAPH_REVISION_NOTES 테이블)·ChatSidebar(toReversed). 중간에 df-task 삼항 오손상(? 누락) → 즉시 복구 후 테이블 방식으로 재작성. ChatSidebar L101 JSX 조건부 렌더 단일 삼항은 오탐 처리(React 관용구).
+
+**검증**: pi-lens viewer-state·df-task·plan-paths·ChatSidebar 실측 경고 0 · `bun test` 200 pass · `bun run build` 0 종료.
+
 ### df-transition 케이스 핸들러 분리 — 경고 0
 
 **맥락**: 하드닝 루프 이터레이션 12. 백로그 df-transition.ts(nextDesignFeedbackStep 복잡도 27·long-param).

@@ -59,10 +59,7 @@ function spawnFeedback(
 }
 
 /** 지시문 생성자 — Design (재)스폰. */
-function spawnDesign(
-	task: string,
-	loop: number,
-): DesignFeedbackTransition {
+function spawnDesign(task: string, loop: number): DesignFeedbackTransition {
 	return {
 		directive: {
 			action: "spawn-design",

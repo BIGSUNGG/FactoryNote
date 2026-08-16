@@ -57,6 +57,15 @@ export function feedbackAgentTask(
 	].join("\n");
 }
 
+/** 그래프 의무별 재작성 지시 주석 — 중첩 삼항 대신 테이블. */
+const GRAPH_REVISION_NOTES: Record<StageDefinition["graph"], string> = {
+	required:
+		" 동반 계층 그래프 트리(루트 json + 자식 파일들)는 **필수**다 — 변경에 맞춰 일관되게 갱신하고 `<!-- graph: ... -->` 참조를 유지한다.",
+	optional:
+		" 그래프 구조를 변경했으면 동반 계층 그래프 트리(루트 json + 자식 파일들)도 일관되게 갱신한다.",
+	none: "",
+};
+
 /** Design 재수정 과제(전 에이전트 이슈 취합 주입). */
 export function designRevisionTask(
 	def: StageDefinition,
@@ -65,12 +74,7 @@ export function designRevisionTask(
 ): string {
 	const block = issues.map((i) => `- ${i}`).join("\n");
 	if (paths) {
-		const graphNote =
-			def.graph === "required"
-				? " 동반 계층 그래프 트리(루트 json + 자식 파일들)는 **필수**다 — 변경에 맞춰 일관되게 갱신하고 `<!-- graph: ... -->` 참조를 유지한다."
-				: def.graph === "optional"
-					? " 그래프 구조를 변경했으면 동반 계층 그래프 트리(루트 json + 자식 파일들)도 일관되게 갱신한다."
-					: "";
+		const graphNote = GRAPH_REVISION_NOTES[def.graph];
 		return [
 			`이전 산출물이 병렬 Feedback 검토에서 반려되었다. 아래 전 에이전트 이슈를 근본적으로 반영해 ${def.artifact} 산출물을 재작성하라(에이전트별로 따로 고치지 말고 하나의 일관된 산출물로 통합).`,
 			`상세 리뷰는 반려 이슈의 [에이전트명] 에 해당하는 파일(${paths.feedback}.<name>)들 — 모두 읽어라. 작성 지시는 ${paths.designPrompt}(불변).`,

@@ -78,8 +78,8 @@ export default function ChatSidebar({
 
 	// 마지막 메시지가 user 면 에이전트 회신 대기 → "thinking..." 표시.
 	// 단계 진행 요청(stage-request)은 회신 대상이 아니므로 제외.
-	const lastChat = [...messages]
-		.reverse()
+	const lastChat = messages
+		.toReversed()
 		.find((m) => m.kind !== "stage-request");
 	const thinking = !!lastChat && lastChat.role === "user";
 	// 확정(단계 진행) 요청이 큐에서 대기 중 → 이후 채팅 입력 잠금 + 안내 표시.
