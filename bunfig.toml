@@ -1,2 +1,2 @@
 [test]
-preload = ["./ensure-viewer-dist.ts"]
+preload = ["./scripts/ensure-viewer-dist.ts"]

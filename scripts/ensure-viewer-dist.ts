@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 
 const VIEWER_DIR = join(
 	dirname(fileURLToPath(import.meta.url)),
+	"..",
 	"apps",
 	"plan-viewer",
 );

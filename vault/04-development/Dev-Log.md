@@ -9,6 +9,14 @@ tags: [development, dev-log]
 
 ## 2026-08-16
 
+### ensure-viewer-dist 이동 — 루트 소스 0 달성
+
+**맥락**: 하드닝 루프 이터레이션 18. 이전 이터레이션에서 누락됐던 루트 잔류 파일(이터레이션 17 참조).
+
+**작업**: git mv 로 scripts/ 이동 · bunfig preload 경로 갱신 · VIEWER_DIR `..` 수정 · repro-graph-kinds import 수정(도중 잘못된 `../` 를 `./` 로 정정).
+
+**검증(실증)**: `touch src/main.jsx` 로 소스를 dist 보다 새게 → `bun test` → preload 가 재빌드 수행(7.5초) · repro-graph-kinds 서빙 정상 · `bun test` 200 pass · `bun run build` 0 종료. 루트 디렉터리에 소스 파일 0.
+
 ### repro 스크립트 통합 — scripts/ 이동·공용 서버 추출
 
 **맥락**: 하드닝 루프 이터레이션 17. 백로그 루트 산재 repro-*.mjs 4종(jscpd 중복 34줄 + console 규칙 위반 다수).

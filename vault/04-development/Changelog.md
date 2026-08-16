@@ -22,6 +22,8 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ### Changed
 
+- **`ensure-viewer-dist` 루트 잔류 해소 — scripts/ 로 이동으로 루트 클린업 완성** — 루트에 남아 있던 마지막 산재 파일 `ensure-viewer-dist.ts`·`ensure-viewer-dist.test.ts` 를 `scripts/` 로 이동(이제 루트에 소스 파일 0). `bunfig.toml` preload 경로 갱신, `VIEWER_DIR` 를 스크립트 위치 기준 `..` 로 수정, repro-graph-kinds import 도 동반 수정. 이동 후 preload 회귀 실증: 소스 mtime 을 낡추고 `bun test` 실행 → preload 가 dist 재빌드(7.5초 소요) 확인 — 신규 클론·소스 변경 어느 쪽이든 최신 dist 보장 유지. 하드닝 루프 이터레이션 18.
+
 - **repro 스모크 스크립트 scripts/ 로 통합 + 공용 서버 모듈 추출** — 루트에 무분별 배치됐던 `repro-{drive,drilldown,drilldown-browser,graph-kinds}.mjs` 4종을 `scripts/` 로 이동(레포 레이아웃 정합). drilldown·graph-kinds 가 복제하던 뷰어 서빙 블록(Bun.serve + /api 폴백 + 정적 SPA + MIME 테이블, ~40줄)을 공용 `scripts/repro-serve.mjs` 로 추출 — jscpd scripts/ **0 클론**. 경로는 cwd 의존(`process.cwd()/apps/...`)에서 스크립트 위치 기준 `resolveRepoRoot()` 로 교체 — 어느 디렉터리에서 실행해도 동작(루트 실행 시 경로 붕괴 버그 수정 동반). 스모크 실증: graph-kinds 서빙 정상, drive 파이프라인 구동 확인. 05-problems·Dev-Log 의 실행 명령 경로 갱신. 하드닝 루프 이터레이션 17.
 
 - **`implementation-architecture.md` 모듈 상세를 현재 코드로 동기화** — 6개 스테일 서술 수정: (1) `stages.ts` 의 `feedbackChecklist` 언급 → `graph` 의무 필드 + FEEDBACK_AGENTS 레지스트리 이관(ADR-014) 반영, (2) `types.ts` 단일 파일 → `types/` 디렉터리(FeedbackAgent 타입 이동 근거 포함), (3) `plan-tool.ts` 구 플로우(artifactMd 제출·블로킹 runGate) → Tier 1 오케스트레이션(인터럽트 복구·파일 프로토콜·그래프 강제·순수 전이 라우팅), (4) `gate-server.ts` 2s 폴링 서술 → SSE push(ADR-022)·채팅 큐 엔드포인트·채널별 분리 모듈 구조, (5) `App.jsx` 폴링 상태머신 → SSE 수신·이전 단계 읽기 전용 보기(ADR-023), (6) `artifacts[].graph.tree` 단일 그래프 → `artifacts[].graphs[]` 다중·3종(ADR-020·021). 스펙 영역 (3) 문서-코드 동기화. 하드닝 루프 이터레이션 15.
