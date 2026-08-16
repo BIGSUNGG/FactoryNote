@@ -9,6 +9,14 @@ tags: [development, dev-log]
 
 ## 2026-08-16
 
+### graph.ts delete 제거 — coerceNode rest 분해
+
+**맥락**: 하드닝 루프 이터레이션 10. 백로그 graph.ts delete-연산자 2건.
+
+**작업**: `{...o}` 스프레드 + `delete out.refs/children` 후처리 → rest 분해로 원시 키를 미리 제외하는 구성. 검증된 값만 담는다는 의도가 구조로 표현됨. 동작 불변(불투명 필드 보존·refs/children 검증 테스트 전부 통과).
+
+**검증**: graph.ts `delete` 잔여 0 · `bun test` 200 pass · `bun run build` 0 종료.
+
 ### runOpenGate 메시지 조립 추출 — plan-gate 경고 0
 
 **맥락**: 하드닝 루프 이터레이션 9. 백로그 plan-gate.ts(runOpenGate 복잡도 22·fan-out 24·STAGES[2]! 단언).

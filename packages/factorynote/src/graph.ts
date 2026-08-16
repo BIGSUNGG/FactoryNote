@@ -95,20 +95,19 @@ function coerceNode(n: unknown, i: number): GraphFileNode {
 	if (typeof o.id !== "string" || o.id.length === 0) {
 		throw new Error(`node #${i}: id missing`);
 	}
-	const out: GraphFileNode = { ...o, id: o.id };
-	if (o.refs !== undefined) {
-		if (!Array.isArray(o.refs)) throw new Error(`node ${o.id}: refs not array`);
-		out.refs = o.refs.map((r, j) => coerceRef(r, `node ${o.id} ref #${j}`));
-	} else {
-		delete out.refs;
+	// refs·children 은 검증을 거친 값만 담는다 — 원시 스프레드에서 미리 제외해
+	// 속성 삭제(delete) 후처리가 필요 없다.
+	const { refs: rawRefs, children: rawChildren, ...rest } = o;
+	const out: GraphFileNode = { ...rest, id: o.id };
+	if (rawRefs !== undefined) {
+		if (!Array.isArray(rawRefs)) throw new Error(`node ${o.id}: refs not array`);
+		out.refs = rawRefs.map((r, j) => coerceRef(r, `node ${o.id} ref #${j}`));
 	}
-	if (o.children !== undefined) {
-		if (!isSafeChildPath(o.children)) {
+	if (rawChildren !== undefined) {
+		if (!isSafeChildPath(rawChildren)) {
 			throw new Error(`node ${o.id}: unsafe children path`);
 		}
-		out.children = o.children;
-	} else {
-		delete out.children;
+		out.children = rawChildren;
 	}
 	return out;
 }
