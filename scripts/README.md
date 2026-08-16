@@ -26,6 +26,7 @@
 
 | 스크립트 | 용도 | console 사용 근거 |
 | -------- | ---- | ------------------ |
+| `bin/factorynote.mjs` | 상태 조회 CLI | `factorynote status`·`factorynote <feature>` 출력 |
 | `install.mjs` | 설치 CLI | 설치 진행 상황·결과를 사용자 터미널에 보고 |
 | `gen-feedback-agents.mjs` | 생성 CLI | 생성 개수·대상 디렉토리를 사용자 터미널에 보고 |
 | `repro-*.mjs` | 스모크 검증 | 서빙 URL·진행 로그를 개발자 터미널에 보고 |

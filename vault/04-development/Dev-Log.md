@@ -9,6 +9,14 @@ tags: [development, dev-log]
 
 ## 2026-08-16
 
+### repro scripts 미사용 import 정리 + 드릴다운 스크립트 깨짐 수정
+
+**맥락**: 하드닝 루프 이터레이션 24. 전체 재스캔 결과 68건 — 이터레이션 17 이동 리팩터에서 남겨둔 실질 버그 발견.
+
+**작업**: (1) `repro-drilldown.mjs`: 이터레이션 17에서 `stateJson` 을 정의하는 코드(`buildViewerState(ROOT, FEATURE)` + JSON.stringify)가 누락되어 스크립트가 실행 불가 상태였음을 발견 — 원본 코드 복구. 미사용 `readFile`·`extname` import 제거. (2) `repro-graph-kinds.mjs`: 미사용 `readFile`·`extname` import 제거. (3) `bin/factorynote.mjs` console 예외를 scripts/README 정책 테이블에 추가. graph.test.ts 픽스처 JSON.parse 오탐 2건 재기록.
+
+**검증**: `bun test` 199 pass · `bun run build` 0 종료.
+
 ### viewer 중첩 삼항 소거 3건 — 가독성·관용구 경계
 
 **맥락**: 하드닝 루프 이터레이션 22. 백로그 viewer 중첩 삼항 소수 처리. JSX 조건부 렌더 체인은 React 관용구로 남겨두고, “열거형→값” 계산의 진짜 중첩만 명명 코드로 교체.

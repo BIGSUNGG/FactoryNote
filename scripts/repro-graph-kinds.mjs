@@ -4,9 +4,9 @@
 //   - 계층 트리 드릴다운 + sequence(fragment 포함) + flowchart(shape·백엣지)(ADR-021)
 // 사용: bun repro-graph-kinds.mjs  → 브라우저 자동 오픈, Ctrl+C 로 종료.
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { extname, join } from "node:path";
+import { join } from "node:path";
 import {
 	initialState,
 	saveState,

@@ -62,6 +62,8 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ### Fixed
 
+- **repro-drilldown.mjs stateJson 누락 복구 — 이터레이션 17 이동 리팩터 잔류 버그** — `serveViewer(DIST, stateJson)` 호출 시 `stateJson` 이 정의되지 않아 스크립트가 실행 불가 상태였음을 이터레이션 24 전체 재스캔에서 발견. 원본(`buildViewerState(ROOT, FEATURE)` + `gateOpen: true` stringify) 코드 복구. 미사용 import(`readFile`·`extname`) 동반 정리. `repro-graph-kinds.mjs` 도 미사용 import 제거. 하드닝 루프 이터레이션 24.
+
 - **뷰어 XSS — 산출물 마크다운 원시 HTML 실행(게이트 자동 확정 가능) 차단** — `mdToBlocks.js` 가 `MarkdownIt({html:true})` 로 산출물을 파싱, 변환 HTML 을 `Block.jsx` `dangerouslySetInnerHTML` 5곳에 주입 — 마크다운 내 원시 HTML(`<img onerror>` 등)이 게이트 페이지 오리진에서 그대로 실행되어 `POST /api/decision` 자동 확정, 즉 'AI 는 게이트를 못 넘긴다' 원칙 무력화가 가능했다(프롬프트 인젝션 → 외부 콘텐츠 인용 산출물 경로). `html:false` 전환으로 모든 원시 HTML 을 이스케이프 텍스트로 렌더(구조적 차단). 그래프 참조(`<!-- graph: ... -->`)는 `html:false` 에서 `html_block` 토큰이 사라지므로 문단 전체가 참조 코멼트일 때 그래프 블록으로 전환하는 감지로 이동(기존 그래프 테스트 3건 무변경 통과). 신규 회귀 3건(img onerror·script·제목 인라인 이스케이프). [[viewer-xss-gate-bypass]]
 
 - **게이트 브라우저 오픈 명령어 주입 구조 제거(exec→spawn 인자 배열)** — `apps/pi-extension/src/gate-browser.ts` 의 `openBrowser` 가 플랫폼별 커맨드를 문자열 템플릿으로 조립해 `exec`(셸 경유)로 실행하던 것을, `spawn(커맨드, 인자 배열, shell:false)` 로 재작성 — URL 이 셸에 해석될 경로 자체를 제거(CWE-78 구조적 차단). URL 검증(localhost/127.0.0.1 전일치 정규식)은 유지, 플랫폼별 사양을 순수 함수 `browserCommand(platform, url)` 로 분리(중첩 삼항 제거·테스트 가능). 신규 자체체크 6건(플랫폼별 변환·외부 호스트·주입 페이로드 거부·인자 배열 보장). 오피니언 룰 잔여 경고는 근거 주석과 함께 인라인 억급. 자체체크 187 pass. 리포 전체 진단 스캔(pi-lens full)에서 발견된 유일 차단 오류.

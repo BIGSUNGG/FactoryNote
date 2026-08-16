@@ -4,9 +4,9 @@
 // 구조: bun = 데이터 조립(viewer-state TS) + 게이트 HTTP 서빙 + Chrome 실행,
 //       node = playwright-core CDP 브라우저 구동(bun 은 ws CDP 연결이 걸려서 분리).
 import { spawn, spawnSync } from "node:child_process"; // spawnSync 는 finally 의 taskkill 전용(서빙 종료 후)
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { extname, join } from "node:path";
+import { join } from "node:path";
 import { buildViewerState } from "../apps/pi-extension/src/viewer-state.ts";
 import { serveViewer, resolveRepoRoot } from "./repro-serve.mjs";
 
@@ -15,6 +15,10 @@ const FEATURE = "chat-program";
 const DIST = resolveRepoRoot("apps/plan-viewer/dist");
 const CHROME = "C:/Program Files/Google/Chrome/Application/chrome.exe";
 const CDP_PORT = 9400 + Math.floor(Math.random() * 400); // 실행별 고유 포트
+
+// 실제 feature 데이터로 /api/state 조립 — 게이트만 강제로 연 상태(reviewing 재현).
+const payload = await buildViewerState(ROOT, FEATURE);
+const stateJson = JSON.stringify({ ...payload, gateOpen: true });
 
 const server = serveViewer(DIST, stateJson);
 
