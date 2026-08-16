@@ -23,6 +23,8 @@ tags: [development, dev-log]
 
 **후속 3(사용자 피드백 — 3건)**: (1) 상단바·채팅 헤더 우측 상단 텍스트 제거 — `.plan-meta`(검토 대기/Stage/담당)·`.chat-stage`(Stage N) 삭제, 미사용 `.badge`·`.plan-meta` CSS 도 제거, Topbar 무인자화(`<Topbar />`) + ChatSidebar 의 미사용 `stage` prop 제거. (2) 축소 버튼이 사이드바 트랜지션에 끌려가는 문제 — `position: fixed` 자식이 transform 된 조상(.chat-sidebar.collapsed) 기준으로 배치되는 CSS 스펙 동작이 원인. 축소/복원을 단일 토글 버튼으로 합쳐 **aside 밖**(fragment 직속)에서 렌더 → 사이드바 슬라이드에 미동반. (3) topbar 하단 선과 chat-head 하단 선 높이 불일치 — `.chat-head` 를 `height: 56px`(topbar 동일) + 세로 패딩 제거로 정렬.
 
+**후속 4(사용자 피드백 — 도착 반응 재디자인)**: 축소 중 응답 도착 시 원형 점 뱃지(`.chat-badge`)를 없애고, 기존 뱃지에 걸던 애니메이션 전부를 복원 버튼 아웃라인으로 이동. `.chat-restore.unread` — border-color 상시 `--primary` 강조 + 단일 `restore-attention` 사이클(2.4s, infinite): 팝인(scale .8→1.15→1) + 핑(box-shadow 링 확산) → 나머지 구간 휴지. 팝인 시작값·오버슈트는 버튼(26×22) 크기에 맞춰 점보다 완화. JS 무변경에 가깝게 — 뱃지 span 제거·`unread` 클래스 토글만. 자체체크는 `.chat-badge` 쿼리를 `unread` 클래스 검증으로 교체하며 기존 `toBeDefined()`(null 이어도 통과) 약한 단언을 `toBe(true)` 로 강화. prefers-reduced-motion 에서 애니메이션 제거 유지.
+
 ### 에이전트 채팅 메신저 버블 재디자인
 
 **맥락**: 사용자 피드백 — 채팅 사이드바에서 user(좌측 세로선 인용형)와 AI(회색 카드) 스타일이 너무 다르고, 확정 요청(stage-request)만 채운 액센트 카드로 튀어 대화가 끊겨 보임.

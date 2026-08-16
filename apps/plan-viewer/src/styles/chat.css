@@ -67,20 +67,36 @@
 	background: rgba(17, 24, 39, 0.04);
 	color: var(--text);
 }
-/* 축소 중 새 메시지 도착 알림 점 — 펼치면 해제. */
-.chat-badge {
-	position: absolute;
-	top: 4px;
-	left: 4px;
-	width: 7px;
-	height: 7px;
-	border-radius: 50%;
-	background: var(--primary);
+/* 축소 중 새 메시지 도착 — 점 대신 확장 버튼 아웃라인 자체로 알림. 펼치면 해제.
+   도착 반응: 팝인 + 핑을 한 사이클(2.4s)로 묶어 펼칠 때까지 무한 반복. */
+.chat-restore.unread {
+	border-color: var(--primary);
+	color: var(--text);
+	animation: restore-attention 2.4s ease-out infinite;
+}
+@keyframes restore-attention {
+	0% {
+		scale: 0.8;
+		box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 45%, transparent);
+	}
+	8% {
+		scale: 1.15;
+	}
+	12% {
+		scale: 1;
+	}
+	50%,
+	100% {
+		box-shadow: 0 0 0 10px transparent;
+	}
 }
 @media (prefers-reduced-motion: reduce) {
 	.chat-sidebar,
 	.review-main {
 		transition: none;
+	}
+	.chat-restore.unread {
+		animation: none;
 	}
 }
 .chat-head {

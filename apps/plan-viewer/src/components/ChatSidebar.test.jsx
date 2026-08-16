@@ -243,7 +243,7 @@ test("축소 버튼 → 사이드바 숨김 + 우측 복원 버튼, 축소 중 �
 		container.querySelector(".chat-sidebar").classList.contains("collapsed"),
 	).toBe(true);
 	expect(container.querySelector(".chat-restore")).toBeDefined();
-	// 축소 중 새 메시지 도착(fn-chat-update) → 복원 버튼에 badge.
+	// 축소 중 새 메시지 도착(fn-chat-update) → 복원 버튼에 unread 클래스.
 	chatResp = {
 		messages: [
 			{ id: "m1", role: "agent", text: "안녕", at: 1 },
@@ -255,8 +255,10 @@ test("축소 버튼 → 사이드바 숨김 + 우측 복원 버튼, 축소 중 �
 		window.dispatchEvent(new Event("fn-chat-update"));
 		await flush();
 	});
-	expect(container.querySelector(".chat-restore .chat-badge")).toBeDefined();
-	// 복원 → 사이드바 다시 표시 + badge 해제.
+	expect(
+		container.querySelector(".chat-restore")?.classList.contains("unread"),
+	).toBe(true);
+	// 복원 → 사이드바 다시 표시 + unread 해제.
 	await React.act(async () => {
 		container
 			.querySelector(".chat-restore")
@@ -269,5 +271,5 @@ test("축소 버튼 → 사이드바 숨김 + 우측 복원 버튼, 축소 중 �
 		container.querySelector(".chat-sidebar").classList.contains("collapsed"),
 	).toBe(false);
 	expect(container.querySelector(".chat-restore")).toBeNull();
-	expect(container.querySelector(".chat-badge")).toBeNull();
+	expect(container.querySelector(".unread")).toBeNull();
 });

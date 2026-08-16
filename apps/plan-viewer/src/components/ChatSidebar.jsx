@@ -113,14 +113,14 @@ export default function ChatSidebar({
 			{/* 우측 상단 고정 — 사이드바 밖에서 렌더해 축소 트랜지션에 끌려가지 않음. */}
 			<button
 				type="button"
-				className={collapsed ? "chat-restore" : "chat-collapse"}
+				className={
+					collapsed ? `chat-restore${unread ? " unread" : ""}` : "chat-collapse"
+				}
 				title={collapsed ? "에이전트 채팅 펼치기" : "채팅 숨기기"}
 				onClick={onToggleCollapse}
+				aria-label={collapsed && unread ? "새 메시지 — 채팅 펼치기" : undefined}
 			>
 				{collapsed ? "‹" : "›"}
-				{collapsed && unread && (
-					<span className="chat-badge" aria-label="새 메시지" />
-				)}
 			</button>
 			<aside className={`chat-sidebar${collapsed ? " collapsed" : ""}`}>
 				<div className="chat-head">
