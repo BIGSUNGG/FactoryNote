@@ -22,6 +22,8 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ### Changed
 
+- **`drivePlan` 그래프 강제 블록 추출 + async 노이즈 제거 — `plan-tool.ts`** — (1) Stage 2 그래프 강제(재작성 반려·상한 소진 에스컬레이션, ADR-019)를 모듈 함수 `enforceRequiredGraph()` 로 추출 — `drivePlan` 사이클로매틱 복잡도 경고(23) 소멸, 그래프 강제 정책이 한 곳에 모임. 동작 불변(그래프 반려·에스컬레이션 경로 테스트 그대로 통과). (2) `return await` 4건 제거 — 전부 try/catch 밖임을 확인해 의미 동일(불필요 마이크로태스크 틱 제거). pi-lens ast-grep·complexity 발견분. 하드닝 루프 이터레이션 8.
+
 - **`gate-server.ts` 죽은 export 제거 + runGate·observeGate 공통 전주곡 추출** — (1) 무소비 재export 2건 삭제: `resolveViewerDist`(정의→재export→무소비 죽은 사슬, 함수 본체도 gate-browser.ts 에서 제거)·`GateEvent` 타입 재export(소비자는 전부 gate-events.ts 직접 import). (2) runGate·observeGate 가 동일하게 반복하던 ‘게이트 확보 + 조건부 브라우저 오픈(SSE 하트비트 판정)’ 17줄 블록을 `acquireGateAndMaybeOpen()` 헬퍼로 추출 — 열림 정책이 두 곳에서 따로 드리프트될 여지 제거, 각 함수는 자신이 쓰는 옵션만 구조분해. pi-lens knip·jscpd 발견분. 하드닝 루프 이터레이션 7.
 
 - **코어 패키지 순환의존 해체 — `FeedbackAgent`/`FeedbackCapability` 타입을 `types/feedback.ts` 로 이동** — `feedback-agents.ts`(레지스트리) ↔ `feedback-agents-{static,web,graph}.ts`(데이터) 간 3건 순환 import(madge) 해소. 변형 3파일은 이제 타입을 `./types/feedback.ts` 에서 import(레지스트리 역참조 제거), `feedback-agents.ts` 는 공개 API 호환 재export 유지(`@factorynote/core` 표면 무변경). 런타임 사이클은 아니었지만(`import type` 은 소멸) 값 import 한 줄이면 즉시 TDZ 초기화 순서 결함으로 변하는 구조적 위험 제거. madge 전체 스캔 0 순환. 하드닝 루프 pi-lens full 진단 발견분.

@@ -49,8 +49,14 @@ async function acquireGateAndMaybeOpen(opts: {
 	browserOpener?: (url: string) => void;
 	reopenAfterMs?: number;
 }) {
-	const { root, feature, viewerDistDir, open = true, browserOpener, reopenAfterMs } =
-		opts;
+	const {
+		root,
+		feature,
+		viewerDistDir,
+		open = true,
+		browserOpener,
+		reopenAfterMs,
+	} = opts;
 	const gate = await getOrCreateGate({ root, feature, viewerDistDir });
 	if (
 		open &&

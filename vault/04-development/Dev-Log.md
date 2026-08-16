@@ -9,6 +9,14 @@ tags: [development, dev-log]
 
 ## 2026-08-16
 
+### drivePlan 그래프 강제 추출 — plan-tool 복잡도 경고 소멸
+
+**맥락**: 하드닝 루프 이터레이션 8. 백로그 plan-tool.ts 항목(drivePlan 복잡도 23·no-return-await 4).
+
+**작업**: Stage 2 그래프 강제 블록(반려 스폰·에스컬레이션)을 `enforceRequiredGraph()` 로 추출 — drivePlan 은 재개/재작성/라우팅/추락 4역할만 남음. `return await` 4건은 try/catch 밖 확인 후 제거(의미 동일). 편집 도중 콘텐츠 드리프트로 부분 적용 1회 — 재독 후 수습. 중간 조사: viewer-state.ts 은 lcov 실측 라인 100% (표의 80%는 함수 커버리지·콜백 카운트) → 백로그에서 제외(추격은 화장술).
+
+**검증**: pi-lens full 재스캔 plan-tool 경고 0(복잡도·return-await 소멸) · `bun test` 200 pass(그래프 반려 경로 포함 무변경 통과) · `bun run build` 0 종료.
+
 ### gate-server 죽은 export 제거·중복 추출
 
 **맥락**: 하드닝 루프 이터레이션 7. 백로그의 gate-server.ts 항목(knip 미사용 export 2·jscpd 17줄 중복).

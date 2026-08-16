@@ -25,6 +25,16 @@ import {
 	stageById,
 	writeArtifact,
 } from "@factorynote/core";
+import type {
+	ArtifactPaths,
+	FeedbackLevel,
+	PipelineState,
+	StageDefinition,
+} from "@factorynote/core";
+import type {
+	DrivePlanInput,
+	DrivePlanOutput,
+} from "./plan-types.ts";
 import { buildMenuMarkdown, deriveReport, resolvePaths } from "./plan-paths.ts";
 import { spawnDirective } from "./plan-directive.ts";
 import { runOpenGate } from "./plan-gate.ts";
@@ -35,6 +45,48 @@ export type {
 	DrivePlanOutput,
 	NextAction,
 } from "./plan-types.ts";
+
+/** Stage 2 그래프 강제(ADR-019): design 보고에 필수 그래프 트리가 없으면
+ *  Feedback 전 재작성 반려(루프 상한 내) 또는 게이트 에스컬레이션(상한 소진).
+ *  이슈 없음(또는 비대상)이면 null — 이후 nextDesignFeedbackStep 으로 정상 진행. */
+async function enforceRequiredGraph(opts: {
+	input: DrivePlanInput;
+	state: PipelineState;
+	def: StageDefinition;
+	paths: ArtifactPaths;
+	draftFile: string;
+	feedbackLevel: FeedbackLevel;
+	report: ReturnType<typeof deriveReport>;
+}): Promise<DrivePlanOutput | null> {
+	const { input, state, def, paths, draftFile, feedbackLevel, report } = opts;
+	if (report?.role !== "design" || def.graph !== "required") return null;
+	const graphIssue = await checkRequiredGraph(input.root, input.feature, draftFile);
+	if (!graphIssue) return null;
+	if (state.dfLoop < DEFAULT_MAX_LOOPS) {
+		const next = { ...state, dfLoop: state.dfLoop + 1 };
+		await saveState(input.root, next);
+		return spawnDirective(
+			next,
+			def,
+			{
+				action: "spawn-design",
+				task: designRevisionTask(def, [graphIssue], paths),
+				loop: next.dfLoop,
+				spawnOptions: CHILD_SPAWN_OPTIONS.design,
+			},
+				paths,
+				feedbackLevel,
+		);
+	}
+	// 상한 소진: 게이트로 에스컬레이션해 사용자 판단에 맡긴다(Feedback 미수렴과 동일 기제).
+	const escalated = { ...state, dfPhase: "design" as const, dfLoop: 0 };
+	const gateArtifact =
+		(await readArtifact(input.root, input.feature, draftFile)) ?? "";
+	return runOpenGate(input, escalated, def, gateArtifact, false, {
+		issues: [graphIssue],
+		loops: DEFAULT_MAX_LOOPS,
+	});
+}
 
 /** 파이프라인 1스텝 구동. Tier 1 동적 feedback 에이전트 오케스트레이션(ADR-014). */
 export async function drivePlan(
@@ -61,7 +113,7 @@ export async function drivePlan(
 			input.feedbackResult === undefined &&
 			onDisk !== undefined
 		) {
-			return await runOpenGate(input, state, def, onDisk, true);
+			return runOpenGate(input, state, def, onDisk, true);
 		}
 	}
 
@@ -72,7 +124,7 @@ export async function drivePlan(
 	if (state.gateOpen && input.designArtifact !== undefined) {
 		const { draftFile } = resolvePaths(root, feature, def);
 		const gateArtifact = (await readArtifact(root, feature, draftFile)) ?? "";
-		return await runOpenGate(input, state, def, gateArtifact, false);
+		return runOpenGate(input, state, def, gateArtifact, false);
 	}
 
 	if (requiresArtifact(state.stage) && !state.gateOpen) {
@@ -90,35 +142,16 @@ export async function drivePlan(
 			buildMenuMarkdown(def, feedbackLevel),
 		);
 		// 그래프 강제(Stage 2 required): design 보고의 필수 그래프 트리가 없으면 Feedback 전 재작성 반려.
-		if (report?.role === "design" && def.graph === "required") {
-			const graphIssue = await checkRequiredGraph(root, feature, draftFile);
-			if (graphIssue) {
-				if (state.dfLoop < DEFAULT_MAX_LOOPS) {
-					state = { ...state, dfLoop: state.dfLoop + 1 };
-					await saveState(root, state);
-					return spawnDirective(
-						state,
-						def,
-						{
-							action: "spawn-design",
-							task: designRevisionTask(def, [graphIssue], paths),
-							loop: state.dfLoop,
-							spawnOptions: CHILD_SPAWN_OPTIONS.design,
-						},
-						paths,
-						feedbackLevel,
-					);
-				}
-				// 상한 소진: 게이트로 에스컬레이션해 사용자 판단에 맡긴다(Feedback 미수렴과 동일 기제).
-				state = { ...state, dfPhase: "design", dfLoop: 0 };
-				const gateArtifact =
-					(await readArtifact(root, feature, draftFile)) ?? "";
-				return await runOpenGate(input, state, def, gateArtifact, false, {
-					issues: [graphIssue],
-					loops: DEFAULT_MAX_LOOPS,
-				});
-			}
-		}
+		const graphOut = await enforceRequiredGraph({
+			input,
+			state,
+			def,
+			paths,
+			draftFile,
+			feedbackLevel,
+			report,
+		});
+		if (graphOut) return graphOut;
 		const t = nextDesignFeedbackStep(
 			def,
 			{ dfPhase: state.dfPhase, dfLoop: state.dfLoop },
@@ -136,7 +169,7 @@ export async function drivePlan(
 			return spawnDirective(state, def, d, paths, feedbackLevel);
 		}
 		const gateArtifact = (await readArtifact(root, feature, draftFile)) ?? "";
-		return await runOpenGate(
+		return runOpenGate(
 			input,
 			state,
 			def,
