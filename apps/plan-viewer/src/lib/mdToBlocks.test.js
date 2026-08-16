@@ -2,6 +2,33 @@
 import { test, expect } from "bun:test";
 import { mdToBlocks } from "./mdToBlocks.js";
 
+// XSS 회귀(html:false) — 산출물 .md 는 신뢰 불가(외부 콘텐츠 인용 가능).
+// 원시 HTML이 실행되면 게이트 오리진에서 POST /api/decision 자동 확정이 가능해진다.
+test("인라인 원시 HTML(img onerror)은 이스케이프된 텍스트로 렌더", () => {
+	const blocks = mdToBlocks(
+		'본문 <img src=x onerror="fetch(\'/api/decision\',{method:\'POST\'})"> 끝',
+	);
+	const p = blocks.find((b) => b.type === "paragraph");
+	expect(p.html).not.toContain("<img");
+	expect(p.html).toContain("&lt;img");
+});
+
+test("스크립트 블록도 실행되지 않고 이스케이프 텍스트", () => {
+	const blocks = mdToBlocks("<script>alert(1)</script>\n\n본문.");
+	const paras = blocks.filter(
+		(b) => b.type === "paragraph" && b.html.includes("script"),
+	);
+	expect(paras[0].html).toContain("&lt;script&gt;");
+	expect(paras[0].html).not.toContain("<script>");
+});
+
+test("제목 인라인의 원시 HTML도 이스케이프", () => {
+	const blocks = mdToBlocks("# <b onmouseover=alert(1)>제목</b>");
+	const h = blocks.find((b) => b.type === "heading");
+	expect(h.html).not.toContain("<b ");
+	expect(h.html).toContain("&lt;b");
+});
+
 test("graph 참조 코멘트 → graph block(graphFile)", () => {
 	const md = "<!-- graph: 02-design-graph.json -->\n# 설계\n\n본문.\n";
 	const blocks = mdToBlocks(md);

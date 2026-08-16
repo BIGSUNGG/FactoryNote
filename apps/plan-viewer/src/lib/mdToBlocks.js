@@ -1,9 +1,13 @@
 import MarkdownIt from "markdown-it";
 
 // 모든 마크다운 문법(heading/paragraph/list+task/code/image/table/blockquote/hr) 지원.
-// strikethrough·table 빌트인 규칙 활성화. .md 는 신뢰하는 산출물이므로 html 허용.
+// strikethrough·table 빌트인 규칙 활성화.
+// html:false — 산출물 .md 는 Design 자식이 작성하며 웹 검색 등 외부 콘텐츠를 인용할 수
+// 있어 신뢰할 수 없다. html:true 였을 때 `<img onerror>` 등 원시 HTML이 뷰어(게이트
+// 페이지 오리진)에서 그대로 실행되어 POST /api/decision 자동 확정 — 즉 'AI 는 게이트를
+// 못 넘긴다' 원칙 무력화 — 이 가능했다. 모든 원시 HTML은 이스케이프된 텍스트로 렌더.
 const md = new MarkdownIt({
-	html: true,
+	html: false,
 	linkify: true,
 	typographer: true,
 }).enable(["table", "strikethrough"]);
@@ -41,35 +45,43 @@ export function mdToBlocks(src) {
 		} else if (t.type === "paragraph_open") {
 			const inline = tokens[i + 1];
 			const children = inline?.children || [];
-			const img = children.find((c) => c.type === "image");
-			const onlyImg =
-				img &&
-				children.every(
-					(c) =>
-						c.type === "image" ||
-						c.type === "softbreak" ||
-						c.type === "hardbreak" ||
-						(c.type === "text" && !c.content.trim()),
-				);
-			if (onlyImg) {
+			// 그래프 참조(ADR-016): html:false 이므로 HTML 주석은 일반 문단 텍스트로
+			// 파싱된다. 문단 전체가 참조 코멘트일 때만 그래프 블록으로 전환.
+			const lone =
+				children.length === 1 && children[0].type === "text";
+			const gref = lone ? children[0].content.match(GRAPH_REF_RE) : null;
+			if (gref) {
 				blocks.push({
-					id: bid(),
-					type: "image",
-					src: img.src,
-					alt: img.content || img.alt || "",
-				});
+				id: bid(),
+				type: "graph",
+				graphFile: gref[1],
+			});
 			} else {
-				blocks.push({ id: bid(), type: "paragraph", html: inlineHtml(inline) });
+				const img = children.find((c) => c.type === "image");
+				const onlyImg =
+					img &&
+					children.every(
+						(c) =>
+							c.type === "image" ||
+							c.type === "softbreak" ||
+							c.type === "hardbreak" ||
+							(c.type === "text" && !c.content.trim()),
+				);
+				if (onlyImg) {
+					blocks.push({
+						id: bid(),
+						type: "image",
+						src: img.src,
+						alt: img.content || img.alt || "",
+					});
+				} else {
+					blocks.push({ id: bid(), type: "paragraph", html: inlineHtml(inline) });
+				}
 			}
 			i += 3;
 		} else if (t.type === "fence" || t.type === "code_block") {
 			const lang = (t.info || "").trim();
 			blocks.push({ id: bid(), type: "code", lang, code: t.content });
-			i += 1;
-		} else if (t.type === "html_block") {
-			// 그래프 참조 코멘트 → 그래프 블록(실제 데이터는 동반 .json, ADR-016).
-			const m = (t.content || "").match(GRAPH_REF_RE);
-			if (m) blocks.push({ id: bid(), type: "graph", graphFile: m[1] });
 			i += 1;
 		} else if (t.type === "hr") {
 			blocks.push({ id: bid(), type: "hr" });

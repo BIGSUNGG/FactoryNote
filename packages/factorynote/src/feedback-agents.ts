@@ -4,10 +4,7 @@
 //   static = read/write/bash · web = +web_search · graph = +edit(그래프 fence 구조 수정)
 // 이 파일이 레지스트리 단일 진실; apps/pi-extension/agents/factorynote-feedback-<name>.md 는 생성기 산출물.
 import type { StageId } from "./types/index.ts";
-import type {
-	FeedbackAgent,
-	FeedbackCapability,
-} from "./types/feedback.ts";
+import type { FeedbackAgent, FeedbackCapability } from "./types/feedback.ts";
 import { FEEDBACK_AGENTS_GRAPH } from "./feedback-agents-graph.ts";
 import { FEEDBACK_AGENTS_STATIC } from "./feedback-agents-static.ts";
 import { FEEDBACK_AGENTS_WEB } from "./feedback-agents-web.ts";

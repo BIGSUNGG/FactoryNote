@@ -9,6 +9,16 @@ tags: [development, dev-log]
 
 ## 2026-08-16
 
+### 뷰어 XSS 차단 — mdToBlocks html:false 전환 + 그래프 참조 감지 이전
+
+**맥락**: 하드닝 루프 이터레이션 4. 백로그 최우선이었던 `Block.jsx` `dangerouslySetInnerHTML`(CWE-79, 4건) 추적.
+
+**분석**: 위협 모델 — 산출물 .md 는 Design/web feedback 자식이 작성, 외부 콘텐츠 인용 포함 → 프롬프트 인젝션으로 `<img onerror>` 삽입 → 게이트 오리진에서 실행 → `POST /api/decision` 자동 확정(원칙 1 무력화). 오탐이 아닌 실제 권한 상승 경로로 판정.
+
+**작업**: `html:true→false`(원시 HTML 전부 이스케이프, 구조적 차단). 실측 확인 후 `html_block` 소멸에 따라 그래프 참조 감지를 문단 텍스트 매칭으로 이전. 회귀 3건 추가. [[viewer-xss-gate-bypass]] 작성(위협 모델 기록).
+
+**검증**: `bun test` 190 pass(신규 3) · `bun run build` 0 종료. 그래프 기존 테스트 3건 무변경 통과(동일성 확인).
+
 ### 코어 순환의존 해체 — feedback-agents 타입을 types/ 로 이동
 
 **맥락**: 하드닝 루프 이터레이션 3. pi-lens full 이 잡은 madge 순환의존 3건(`feedback-agents.ts` ↔ 변형 데이터 파일) 처리.
