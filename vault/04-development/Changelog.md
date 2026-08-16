@@ -24,7 +24,7 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ### Changed
 
-- **에이전트 채팅 메신저 버블 레이아웃 통일** — user/AI 스타일이 상이하던 채팅을 실제 메신저 형태로 재디자인: 역할 라벨 제거, user 우측 잉크 채운 버블·agent 좌측 옅은 버블(정렬+색으로 구분, 꼬리 쪽 모서리 축소). 확정 요청(stage-request fulfilled)도 강조 카드가 아닌 일반 user 버블과 동일 레이아웃으로 기록(✓ 뱃지, mono→본문 서체). user 버블 내 blockId·quote 대비색 보정. 큐·게이트 바 무변경.
+- **에이전트 채팅 메신저 버블 레이아웃 통일** — user/AI 스타일이 상이하던 채팅을 실제 메신저 형태로 재디자인: 역할 라벨 제거, user 우측 회색 버블·agent 좌측 옅은 버블(정렬+색으로 구분, 꼬리 쪽 모서리 축소). 확정 요청(stage-request fulfilled)은 일반 user 버블과 동일 레이아웃의 검정 버블로 기록(✓ 뱃지, mono→본문 서체) — 일반 채팅(회색)과 색상으로 구분. 큐·게이트 바 무변경.
 
 - **viewer 중첩 삼항 소거 3건(가독성·관용구 분리)** — “열거형→값” 매핑의 진짜 중첩 삼항 3곳을 명명형 코드로 교체, JSX 렌더 체인(`a ? B : c ? D : E`)은 React 관용구이므로 유지. (1) `PlanPage.jsx` 3중 중첩 `stagesFor` 상태 계산 → 순수 함수 `stepperState(n, viewed, real)`. (2) `Stepper.jsx` 상태→툴팁 중첩 → `stepperTitle(state, label)` if 체인. (3) `Block.jsx` type→라벨 중첩 → `LABELS` 레코드 + nullish 기본값. 각 케이스는 단위 로직(열거값 판정)과 렌더 체인의 경계를 분명히 함. 스펙 영역 (1). 하드닝 루프 이터레이션 22.
 

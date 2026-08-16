@@ -54,8 +54,9 @@
 	font-size: 12.5px;
 	line-height: 1.6;
 }
-/* 채팅 버블 — 실제 메신저 레이아웃: user 우측 잉크 버블, agent 좌측 옅은 버블.
- * 역할 라벨 없음(정렬+색으로 구분). 꼬리 쪽 모서리만 좁혀 발화 방향 암시. */
+/* 채팅 버블 — 실제 메신저 레이아웃: user 우측 회색 버블, agent 좌측 옅은 버블.
+ * 역할 라벨 없음(정렬+색으로 구분). 꼬리 쪽 모서리만 좁혀 발화 방향 암시.
+ * 확정 요청(stage-request)만 검정 버블로 구분(아래 .chat-msg.stage-request). */
 .chat-msg {
 	font-size: 13px;
 	line-height: 1.55;
@@ -66,24 +67,12 @@
 .chat-msg.agent {
 	align-self: flex-start;
 	background: rgba(17, 24, 39, 0.05);
-	border: 1px solid var(--border);
 	border-bottom-left-radius: var(--radius-sm);
 }
 .chat-msg.user {
 	align-self: flex-end;
-	background: var(--text);
-	color: var(--on-color);
+	background: rgba(17, 24, 39, 0.15);
 	border-bottom-right-radius: var(--radius-sm);
-}
-.chat-msg.user .chat-text {
-	color: inherit;
-}
-.chat-msg.user .chat-block {
-	color: rgba(255, 255, 255, 0.65);
-}
-.chat-msg.user .chat-quote {
-	color: rgba(255, 255, 255, 0.72);
-	border-left-color: rgba(255, 255, 255, 0.4);
 }
 .chat-block {
 	font-family: var(--mono);
@@ -256,8 +245,8 @@
 	border-radius: var(--radius-sm);
 }
 .chat-cancel:hover:not(:disabled) {
-	color: var(--danger, #c0392b);
-	background: rgba(192, 57, 43, 0.08);
+	color: var(--text);
+	background: rgba(17, 24, 39, 0.08);
 }
 .chat-cancel:disabled {
 	opacity: 0.4;
