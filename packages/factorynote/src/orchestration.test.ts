@@ -225,12 +225,10 @@ test("runDesignFeedbackLoop: 1패스 클린 → clean, design 1·feedback 3(sele
 		design: ["D1"],
 		feedback: ["CLEAN", "CLEAN", "CLEAN"],
 	});
-	const res = await runDesignFeedbackLoop(
-		spawn,
-		stage,
-		DEFAULT_MAX_LOOPS,
-		pick3,
-	);
+	const res = await runDesignFeedbackLoop(spawn, stage, {
+		maxLoops: DEFAULT_MAX_LOOPS,
+		select: pick3,
+	});
 	expect(res.kind).toBe("clean");
 	if (res.kind === "clean") {
 		expect(res.artifact).toBe("D1");
@@ -245,12 +243,10 @@ test("runDesignFeedbackLoop: 이슈 1회 → 수정 → gate(clean), design 2·f
 		design: ["D1", "D2-개선"],
 		feedback: ["ISSUES\n- 빠진 요구사항", "CLEAN", "CLEAN"],
 	});
-	const res = await runDesignFeedbackLoop(
-		spawn,
-		stage,
-		DEFAULT_MAX_LOOPS,
-		pick3,
-	);
+	const res = await runDesignFeedbackLoop(spawn, stage, {
+		maxLoops: DEFAULT_MAX_LOOPS,
+		select: pick3,
+	});
 	expect(res.kind).toBe("clean");
 	if (res.kind === "clean") {
 		expect(res.artifact).toBe("D2-개선");
@@ -399,13 +395,9 @@ test("수준 전달: spawn-feedback 지시문이 feedbackLevel 을 운반", () =
 
 test("runDesignFeedbackLoop: 수준 none → design 1회 스폰 후 clean 직행(feedback 스폰 0)", async () => {
 	const spawn = new MockSpawn({ design: ["D1"], feedback: [] });
-	const res = await runDesignFeedbackLoop(
-		spawn,
-		stage,
-		DEFAULT_MAX_LOOPS,
-		undefined,
-		"none",
-	);
+	const res = await runDesignFeedbackLoop(spawn, stage, {
+		feedbackLevel: "none",
+	});
 	expect(res.kind).toBe("clean");
 	expect(spawn.calls.length).toBe(1);
 	expect(spawn.calls[0]!.role).toBe("design");

@@ -39,3 +39,4 @@ export {
 	type DesignFeedbackTransition,
 } from "./df-transition.ts";
 export { runDesignFeedbackLoop } from "./df-loop.ts";
+export type { DesignFeedbackLoopOptions } from "./df-loop.ts";

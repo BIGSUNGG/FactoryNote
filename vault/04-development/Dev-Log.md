@@ -9,6 +9,14 @@ tags: [development, dev-log]
 
 ## 2026-08-16
 
+### runDesignFeedbackLoop 옵션 객체 — long-param 종결
+
+**맥락**: 하드닝 루프 이터레이션 21. 코어 마지막 long-param 경고(df-loop).
+
+**작업**: 위치 인자 5개 → `DesignFeedbackLoopOptions`(maxLoops·select·feedbackLevel) 전환, orchestration 재export 경유 공개. 테스트 3호출점 갱신 — 자릿수 맞춤 `undefined, "none"` 이 명명 필드로.
+
+**검증**: `bun test` 199 pass · `tsc -b` 클린 · `bun run build` 0 종료.
+
 ### scripts/README 재작성 — 스테일 참조 제거
 
 **맥락**: 하드닝 루프 이터레이션 20. 제거·이동 심볼의 문서 잔여 스캔(currentStageDef 무참조·mermaid는 ADR 역사 맥락으로 유효 확인) 중 발견 — scripts/README 가 구 `build.ts` 참조(존재하지 않음)·신규 파일 전부 누락.

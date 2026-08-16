@@ -14,20 +14,32 @@ import { feedbackAgentTask } from "./df-task.ts";
 import { nextDesignFeedbackStep } from "./df-transition.ts";
 import type { DesignFeedbackPhase } from "./types/index.ts";
 
+/** runDesignFeedbackLoop 옵션 — 위치 인자 5개 대신 명명 필드. */
+export interface DesignFeedbackLoopOptions {
+	/** 내부 수정 상한(기본 DEFAULT_MAX_LOOPS). */
+	maxLoops?: number;
+	/** 메뉴 필터(미지정 시 현 단계 메뉴 전체 — 동기 harness 의 결정론적 기본). */
+	select?: (menu: FeedbackAgent[]) => FeedbackAgent[];
+	/** Feedback 수준(기본 DEFAULT_FEEDBACK_LEVEL). */
+	feedbackLevel?: FeedbackLevel;
+}
+
 /**
  * 동기 스폰 harness용 루프 드라이버. 현 단계 메뉴(또는 select 결과)를 순차 스폰해 집합 후 전이.
- * select 미지정 시 현 단계 메뉴 전체 스폰(동기 harness의 결정론적 기본).
  */
 export async function runDesignFeedbackLoop(
 	spawn: AgentSpawn,
 	def: StageDefinition,
-	maxLoops: number = DEFAULT_MAX_LOOPS,
-	select?: (menu: FeedbackAgent[]) => FeedbackAgent[],
-	feedbackLevel: FeedbackLevel = DEFAULT_FEEDBACK_LEVEL,
+	opts: DesignFeedbackLoopOptions = {},
 ): Promise<
 	| { kind: "clean"; artifact: string; loops: number }
 	| { kind: "escalate"; artifact: string; issues: string[]; loops: number }
 > {
+	const {
+		maxLoops = DEFAULT_MAX_LOOPS,
+		select,
+		feedbackLevel = DEFAULT_FEEDBACK_LEVEL,
+	} = opts;
 	let dfPhase: DesignFeedbackPhase = "design";
 	let dfLoop = 0;
 	let draft: string | undefined;
