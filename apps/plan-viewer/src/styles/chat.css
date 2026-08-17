@@ -8,7 +8,7 @@
 	/* 고정-크롬 컬럼: topbar/stepper(flex:none) + .layout(flex:1) 세로 배치.
 	   gate-bar(65px, position:fixed) 공간을 뺀 뷰포트 높이로 경계지어
 	   문서(.doc)만 스크롤된다. */
-	height: calc(100vh - 65px);
+	height: calc(100vh - var(--gate-h));
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
@@ -17,7 +17,7 @@
 	position: fixed;
 	top: 0;
 	right: 0;
-	bottom: 65px; /* 게이트 바 위 */
+	bottom: var(--gate-h); /* 게이트 바 위 */
 	width: 340px;
 	background: var(--surface);
 	border-left: 1px solid var(--border);

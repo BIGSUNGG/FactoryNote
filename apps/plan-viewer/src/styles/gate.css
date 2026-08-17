@@ -51,17 +51,27 @@ button.btn:disabled {
 	left: 0;
 	right: 0;
 	bottom: 0;
+	height: var(--gate-h); /* 콘텐츠 기반 높이 변동(버튼 줄바꿈 등)이
+	   레이아웃 예약 높이와 어긋나 문서 하단이 바 아래로 밀리던 문제 해소 */
 	display: flex;
 	align-items: center;
 	gap: var(--s3);
-	padding: var(--s3) var(--s5);
+	padding: 0 var(--s5);
 	background: var(--surface);
 	border-top: 1px solid var(--border);
 	box-shadow: 0 -2px 8px rgba(17, 24, 39, 0.04);
 }
+:root {
+	--gate-h: 65px; /* 게이트 바 고정 높이 — chat·layout 예약 계산과 공유 */
+}
 .gate .label {
 	font-size: 13px;
 	color: var(--muted);
+	/* 좁은 창에서 줄바꿈으로 바가 높아지지 않도록 — 말줄임으로 흡수 */
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 .gate .label b {
 	color: var(--text);
@@ -73,6 +83,7 @@ button.btn:disabled {
 	background: var(--surface);
 	font: inherit;
 	font-weight: 500;
+	white-space: nowrap; /* 줄바꿈으로 게이트 바가 높아지는 것 방지 */
 	cursor: pointer;
 	font-size: 14px;
 	transition: 0.12s;

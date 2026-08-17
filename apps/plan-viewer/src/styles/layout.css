@@ -194,7 +194,7 @@
 .fs-control {
 	position: fixed;
 	right: calc(340px + 16px); /* 채팅 사이드바(340px) 좌측 */
-	bottom: calc(65px + 16px); /* 게이트 바(65px) 상단 */
+	bottom: calc(var(--gate-h) + 16px); /* 게이트 바 상단 */
 	display: flex;
 	gap: 6px;
 	z-index: 50;
