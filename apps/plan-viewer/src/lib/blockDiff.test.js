@@ -81,3 +81,15 @@ test("diffBlockChanges: 수정+추가 혼합 — 짝짓기 후 남는 new 가 ad
 	expect(changed.size).toBe(2);
 	expect([...added]).toEqual([next[1].id]);
 });
+
+test("diffBlockChanges: 상단 삽입+하단 수정 동시 — 색 뒤바뀜 회귀(두 번째 재작성)", () => {
+	// prev [배너1, 본문, 하단A] → next [배너2, 배너1, 본문, 하단B]
+	// 상단 삽입 = added(연두), 하단 수정 = changed 만(주황) — 순서 소비 방식이라면
+	// 상단 삽입이 하단 prev 를 가로채 색이 뒤바뀌던 버그 회귀 검증.
+	const prev = mdToBlocks("> 배너1\n\n본문.\n\n하단 A\n");
+	const next = mdToBlocks("> 배너2\n\n> 배너1\n\n본문.\n\n하단 B\n");
+	const { changed, added } = diffBlockChanges(prev, next);
+	expect(changed.size).toBe(2);
+	expect([...added]).toEqual([next[0].id]); // 상단 삽입만 added
+	expect(added.has(next[3].id)).toBe(false); // 하단 수정은 added 아님
+});

@@ -9,6 +9,16 @@
 //   ·fulfilled 기록 / cancel(already-sent 거부) / GET {messages, queue} /
 //   재작성 시 prevMd 스냅샷·확정 시 리셋(ADR-027 변경 하이라이트).
 
+/** 마지막 비어 있지 않은 줄 끝에 표기 추가 — 마지막 블록 문자 수정 시연(ADR-027). */
+function mutateLastBlock(md, tag) {
+	const lines = md.split("\n");
+	let i = lines.length - 1;
+	while (i >= 0 && !lines[i].trim()) i--;
+	if (i < 0) return md;
+	lines[i] += tag;
+	return lines.join("\n");
+}
+
 /** 목업 상태·큐를 소유하는 핸들러 팩토리. opts 로 타이머/문서 주입(테스트용). */
 export function createMockApi({
 	feature = "auth-module",
@@ -54,11 +64,13 @@ export function createMockApi({
 				text: replies[replyIdx++ % replies.length] ?? "반영했습니다.",
 				at: now(),
 			});
-			// 정해진 파일 수정(맨 위 배너 prepend) — 산출물 갱신 시연.
+			// 정해진 파일 수정 — 상단 배너 prepend + 마지막 블록 문자 수정(ADR-027 시연:
+			// 스크롤바 양 끝 마커: 상단 추가(연두)·하단 수정(주황)).
 			const art = state.artifacts.find((a) => a.stage === state.stage);
 			if (art && edits.length > 0) {
 				// ADR-027 모방: 덮어쓰기 전 버전을 prevMd 로 스냅샷 — 뷰어 블록 diff 기준.
 				art.prevMd = art.md;
+				art.md = mutateLastBlock(art.md, ` ✏️${editIdx + 1}`);
 				art.md = edits[editIdx++ % edits.length] + art.md;
 			}
 			emit("state");

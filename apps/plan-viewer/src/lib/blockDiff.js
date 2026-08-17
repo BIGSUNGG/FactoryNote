@@ -66,19 +66,38 @@ function lcsMatched(pk, nk) {
 
 /** prev↔현재 비교 — 변경·추가된 현재 블록 id 집합 반환.
  * changed = 매칭 안 된 현재 블록 전부(추가 포함), added = 대응 prev 없는 순수 추가.
- * 미매칭 prev↔new 를 순서대로 짝짓기: 짝 = 수정, 짝 없이 남은 new = 추가.
+ * 미매칭 new 는 정규화 위치가 가장 가까운 미매칭 prev 와 짝(수정) — 거리 임계 초과·
+ * 짝 없음 = 추가. 순서 소비 방식은 '상단 삽입 + 하단 수정' 동시 발생 시 상단 삽입이
+ * 하단 수정의 prev 를 가로채 색이 뒤바뀌던 버그가 있어 위치 기반으로 교체.
  * 삭제된 블록은 현재 문서에 존재하지 않으므로 마킹 대상이 아니다. */
 export function diffBlockChanges(prevBlocks, newBlocks) {
 	const pk = prevBlocks.map(blockKey);
 	const nk = newBlocks.map(blockKey);
 	const { matchedPrev, matchedNew } = lcsMatched(pk, nk);
-	let prevLeft = pk.filter((_, idx) => !matchedPrev.has(idx)).length;
+	const n = pk.length;
+	const m = nk.length;
+	const unmatchedPrev = [];
+	pk.forEach((_, i) => {
+		if (!matchedPrev.has(i)) unmatchedPrev.push(i);
+	});
+	const used = new Set();
 	const changed = new Set();
 	const added = new Set();
-	newBlocks.forEach((b, idx) => {
-		if (matchedNew.has(idx)) return;
+	newBlocks.forEach((b, j) => {
+		if (matchedNew.has(j)) return;
 		changed.add(b.id);
-		if (prevLeft > 0) prevLeft--;
+		const pos = m > 1 ? j / (m - 1) : 0;
+		let best = -1;
+		let bestD = 0.25; // 임계 — 멀리 떨어진 블록은 짝으로 보지 않음
+		for (const i of unmatchedPrev) {
+			if (used.has(i)) continue;
+			const d = Math.abs((n > 1 ? i / (n - 1) : 0) - pos);
+			if (d < bestD) {
+				bestD = d;
+				best = i;
+			}
+		}
+		if (best >= 0) used.add(best);
 		else added.add(b.id);
 	});
 	return { changed, added };

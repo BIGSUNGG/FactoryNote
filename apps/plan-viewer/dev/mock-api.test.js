@@ -178,4 +178,20 @@ describe("mock-api: ADR-027 변경 하이라이트 의미론", () => {
 			api.getState().artifacts.find((a) => a.stage === 1).prevMd,
 		).toBeUndefined();
 	});
+
+	test("재작성 = 상단 배너 prepend + 마지막 블록 문자 수정(양 끝 시연)", () => {
+		const c = fakeClock();
+		const api = createMockApi({
+			artifacts: [{ stage: 1, name: "요청 이해", md: "# a\n\n본문.\n" }],
+			replies: ["회신"],
+			edits: ["> 배너\n\n"],
+			setTimeoutFn: c.setTimeoutFn,
+			now: () => 1,
+		});
+		api.postChat({ text: "수정해줘" });
+		c.flush();
+		const art = api.getState().artifacts.find((a) => a.stage === 1);
+		expect(art.md.startsWith("> 배너")).toBe(true); // 상단 추가
+		expect(art.md).toContain("본문. ✏️1"); // 하단 마지막 블록 문자 수정
+	});
 });
