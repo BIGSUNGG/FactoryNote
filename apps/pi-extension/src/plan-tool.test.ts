@@ -140,6 +140,31 @@ test("방향1+3a: spawn 지시문이 agent=<명명에이전트> 지시 + spawnTa
 	}
 });
 
+test("design 위성: high 수준 spawn-design 지시문이 주+위성 병렬 스폰과 파일 경로 명시(계약 #5)", async () => {
+	const out = await drivePlan({
+		root,
+		viewerDistDir: VIEWER_DIST,
+		feature: "satellites",
+		open: false,
+		designLevel: "high",
+	});
+	expect(out.nextAction).toBe("spawn-design");
+	expect(out.designLevel).toBe("high");
+	expect(out.designMenuPath).toBeTruthy();
+	// 주 문서 + 위성 병렬 스폰 지시 + 에이전트별 목표 파일 경로(draft.md / draft.<role>.md).
+	expect(out.message).toContain("runs.all");
+	expect(out.message).toContain('agent="factorynote-design"');
+	expect(out.message).toContain("factorynote-design-<name>");
+	expect(out.message).toContain(out.draftPath!);
+	expect(out.message).toContain("draft.<name>.md");
+	// high = 주 문서 + 위성 2.
+	expect(out.message).toContain("위성 2");
+	// design-menu.md 가 작업 영역에 기록됨.
+	expect(await readArtifact(root, "satellites", "design-menu.md")).toContain(
+		"requirements-scope",
+	);
+});
+
 test("Tier 1 파일 프로토콜: design 보고는 경로, 게이트는 readArtifact resolve + design-prompt.md 기록", async () => {
 	const md = "# 파일 프로토콜 명세\n\n컨텍스트 누적 차단 검증.";
 	let dc = 0;

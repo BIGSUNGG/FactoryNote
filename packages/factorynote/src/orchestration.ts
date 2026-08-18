@@ -17,11 +17,14 @@
 //  - df-loop.ts        — 동기 스폰 harness 루프 드라이버(runDesignFeedbackLoop)
 export {
 	CHILD_SPAWN_OPTIONS,
+	DEFAULT_DESIGN_LEVEL,
 	DEFAULT_FEEDBACK_LEVEL,
 	DEFAULT_MAX_LOOPS,
+	DESIGN_LEVELS,
 	FEEDBACK_LEVELS,
 	MAX_REPORT_INPUT_CHARS,
 	clampReportInput,
+	designLevelCountSpec,
 	feedbackLevelCountSpec,
 } from "./df-policy.ts";
 export {
@@ -31,6 +34,8 @@ export {
 } from "./df-parse.ts";
 export {
 	designRevisionTask,
+	designSatelliteRevisionTask,
+	designSatelliteTask,
 	designTask,
 	feedbackAgentTask,
 } from "./df-task.ts";
