@@ -12,6 +12,8 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ### Added
 
+- **뷰어 가시 변경 → 테스트 뷰어 갱신 룰 (문서 우선 원칙 3 하위 규칙)** — 뷰어에서 사용자가 보는 것(렌더링·UI·레이아웃·예시 문서)에 변경이 생기면 같은 세션에서 테스트 뷰어 데모(`apps/plan-viewer/dev/mock-api.js` 시나리오 · `src/data/*.md` 예시 문서)를 갱신해 `cd apps/plan-viewer && bun run dev`(5180포트)로 바로 확인 가능하게 한다. `AGENTS.md` 원칙 3에 하위 항목 추가, `.pi/extensions/viewer-test-viewer.ts` 비차단 리마인더 훅 신규(뷰어 코드 변경·테스트 뷰어 미갱신 실행 종료 시 경고, 기존 work-principles 훅과 같은 패턴), `development-guide.md` '뷰어 수정' 섹션에 절차·검증 명령 명시. [[ADR-031-viewer-test-viewer-rule]]
+
 - **테스트 게이트(에이전트 훅 + pre-commit)** — `bun test` 통과 전에는 작업도 커밋도 끝나지 않음. `.pi/extensions/test-gate.ts`: `agent_settled`에 테스트 실행, 실패 시 실패 출력과 수정 지시를 주입해 에이전트 재실행(최대 3회, 초과 시 사용자 에스컬레이션). `scripts/git-hooks/pre-commit`(POSIX sh, `core.hooksPath` 활성화): 동일 논리로 커밋 차단 — 수동 커밋·다른 도구에도 적용. `.gitattributes` 훅 LF 고정. 자체 검증: 훅 통과/실패 경로 수동 실행 확인, `tsc -p .pi` 0 종료. [[ADR-029-test-gate]]
 
 - **4대 작업 원칙 하네스 적용** — 에이전트 행동 원칙(추론 자제·미래지향·문서주의·비판적 사고)을 매 세션 기본 적용: `AGENTS.md` 신규 작성(4대 원칙 섹션 + 오리엔테이션), `.pi/skills/` 원칙별 4스킬(`ask-before-guess`·`future-proof-code`·`doc-first-workflow`·`critical-review` — 질문 임계값·모듈화 기준·문서 선행·비판적 검토 절차), `.pi/extensions/work-principles.ts`(코드 변경·문서 미변경 실행 종료 시 문서 갱신 리마인드 훅, 차단 없음), `.pi/tsconfig.json`(전역 pi 패키지 타입 연결). 질문은 주요 결정(아키텍처·가시 동작·비가역 선택)만. [[ADR-028-work-principles-harness-application]]

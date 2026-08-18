@@ -89,6 +89,14 @@ npm run dev          # 개발 서버(단독 미리보기, 게이트 연동 없�
 `apps/plan-viewer/src/` 편집 → `bun run build` → `bun scripts/install.mjs` 로 재배포.
 게이트 계약(`/api/state`·`/api/decision` 셰이프)은 [[implementation-architecture#데이터 계약 Contracts]] 참조. 뷰어는 이 계약만 지키면 된다.
 
+**사용자에게 보이는 변경 시 테스트 뷰어 갱신 (문서 우선 원칙 3 하위 룰, [[ADR-031-viewer-test-viewer-rule]])** —
+렌더링·UI·레이아웃·예시 문서 등 사용자가 게이트에서 보는 것에 변화가 생기면, 같은 세션에서 테스트 뷰어 데모를 함께 갱신해 사용자가 바로 확인할 수 있게 한다. 확인할 수 없는 가시 변경은 완료가 아니다.
+
+1. `apps/plan-viewer/dev/mock-api.js` — 실게이트 서버 의미론(큐·stage-request·취소·SSE, [[ADR-024-chat-send-queue]]·[[ADR-022-viewer-sse-push]])을 모방한 목업 시나리오. 새 동작을 시연하도록 (필요 시) 확장하고, 의미론이 바뀌었으면 목업 자체체크 `dev/mock-api.test.js` 도 함께 갱신한다(`bun test apps/plan-viewer/dev`).
+2. `apps/plan-viewer/src/data/*.md` — 데모에 쓰는 예시 산출물(`plan.md`·`scenarios.md`·`impl.md`). 새 화면·상태를 보여줄 수 있게 (필요 시) 교체·추가한다.
+3. 검증: `cd apps/plan-viewer && bun run dev`(또는 루트에서 `bun run dev:viewer`, 5180 포트)로 브라우저에서 가시 변경을 확인한다.
+4. 미갱신 채 마무리하면 `.pi/extensions/viewer-test-viewer.ts` 훅이 종료 시 경고(비차단 — 룰 자체는 판단의무).
+
 ### 새 harness 어댑터 추가(Codex / Claude Code)
 
 코어(`packages/factorynote`)는 harness 를 모른다. `apps/<harness>/` 에 새 어댑터를 만들어:
