@@ -23,6 +23,18 @@ tags: [development, dev-log]
 
 **후속(스킬 분할)**: 사용자 요청으로 단일 `work-principles` 스킬을 원칙별 4파일로 분할 — `ask-before-guess`(원칙 1) · `future-proof-code`(원칙 2) · `doc-first-workflow`(원칙 3) · `critical-review`(원칙 4). 원 스킬 삭제, AGENTS.md·기획·ADR-028·구현 기록·Changelog 참조 동기화.
 
+### 테스트 게이트(에이전트 훅 + pre-commit)
+
+**맥락**: 사용자 요청 — 에이전트 작업 종료 후 테스트 통과해야만 작업이 끝나도록 + 커밋에도 동일 논리. 기준선: `bun test` 225 pass(약 7초).
+
+**작업**: `.pi/extensions/test-gate.ts` — `agent_settled` 시 `bun test` 실행(execSync, 5분 타임아웃), 실패 시 출력 끝부분(4000자)을 담아 `pi.sendUserMessage`로 수정 지시 주입, 연속 실패 3회 초과 시 알림 에스컬레이션·예산 초기화. `scripts/git-hooks/pre-commit`(sh) + `git config core.hooksPath scripts/git-hooks` 적용 + 실행 비트(100755) 스테이지. `.gitattributes`로 훅 LF 고정(CRLF 방지). 결정: [[ADR-029-test-gate]].
+
+**검증**: 훅 수동 실행 — 통과 경로 exit 0, 가짜 bun으로 실패 경로 exit 1 + 차단 메시지 확인. `tsc -p .pi --noEmit` 0.
+
+**배제**: agent_end 시점 검사(자동 재시도 중 중복 게이트), 코드 변경 시에만 검사(기존 실패 방치 구멍), husky(의존 과잉).
+
+**남은 것**: 실제 세션에서 게이트 루프 관찰(`/reload` 또는 새 세션 — 확장은 세션 시작 시 로드). 중단(abort) 직후 게이트 동작은 알려진 한계로 허용.
+
 ## 2026-08-16
 
 ### 게이트 중 수정 블록 하이라이트 (.prev 스냅샷 + 블록 LCS diff)

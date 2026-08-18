@@ -1,0 +1,2 @@
+# sh 훅은 LF 필수 — Windows 체크아웃에서 CRLF 변환 방지
+scripts/git-hooks/** text eol=lf

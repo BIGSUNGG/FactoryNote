@@ -35,6 +35,7 @@ vault/                   # 문서(Obsidian) — 기획·설계·ADR·아키텍�
 
 - `bun run build`(= `tsc -b` 타입체크 + viewer 빌드 + `install.mjs` 배포 → **빌드=배포**) · `bun test`(자체체크). 코드 바꾸면 이 둘이 0 종료여야 한다.
 - 순수 타입체크만: `bun run typecheck`.
+- **테스트 게이트**: `.pi/extensions/test-gate.ts`가 에이전트 실행 종료 시(`agent_settled`) `bun test`를 실행 — 실패하면 수정 지시를 주입(최대 3회, 초과 시 사용자 에스컬레이션)해 통과 전에는 작업이 끝나지 않는다. 커밋도 `scripts/git-hooks/pre-commit`이 동일 논리로 차단(클론 후 1회 활성화: `git config core.hooksPath scripts/git-hooks`).
 
 ## 문서
 
