@@ -9,6 +9,17 @@ tags: [development, dev-log]
 
 ## 2026-08-18
 
+### 뷰어 가시 변경 → 테스트 뷰어 갱신 룰 (원칙 3 하위 규칙)
+
+**맥락**: 사용자 요청 — 뷰어 관련 가시 변경이 있을 때 사용자가 확인할 수 있게 테스트 뷰어를 수정하라는 룰 추가. 협의에서 2결정 확정: (1) 강도 — AGENTS.md 룰 + 비차단 리마인더 훅(기존 work-principles 훅 패턴), (2) 위치 — 독립 원칙 5가 아닌 문서 우선(원칙 3) 하위 규칙.
+
+**작업**: `AGENTS.md` 원칙 3에 하위 항목 추가(가시 변경 시 `dev/mock-api.js` 시나리오 + `src/data/*.md` 예시 문서 갱신, `cd apps/plan-viewer && bun run dev`(5180)로 확인, 확인 불가 가시 변경은 미완료). `.pi/extensions/viewer-test-viewer.ts` 신규 — 뷰어 코드(`src/`·`vite.config.js`) write/edit 후 테스트 뷰어 데모(`dev/`·`src/data/`) 미접촉 채 종료하면 `agent_settled`에서 비차단 경고(가시성 판단은 에이전트 몫). `development-guide.md` '뷰어 수정' 섹션에 절차 4단계 명시. 결정: [[ADR-031-viewer-test-viewer-rule]], Home·Changelog 링크/항목 갱신.
+
+**발견**: 테스트 뷰어 = `bun run dev`(5180) + `dev/mock-api.js`(실서버 큐·SSE 의미론 모방, `mock-api.test.js` 10건 검증). 지난 '낡은 dist 서빙' 사고([[graph-showcase-stale-dist]])와 같은 미확인 경로 차단이 목적.
+
+**검증**: `.pi` 타입체크 + `bun test` 통과(아래). 훅 패턴은 work-principles.ts와 동일 구조로 수동 대조.
+
+**배제**: 하드 게이트(가시성 오탐 위험), 전용 절차 스킬(가이드+훅이면 충분), 독립 원칙 5(원칙 3과 성격 동일).
 ### 테스트 뷰어 그래프 미출력 수정 — mock 에 데모 그래프 추가
 
 **맥락**: 사용자 보고 — 테스트 뷰어(`bun run dev`)에서 그래프가 안 보인다.

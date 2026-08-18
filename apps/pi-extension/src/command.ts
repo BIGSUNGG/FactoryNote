@@ -1,6 +1,9 @@
 // /factorynote 명령 핸들러 + plan 모드 세션 상태(토글·auto-advance·feedback 수준).
 // 세션 내 메모리 상태는 이 모듈이 소유 — index.ts(등록) 가 읽어 도구/훅에 반영.
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionCommandContext,
+} from "@earendil-works/pi-coding-agent";
 import {
 	DEFAULT_FEEDBACK_LEVEL,
 	FEEDBACK_LEVELS,
@@ -51,11 +54,62 @@ function feedbackLine(): string {
 	return `FactoryNote feedback 수준: ${feedbackLevel} (${spec.label})`;
 }
 
+const FEEDBACK_LEVEL_KEYS = Object.keys(FEEDBACK_LEVELS) as FeedbackLevel[];
+const FEEDBACK_OPTIONS: readonly string[] = [
+	...FEEDBACK_LEVEL_KEYS.map((l) => `${l} — ${FEEDBACK_LEVELS[l].label}`),
+	"취소 — 메뉴로 돌아가기",
+];
+
+// plan 모드 진입 설정 메뉴 항목. 추후 설계·stage 등 세부 설정은 SETUP_ 목록 한 줄로 확장.
+const SETUP_FEEDBACK_ITEM = "feedback — 검토 수준 설정";
+const SETUP_PLANNED_ITEMS: readonly string[] = [
+	"design — 설정 항목 (준비 중)",
+	"stage — 설정 항목 (준비 중)",
+];
+const SETUP_SEPARATOR = "──────────────────";
+const SETUP_CONFIRM_ITEM = "confirm — 현재 설정으로 plan 모드 ON";
+const SETUP_CANCEL_ITEM = "cancel — 변경 없이 끝내기";
+
+/**
+ * plan 모드 진입 설정 메뉴(인자 없는 /factorynote 첫 화면). 항목을 고르면
+ * 해당 설정 창을 열고 다시 메뉴로 복귀한다. confirm → ON, cancel/Esc → 미변경.
+ */
+async function runPlanSetupMenu(
+	ctx: ExtensionCommandContext,
+): Promise<boolean> {
+	const items: readonly string[] = [
+		SETUP_FEEDBACK_ITEM,
+		...SETUP_PLANNED_ITEMS,
+		SETUP_SEPARATOR,
+		SETUP_CONFIRM_ITEM,
+		SETUP_CANCEL_ITEM,
+	];
+	for (;;) {
+		const choice = await ctx.ui.select("FactoryNote plan 모드 설정", [
+			...items,
+		]);
+		if (!choice || choice === SETUP_CANCEL_ITEM) {
+			ctx.ui.notify("FactoryNote plan 모드 ON 취소 — 현재 상태 유지", "info");
+			return false;
+		}
+		if (choice === SETUP_CONFIRM_ITEM) return true;
+		if (choice === SETUP_FEEDBACK_ITEM) {
+			const level = await ctx.ui.select(
+				`feedback 수준 선택 (현재: ${feedbackLevel})`,
+				[...FEEDBACK_OPTIONS],
+			);
+			if (level && !level.startsWith("취소"))
+				feedbackLevel = level.split(" — ")[0] as FeedbackLevel;
+		}
+		// separator·준비 중 항목 — 무시하고 메뉴 유지
+	}
+}
+
 /** /factorynote 명령 등록(on|off · auto · feedback <level>). */
 export function registerFactoryNoteCommand(pi: ExtensionAPI): void {
 	pi.registerCommand("factorynote", {
 		description:
-			"FactoryNote plan 모드 토글 (on|off) · auto [on|off] = 게이트 자동 승인 · feedback <none|low|medium|high|ultra> = 검토 수준",
+			"FactoryNote plan 모드 (on|off) · auto [on|off] = 게이트 자동 승인 · feedback <none|low|medium|high|ultra> = 검토 수준. 인자 없으면 설정 메뉴(design·feedback·stage) 후 confirm 시 plan 모드 ON",
 		handler: async (args, ctx) => {
 			const parts = (args ?? "")
 				.trim()
@@ -88,10 +142,15 @@ export function registerFactoryNoteCommand(pi: ExtensionAPI): void {
 				return;
 			}
 			const a = parts.join(" ");
-			if (a === "on") planMode = true;
-			else if (a === "off") planMode = false;
-			else planMode = !planMode;
-			ctx.ui.notify(modeLine(), planMode ? "info" : "info");
+			if (a === "off") {
+				planMode = false;
+				ctx.ui.notify(modeLine(), "info");
+				return;
+			}
+			// bare 또는 `on`: 설정 메뉴 → feedback 등 세부 설정 → confirm 시 plan 모드 ON.
+			if (ctx.hasUI && !(await runPlanSetupMenu(ctx))) return;
+			planMode = true;
+			ctx.ui.notify(`${modeLine()} · ${feedbackLine()}`, "info");
 		},
 	});
 }
