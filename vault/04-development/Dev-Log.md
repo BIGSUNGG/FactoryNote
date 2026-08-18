@@ -9,6 +9,28 @@ tags: [development, dev-log]
 
 ## 2026-08-18
 
+### 드래그 미동작 수정 — HTML5 DnD → 포인터 이벤트 전환 (ADR-032)
+
+**맥락**: 사용자 보고 — “드래그 안 되는데?” 탭·그래프 헤더 드래그가 실제 브라우저에서 무반응. 합성 이벤트(happy-dom) 자체체크는 통과했으나 브라우저의 HTML5 드래그 세션 개시 자체에 의존하는 구조라 임베디드 웹뷰 환경에서 세션이 시작되지 않은 것으로 판단.
+
+**작업**: 드래그 메커니즘을 포인터 이벤트로 전면 전환. 신규 `lib/armDrag.js` — pointerdown + 4px 임계값 초과 시에만 드래그 개시(클릭·탭 선택·블록 코멘트 보존). `TabBar.jsx`·`Block.jsx` 의 draggable/onDragStart/onDragEnd 제거 → onPointerDown + armDrag. `SplitNode.jsx` 드롭 존은 표시·히트테스트용으로 유지(이벤트 핸들러 제거), 드롭 판정은 `PlanPage` 의 window 포인터 리스너가 `e.target.closest('[data-zone]')` 으로 수행. `.viewer-tab`·`.block-graph-head` 에 user-select:none. 렌더 자체체크를 포인터 플로우로 재작성 + 임계값 미만 클릭 보존 체크 추가(총 8건).
+
+**발견**: (1) happy-dom 합성 dragstart 이벤트는 React 핸들러만 검증할 뿐 브라우저의 드래그 세션 개시를 검증하지 못함 — “테스트 통과 ≠ 실제 브라우저 동작”의 대표 사례. (2) 조사 중 dev 서버 HMR 캐시가 편집 중간 상태(Block.jsx export removed)로 오염돼 빈 페이지가 되는 현상 — dev 서버 재시작으로 해결.
+
+**검증**: `bun test` 248건 통과 + `bun run build` exit 0. 실서빙 페이지(dev 5180)에서 포인터 플로우 전체 검증 — 헤더 드래그→오른쪽 드롭 = 2영역 분할, 탭 드래그→아래 드롭 = 3영역 분할 확인.
+
+**배제**: 드래그 고스트 이미지(존 하이라이트로 피드백 충분), 터치 전용 제스처(포인터 이벤트가 기본 커버).
+
+### 그래프 블록 헤더 드래그 → 탭 분리 (ADR-032 확장)
+
+**맥락**: 사용자 요청 — 그래프 블록처럼 더블클릭 시 탭이 생기는 오브젝트를 드래그해서 탭을 분리하게. 협의에서 2결정: (1) 드래그 시작점 = 블록 헤더만(tree 캔버스는 ReactFlow 팬과 충돌하므로 제외), (2) 드롭 효과 = 기존 탭 드래그와 동일한 5존 재사용(가장자리 = 분할 + 새 영역에 열기, 중앙 = 분할 없이 탭으로 열기).
+
+**작업**: `Block.jsx` 그래프 헤더에 draggable + onDragStart/onDragEnd 배선(BlockContent props 통과 포함). `Document.jsx` `onGraphDragStart`/`onGraphDragEnd` 통과. `PlanPage.jsx` drag 상태를 `{paneId,tabId} | {graphFile}` 공용으로 확장, `dropGraphBlock` 신규 — 이미 열린 그래프 탭 검색 후 가장자리 드롭 = `splitPane(move)` 로 이동, 중앙 드롭 = `moveTab` 또는 `openGraphTab`(그래프당 탭 1개 규칙 유지). `graph.css` 헤더 cursor: grab. 렌더 자체체크 3건(SplitTab.test.jsx: 헤더 드래그 드롭 존·가장자리 분할·중앙 열기·재드래그 이동).
+
+**검증**: `bun test` 247건 통과 + `bun run build` exit 0. 데모는 기존 plan.md 그래프 참조로 가능(시나리오 변경 불필요).
+
+**배제**: 캔버스 드래그 시작(ReactFlow 팬·SVG 스크롤·텍스트 선택 충돌), 더블클릭 동작 변경(무변경 유지).
+
 ### 문서 뷰어 탭 분할 — 브라우저식 무한 중첩 (ADR-032)
 
 **맥락**: 사용자 요청 — 탭을 분할해서 볼 수 있게, 대부분의 브라우저처럼(탭 드래그 분할 + 우클릭 팝업 분할 버튼). `/goal` 드래프팅에서 4결정 확정: (1) 무한 중첩 분할, (2) 영역별 탭 스트립, (3) 문서 탭 포함 전 탭 분할 가능, (4) 세션 내 상태만.

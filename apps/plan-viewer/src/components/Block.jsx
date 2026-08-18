@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import GraphView from "./GraphView";
 import SequenceView from "./SequenceView";
 import FlowchartView from "./FlowchartView";
+import { armDrag } from "../lib/armDrag";
 
 // 마크다운 블록 타입별 내용 렌더링. inline 포맷은 html로 변환 → dangerouslySetInnerHTML.
 function BlockContent({
@@ -13,6 +14,7 @@ function BlockContent({
 	onActivate,
 	graphData,
 	onOpenGraph,
+	onGraphDragStart,
 }) {
 	switch (block.type) {
 		case "heading": {
@@ -75,7 +77,15 @@ function BlockContent({
 				<div className="block-content block-graph">
 					<div
 						className="block-graph-head"
-						title="클릭하여 코멘트 · 더블클릭하여 상세 탭"
+						title="클릭하여 코멘트 · 더블클릭하여 상세 탭 · 드래그하여 분할"
+						onPointerDown={
+							onGraphDragStart
+								? (e) => {
+										if (e.button !== 0) return;
+										armDrag(e, () => onGraphDragStart(block.graphFile));
+									}
+								: undefined
+						}
 						onDoubleClick={(e) => {
 							e.stopPropagation();
 							onOpenGraph?.(block.graphFile);
@@ -268,6 +278,7 @@ export default function Block({
 	activeTargetId,
 	graphData,
 	onOpenGraph,
+	onGraphDragStart,
 }) {
 	const [draft, setDraft] = useState("");
 
@@ -310,6 +321,7 @@ export default function Block({
 				onActivate={onActivate}
 				graphData={graphData}
 				onOpenGraph={onOpenGraph}
+				onGraphDragStart={onGraphDragStart}
 			/>
 
 			{pending.length > 0 && (

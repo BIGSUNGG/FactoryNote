@@ -23,6 +23,7 @@ export default function Document({
 	headingIds = [], // 목차 추적 대상(h2/h3) 블록 id — PlanPage 가 toc 에서 전달
 	onActiveHeading, // scroll-spy: 현재 최상단 헤딩 id 를 상위로 보고
 	onOpenGraph, // 그래프 블록 더블클릭 → 상세 탭 열기(ADR-031)
+	onGraphDragStart, // 그래프 블록 헤더 드래그 시작 → 탭 분할(ADR-032)
 }) {
 	const skipRef = useRef(false); // 직전 mouseup 이 드래그였으면 뒤따르는 click 무시
 	const mainRef = useRef(null);
@@ -161,6 +162,7 @@ export default function Document({
 								activeTargetId={activeTargetId}
 								graphData={graphData}
 								onOpenGraph={onOpenGraph}
+								onGraphDragStart={onGraphDragStart}
 							/>
 						);
 					});

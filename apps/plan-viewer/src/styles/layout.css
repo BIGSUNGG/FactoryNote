@@ -147,6 +147,7 @@
 	border-radius: var(--radius);
 	cursor: pointer;
 	white-space: nowrap;
+	user-select: none; /* 포인터 드래그 분할 중 텍스트 선택 방지(ADR-032) */
 }
 .viewer-tab:hover {
 	background: rgba(17, 24, 39, 0.05);

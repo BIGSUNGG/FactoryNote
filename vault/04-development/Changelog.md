@@ -12,11 +12,15 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ### Fixed
 
+- **탭·그래프 블록 드래그가 실제 브라우저에서 안 되던 문제 — 드래그 메커니즘을 HTML5 DnD 에서 포인터 이벤트로 전환** — `draggable`+`dragstart` 기반 드래그 세션이 임베디드 웹뷰 환경에서 개시되지 않아 분할 드래그 전체가 무반응이던 결함 수정. 신규 `lib/armDrag.js`(포인터다운 + 4px 임계값 초과 시 드래그 개시 — 클릭은 그대로 동작)로 탭·그래프 헤더 드래그 통일, 드롭 판정은 PlanPage window 포인터 리스너가 `e.target.closest('[data-zone]')` 으로 수행. 임계값 미만 이동 = 드래그 미개시 자체체크 포함 렌더 자체체크 8건. 실서빙 페이지에서 포인터 플로우 전체 검증(헤더 드래그→분할, 탭 드래그→하단 분할). [[ADR-032-viewer-tab-splitting]]
+
 - **테스트 뷰어 그래프 미출력** — dev mock(`bun run dev`)이 그래프를 서빙하지 않아(데모 md 에 `<!-- graph: -->` 참조·mock artifact `graphs` 부재) 뷰어에 그래프 블록이 전혀 보이지 않던 문제 수정. 데모 그래프 JSON 3종 추가(sequence·flowchart·계층 tree + 자식 파일), `plan.md` 의 죽은 placeholder 이미지를 참조 3개로 교체, mock artifact 에 `graphs` 배열 연결(실서버 viewer-state 모양과 동일), mock-api 자체체크 +1건.
 
 ### Added
 
 - **문서 뷰어 탭 분할(브라우저식)** — 탭을 드래그해 대상 영역의 좌/우/상/하 드롭 존에 놓으면 분할·탭 이동, 중앙 드롭은 탭 병합, 탭 우클릭 메뉴(왼/오른/위/아래로 분할)는 탭 복제 분할. 무한 중첩 이진 트리 모델, 영역별 탭 스트립, divider 드래그 비율 조정, 마지막 탭 닫힌 영역 자동 제거, 문서 탭은 전체 마지막 1개만 닫기 불가. 세션 내 상태만(새로고침 시 단일 뷰 복귀). 신규 `lib/splitLayout.js`(순수 변환)·`components/SplitNode.jsx`(재귀 렌더) + 자체체크 11건(순수 7 + 렌더 4). 코어·게이트 무변경, 뷰어 전용. [[ADR-032-viewer-tab-splitting]]
+
+- **그래프 블록 헤더 드래그 → 탭 분리(ADR-032 확장)** — 그래프 블록(tree·sequence·flowchart)의 헤더(파일명 바)를 드래그하면 탭 드래그와 동일한 5방향 드롭 존이 표시되고, 가장자리 드롭 = 해당 방향으로 분할하며 그래프 탭을 새 영역에 열기, 중앙 드롭 = 분할 없이 대상 영역에 탭으로 열기. 이미 열린 그래프 탭은 복제 없이 이동(그래프당 탭 1개 유지). 드래그는 헤더로만 시작 — 캔버스(tree = ReactFlow 팬, SVG 뷰 = 스크롤)·더블클릭·노드 드릴다운 무변경. 렌더 자체체크 3건 추가. 코어·게이트 무변경, 뷰어 전용. [[ADR-032-viewer-tab-splitting]]
 
 - **뷰어 가시 변경 → 테스트 뷰어 갱신 룰 (문서 우선 원칙 3 하위 규칙)** — 뷰어에서 사용자가 보는 것(렌더링·UI·레이아웃·예시 문서)에 변경이 생기면 같은 세션에서 테스트 뷰어 데모(`apps/plan-viewer/dev/mock-api.js` 시나리오 · `src/data/*.md` 예시 문서)를 갱신해 `cd apps/plan-viewer && bun run dev`(5180포트)로 바로 확인 가능하게 한다. `AGENTS.md` 원칙 3에 하위 항목 추가, `.pi/extensions/viewer-test-viewer.ts` 비차단 리마인더 훅 신규(뷰어 코드 변경·테스트 뷰어 미갱신 실행 종료 시 경고, 기존 work-principles 훅과 같은 패턴), `development-guide.md` '뷰어 수정' 섹션에 절차·검증 명령 명시. [[ADR-031-viewer-test-viewer-rule]]
 

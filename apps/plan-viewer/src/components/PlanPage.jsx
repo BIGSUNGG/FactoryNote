@@ -146,7 +146,7 @@ export default function PlanPage({
 		createRootLayout([DOC_TAB], DOC_TAB.id),
 	);
 	const [focusPane, setFocusPane] = useState(null);
-	const [drag, setDrag] = useState(null); // { paneId, tabId } — 탭 드래그 중
+	const [drag, setDrag] = useState(null); // { paneId, tabId } | { graphFile } — 탭·그래프 블록 드래그 중
 	const [hoverZone, setHoverZone] = useState(null); // { paneId, zone }
 	const [menu, setMenu] = useState(null); // { x, y, paneId, tabId } — 탭 우클릭 분할 메뉴
 	const focusedId =
@@ -173,24 +173,81 @@ export default function PlanPage({
 		setFocusPane(paneId);
 		setDrag({ paneId, tabId });
 	};
+	// 그래프 블록 헤더 드래그(ADR-032) — 드롭 시 해당 그래프 탭 분리.
+	const startGraphDrag = (graphFile) => setDrag({ graphFile });
 	const endDrag = () => {
 		setDrag(null);
 		setHoverZone(null);
 	};
-	// 드롭 — 가장자리 존 = 해당 방향 분할(탭 이동), 중앙 = 대상 영역으로 탭 이동.
+	// 드롭 — 가장자리 존 = 해당 방향 분할, 중앙 = 대상 영역에 탭.
 	const dropZone = (paneId, zone) => {
 		if (!drag) return;
-		const { paneId: from, tabId } = drag;
-		setLayout((l) => {
-			const tab = findLeaf(l, from)?.tabs.find((t) => t.id === tabId);
-			if (!tab) return l;
-			return zone === "center"
-				? moveTab(l, tabId, from, paneId)
-				: splitPane(l, paneId, zone, [tab], { move: true });
-		});
+		if (drag.graphFile) {
+			dropGraphBlock(paneId, zone, drag.graphFile);
+		} else {
+			const { paneId: from, tabId } = drag;
+			setLayout((l) => {
+				const tab = findLeaf(l, from)?.tabs.find((t) => t.id === tabId);
+				if (!tab) return l;
+				return zone === "center"
+					? moveTab(l, tabId, from, paneId)
+					: splitPane(l, paneId, zone, [tab], { move: true });
+			});
+		}
 		setFocusPane(paneId);
 		endDrag();
 	};
+	// 그래프 블록 드롭 — 이미 열린 탭이면 복제 없이 이동(그래프당 탭 1개).
+	const dropGraphBlock = (paneId, zone, graphFile) => {
+		const id = graphTabId(graphFile);
+		setLayout((l) => {
+			const from = allLeaves(l).find((leaf) =>
+				leaf.tabs.some((t) => t.id === id),
+			);
+			if (zone === "center") {
+				if (from) {
+					return from.id === paneId
+						? setActive(l, paneId, id)
+						: moveTab(l, id, from.id, paneId);
+				}
+				return replacePane(l, paneId, (leaf) => ({
+					...leaf,
+					tabs: openGraphTab(leaf.tabs, graphFile),
+					activeId: id,
+				}));
+			}
+			const tab = from?.tabs.find((t) => t.id === id) ?? {
+				id,
+				label: graphFile,
+				graphFile,
+			};
+			return splitPane(l, paneId, zone, [tab], { move: !!from });
+		});
+	};
+	// 드래그 세션(포인터 기반, ADR-032): 이동 중 존 하이라이트, 놓으면 드롭.
+	// HTML5 DnD 대신 포인터 이벤트 — 웹뷰에서 드래그 세션 미개시 문제 회피.
+	useEffect(() => {
+		if (!drag) return;
+		const zoneOf = (e) => {
+			const zone = e.target.closest?.("[data-zone]");
+			const pane = e.target.closest?.("[data-pane-id]");
+			return zone && pane
+				? { paneId: pane.dataset.paneId, zone: zone.dataset.zone }
+				: null;
+		};
+		const move = (e) => setHoverZone(zoneOf(e));
+		const up = (e) => {
+			const z = zoneOf(e);
+			if (z) dropZone(z.paneId, z.zone);
+			else endDrag();
+		};
+		window.addEventListener("pointermove", move);
+		window.addEventListener("pointerup", up);
+		return () => {
+			window.removeEventListener("pointermove", move);
+			window.removeEventListener("pointerup", up);
+		};
+	}, [drag]); // eslint-disable-line react-hooks/exhaustive-deps
 	// 우클릭 메뉴 — 탭 복제 분할(원본 유지). 바깥 클릭·Esc 로 닫힘.
 	const openMenu = (e, paneId, tabId) => {
 		e.preventDefault();
@@ -364,6 +421,7 @@ export default function PlanPage({
 									headingIds={toc.map((t) => t.id)}
 									onActiveHeading={!readOnly ? setActiveHeading : undefined}
 									onOpenGraph={openGraph}
+									onGraphDragStart={startGraphDrag}
 								/>
 							) : (
 								<GraphDetail
@@ -375,12 +433,9 @@ export default function PlanPage({
 						focusedPaneId={focusedId}
 						drag={drag}
 						hoverZone={hoverZone}
-						setHoverZone={setHoverZone}
-						onDropZone={dropZone}
 						onTabSelect={selectTab}
 						onTabClose={closeTabAt}
 						onTabDragStart={startDrag}
-						onTabDragEnd={endDrag}
 						onTabContextMenu={openMenu}
 						onRatioChange={(splitId, ratio) =>
 							setLayout((l) => setRatio(l, splitId, ratio))

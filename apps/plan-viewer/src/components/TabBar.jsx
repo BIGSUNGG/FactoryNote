@@ -1,6 +1,8 @@
 // 문서 뷰어 탭 바(ADR-031 · ADR-032): 영역 상단의 브라우저 스타일 탭.
 // 고정 탭(pinned: md 문서)은 닫기 버튼이 렌더되지 않는다.
-// 분할(ADR-032): onTabDragStart 가 있으면 탭 드래그 가능, onContextMenu 로 우클릭 메뉴.
+// 분할(ADR-032): 포인터 임계값 드래그(armDrag) + onContextMenu 우클릭 메뉴.
+import { armDrag } from "../lib/armDrag";
+
 export default function TabBar({
 	tabs,
 	activeId,
@@ -8,7 +10,6 @@ export default function TabBar({
 	onClose,
 	onContextMenu,
 	onTabDragStart,
-	onTabDragEnd,
 	draggingId,
 }) {
 	return (
@@ -22,12 +23,15 @@ export default function TabBar({
 						t.pinned ? " pinned" : ""
 					}${t.id === draggingId ? " dragging" : ""}`}
 					title={t.label}
-					draggable={!!onTabDragStart}
-					onDragStart={(e) => {
-						e.dataTransfer?.setData("text/plain", t.id); // FF 드래그 개시 필수
-						onTabDragStart?.(t.id);
-					}}
-					onDragEnd={() => onTabDragEnd?.()}
+					onPointerDown={
+						onTabDragStart
+							? (e) => {
+									if (e.target.closest(".viewer-tab-close")) return;
+									if (e.button !== 0) return;
+									armDrag(e, () => onTabDragStart(t.id));
+								}
+							: undefined
+					}
 					onClick={() => onSelect(t.id)}
 					onContextMenu={
 						onContextMenu ? (e) => onContextMenu(e, t.id) : undefined

@@ -1,6 +1,7 @@
 // 탭 분할 레이아웃 렌더(ADR-032) — 분할 트리를 재귀 렌더하는 브라우저식 영역 뷰.
 // leaf = TabBar + 탭 콘텐츠(hidden 토글) + 드래그 중 드롭 존 오버레이.
 // split = 두 자식 + 드래그 리사이즈 divider. 상태는 PlanPage 가 소유.
+// 드롭 판정(존 하이라이트·드롭)은 PlanPage 의 window 포인터 리스너가 담당(e.target 기반).
 import TabBar from "./TabBar";
 
 const ZONES = ["left", "right", "up", "down", "center"];
@@ -9,14 +10,11 @@ export default function SplitNode({
 	node,
 	renderTab,
 	focusedPaneId,
-	drag, // { paneId, tabId } | null — 드래그 중이면 드롭 존 표시
-	hoverZone, // { paneId, zone } | null
-	setHoverZone,
-	onDropZone, // (paneId, zone) — zone: left|right|up|down|center
+	drag, // { paneId, tabId } | { graphFile } | null — 드래그 중이면 드롭 존 표시
+	hoverZone, // { paneId, zone } | null — 표시 전용(판정은 PlanPage)
 	onTabSelect, // (paneId, tabId)
 	onTabClose, // (paneId, tabId)
 	onTabDragStart, // (paneId, tabId)
-	onTabDragEnd,
 	onTabContextMenu, // (event, paneId, tabId)
 	onRatioChange, // (splitId, ratio)
 }) {
@@ -42,7 +40,6 @@ export default function SplitNode({
 							? (tabId) => onTabDragStart(node.id, tabId)
 							: undefined
 					}
-					onTabDragEnd={onTabDragEnd}
 				/>
 				<div className="split-leaf-body">
 					{node.tabs.map((t) => (
@@ -54,7 +51,8 @@ export default function SplitNode({
 							{renderTab(t)}
 						</div>
 					))}
-					{/* 드래그 중 드롭 존 — 중앙=이동, 가장자리=해당 방향 분할 */}
+					{/* 드래그 중 드롭 존 — 중앙=이동, 가장자리=해당 방향 분할.
+					    하이라이트·드롭 판정은 PlanPage window 포인터 리스너(e.target). */}
 					{drag && (
 						<div className="split-zones" aria-hidden="true">
 							{ZONES.map((zone) => (
@@ -66,14 +64,6 @@ export default function SplitNode({
 											? " hover"
 											: ""
 									}`}
-									onDragOver={(e) => {
-										e.preventDefault();
-										setHoverZone({ paneId: node.id, zone });
-									}}
-									onDrop={(e) => {
-										e.preventDefault();
-										onDropZone(node.id, zone);
-									}}
 								/>
 							))}
 						</div>
@@ -112,12 +102,9 @@ export default function SplitNode({
 				focusedPaneId={focusedPaneId}
 				drag={drag}
 				hoverZone={hoverZone}
-				setHoverZone={setHoverZone}
-				onDropZone={onDropZone}
 				onTabSelect={onTabSelect}
 				onTabClose={onTabClose}
 				onTabDragStart={onTabDragStart}
-				onTabDragEnd={onTabDragEnd}
 				onTabContextMenu={onTabContextMenu}
 				onRatioChange={onRatioChange}
 			/>
