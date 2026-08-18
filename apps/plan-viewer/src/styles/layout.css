@@ -334,3 +334,119 @@
 }
 
 /* === 블록 코멘트 시스템 — 본문의 모든 블록이 hover-to-comment 대상 === */
+/* 탭 분할 레이아웃(ADR-032) — 분할 트리 재귀 렌더·드롭 존·divider. */
+.split-node {
+	display: flex;
+	flex: 1;
+	min-height: 0;
+	min-width: 0;
+}
+.split-h {
+	flex-direction: row;
+}
+.split-v {
+	flex-direction: column;
+}
+.split-child {
+	display: flex;
+	min-height: 0;
+	min-width: 0;
+}
+.split-child > * {
+	flex: 1;
+	min-height: 0;
+	min-width: 0;
+}
+.split-leaf {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-height: 0;
+	min-width: 0;
+}
+.split-leaf-body {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-height: 0;
+}
+/* 분할 경계 divider — 드래그로 비율 조정. */
+.split-divider {
+	flex: none;
+	background: var(--border);
+}
+.split-h > .split-divider {
+	width: 4px;
+	cursor: col-resize;
+}
+.split-v > .split-divider {
+	height: 4px;
+	cursor: row-resize;
+}
+.split-divider:hover {
+	background: var(--primary);
+}
+/* 드래그 중 드롭 존 — 좌/우/상/하(분할) + 중앙(탭 이동). */
+.split-zones {
+	position: absolute;
+	inset: 0;
+	z-index: 5;
+	display: grid;
+	grid-template-columns: 1fr 2fr 1fr;
+	grid-template-rows: 1fr 2fr 1fr;
+	grid-template-areas:
+		"left up right"
+		"left center right"
+		"left down right";
+	background: rgba(255, 255, 255, 0.45);
+}
+.split-zone-left {
+	grid-area: left;
+}
+.split-zone-right {
+	grid-area: right;
+}
+.split-zone-up {
+	grid-area: up;
+}
+.split-zone-down {
+	grid-area: down;
+}
+.split-zone-center {
+	grid-area: center;
+}
+.split-zone.hover {
+	background: var(--primary-tint);
+	outline: 2px dashed var(--primary);
+	outline-offset: -2px;
+}
+/* 탭 우클릭 분할 메뉴. */
+.split-menu {
+	position: fixed;
+	z-index: 100;
+	display: flex;
+	flex-direction: column;
+	padding: 4px;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	box-shadow: 0 4px 16px rgba(17, 24, 39, 0.12);
+}
+.split-menu button {
+	text-align: left;
+	padding: 6px 12px;
+	border: none;
+	background: none;
+	font-size: 13px;
+	color: var(--text);
+	border-radius: var(--radius-sm);
+	cursor: pointer;
+	white-space: nowrap;
+}
+.split-menu button:hover {
+	background: var(--primary-tint);
+}
+.viewer-tab.dragging {
+	opacity: 0.5;
+}

@@ -61,7 +61,7 @@ Pi 와 코어를 잇는 유일한 계층. pi가 jiti로 TS 를 직접 로드한�
 빌드 산출물 `dist/` 가 게이트 서버를 통해 서빙된다.
 
 - **`App.jsx`** — **SSE push 수신 상태머신**(loading/reviewing/preparing/closed, [[ADR-022-viewer-sse-push]]). 단일 `EventSource` 로 `state`·`chat` 이벤트 수신 — 폴링 없음. 확정·검토 요청 중에도 기존 페이지 유지 + 게이트 바 로딩 연출, 게이트 재오픈 시 같은 탭에서 다음 단계로 교체(알림). 헤더 스텝퍼로 **이전 단계 읽기 전용 보기** 전환 가능([[ADR-023-viewer-transition-ux]]).
-- **`PlanPage.jsx`** — 마크다운 단계(1/2/3 공통). 마크다운 → 블록(`mdToBlocks`) 렌더 + 블록/셀/드래그 영역 코멘트 + pending 큐([[core-features]] 사양). 게이트 버튼 → `onGate({verdict, comments})`. 그래프는 md 의 `<!-- graph: <파일명> -->` 참조 블록으로 렌더(아래 `GraphView`).
+- **`PlanPage.jsx`** — 마크다운 단계(1/2/3 공통). 마크다운 → 블록(`mdToBlocks`) 렌더 + 블록/셀/드래그 영역 코멘트 + pending 큐([[core-features]] 사양). 게이트 버튼 → `onGate({verdict, comments})`. 그래프는 md 의 `<!-- graph: <파일명> -->` 참조 블록으로 렌더(아래 `GraphView`). 문서 뷰어 탭(`TabBar.jsx` + `lib/viewerTabs.js`, [[ADR-031-viewer-graph-detail-tabs]])과 브라우저식 탭 분할(`SplitNode.jsx` + `lib/splitLayout.js` — 드래그 드롭 존·우클릭 복제 분할·무한 중첩 이진 트리, [[ADR-032-viewer-tab-splitting]]) 포함.
 - **`GraphView.jsx`** — 읽기 전용 계층 드릴다운 그래프(react-flow). `/api/state` 의 `artifacts[].graphs[]`(산출물당 다중·에이전트 자유 네이밍, [[ADR-020-multi-named-graphs]]) 참조 위치에 인라인 렌더 — 종류는 envelope `type` 으로 분기: 계층 트리(드릴다운, [[ADR-018-hierarchical-graph-tree]]) · sequence · flowchart([[ADR-021-sequence-flowchart-graphs]]). 배치는 뷰어 자동 배치(좌표 필드 금지) — 드래그·연결·편집 없음, 수정은 채팅으로.
 - **`GateBar.jsx`** — 하단 게이트 바: **✓ 확정**(confirm) / **✎ 수정 지시**(modify, pending 코멘트 전송) / **← 정정**(revert).
 

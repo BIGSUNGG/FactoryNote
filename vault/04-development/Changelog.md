@@ -16,7 +16,10 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ### Added
 
+- **문서 뷰어 탭 분할(브라우저식)** — 탭을 드래그해 대상 영역의 좌/우/상/하 드롭 존에 놓으면 분할·탭 이동, 중앙 드롭은 탭 병합, 탭 우클릭 메뉴(왼/오른/위/아래로 분할)는 탭 복제 분할. 무한 중첩 이진 트리 모델, 영역별 탭 스트립, divider 드래그 비율 조정, 마지막 탭 닫힌 영역 자동 제거, 문서 탭은 전체 마지막 1개만 닫기 불가. 세션 내 상태만(새로고침 시 단일 뷰 복귀). 신규 `lib/splitLayout.js`(순수 변환)·`components/SplitNode.jsx`(재귀 렌더) + 자체체크 11건(순수 7 + 렌더 4). 코어·게이트 무변경, 뷰어 전용. [[ADR-032-viewer-tab-splitting]]
+
 - **뷰어 가시 변경 → 테스트 뷰어 갱신 룰 (문서 우선 원칙 3 하위 규칙)** — 뷰어에서 사용자가 보는 것(렌더링·UI·레이아웃·예시 문서)에 변경이 생기면 같은 세션에서 테스트 뷰어 데모(`apps/plan-viewer/dev/mock-api.js` 시나리오 · `src/data/*.md` 예시 문서)를 갱신해 `cd apps/plan-viewer && bun run dev`(5180포트)로 바로 확인 가능하게 한다. `AGENTS.md` 원칙 3에 하위 항목 추가, `.pi/extensions/viewer-test-viewer.ts` 비차단 리마인더 훅 신규(뷰어 코드 변경·테스트 뷰어 미갱신 실행 종료 시 경고, 기존 work-principles 훅과 같은 패턴), `development-guide.md` '뷰어 수정' 섹션에 절차·검증 명령 명시. [[ADR-031-viewer-test-viewer-rule]]
+
 - **문서 뷰어 탭 바 + 그래프 상세 탭** — 문서 섹션 상단에 브라우저 스타일 탭: (1) md 문서 탭은 닫기 불가 고정 탭, (2) 그래프 블록(tree·sequence·flowchart 3종) 헤더/캔버스 빈 영역 더블클릭 → 같은 뷰를 크게 렌더하는 상세 탭 열기(노드 더블클릭 드릴다운은 그대로 유지), 재더블클릭 = 기존 탭 포커스(그래프 파일당 탭 1개), (3) 그래프 탭 X 버튼 닫기 + 이웃 탭 포커스 이동, (4) 스테이지 전환에도 탭 유지(세션 내 상태). 탭 전환은 hidden 토글로 문서 스크롤·코멘트 상태 보존. 신규 `TabBar.jsx`·`lib/viewerTabs.js`(순수 탭 로직) + 자체체크 6건. 코어·게이트 무변경, 뷰어 전용. [[ADR-031-viewer-graph-detail-tabs]]
 
 - **테스트 게이트(에이전트 훅 + pre-commit)** — `bun test` 통과 전에는 작업도 커밋도 끝나지 않음. `.pi/extensions/test-gate.ts`: `agent_settled`에 테스트 실행, 실패 시 실패 출력과 수정 지시를 주입해 에이전트 재실행(최대 3회, 초과 시 사용자 에스컬레이션). `scripts/git-hooks/pre-commit`(POSIX sh, `core.hooksPath` 활성화): 동일 논리로 커밋 차단 — 수동 커밋·다른 도구에도 적용. `.gitattributes` 훅 LF 고정. 자체 검증: 훅 통과/실패 경로 수동 실행 확인, `tsc -p .pi` 0 종료. [[ADR-029-test-gate]]
