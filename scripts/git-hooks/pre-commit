@@ -1,10 +1,10 @@
 #!/bin/sh
-# test-gate (pre-commit) — bun test 통과 전 커밋 차단 (ADR-029).
-# 활성화: git config core.hooksPath scripts/git-hooks
-echo "[pre-commit] bun test 실행..."
+# test-gate (pre-commit) — block commits unless bun test passes (ADR-029).
+# Enable: git config core.hooksPath scripts/git-hooks
+echo "[pre-commit] running bun test..."
 bun test
 status=$?
 if [ "$status" -ne 0 ]; then
-  echo "[pre-commit] 테스트 실패 — 커밋을 차단합니다." >&2
+  echo "[pre-commit] tests failed — commit blocked." >&2
   exit 1
 fi

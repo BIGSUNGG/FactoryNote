@@ -1,13 +1,14 @@
 /**
- * work-principles — 4대 작업 원칙 리마인더 훅 (ADR-028).
+ * work-principles — reminder hook for the 4 working principles (ADR-028).
  *
- * 문서주의(원칙 3)만 기계적으로 판정 가능하여 훅으로 리마인드한다:
- * 쓰기류 도구로 코드 파일을 변경했는데 문서 파일 변경이 없는 실행이
- * 종료되면(agent_settled) 문서 갱신 확인 알림을 띄운다. 차단 없음.
+ * Only the docs-first principle (principle 3) is mechanically decidable,
+ * so only it gets a hook: when a run changed code files via write-type
+ * tools but never touched doc files, notify at agent_settled to check
+ * doc updates. Never blocks.
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-/** 문서 파일 판정 기준 — 오탐 시 여기만 수정 (ADR-028 결과 조항). */
+/** Doc-file detection patterns — adjust only here on false positives (ADR-028). */
 const DOC_PATTERNS: RegExp[] = [
 	/(^|[\\/])vault[\\/]/i,
 	/AGENTS\.md$/i,
@@ -15,7 +16,7 @@ const DOC_PATTERNS: RegExp[] = [
 	/(^|[\\/])\.pi[\\/]skills[\\/]/i,
 ];
 
-/** 파일 경로를 받는 쓰기류 도구. bash는 변경 대상이 불명확해 제외. */
+/** Write-type tools that carry a file path. bash is excluded (target unclear). */
 const WRITE_TOOLS = new Set(["write", "edit"]);
 
 function isDocPath(path: string | undefined): boolean {
@@ -42,7 +43,7 @@ export default function (pi: ExtensionAPI) {
 	pi.on("agent_settled", (_event, ctx) => {
 		if (codeTouched && !docsTouched) {
 			ctx.ui.notify(
-				"문서주의 점검: 코드가 변경되었는데 문서 변경이 감지되지 않았습니다. Changelog·Dev-Log·관련 문서를 확인하세요 (doc-workflow 스킬).",
+				"Docs-first check: code changed but no doc changes detected. Review Changelog · Dev-Log · related docs (doc-workflow skill).",
 				"warning",
 			);
 		}

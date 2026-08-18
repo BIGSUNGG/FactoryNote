@@ -35,6 +35,12 @@ tags: [development, dev-log]
 
 **남은 것**: 실제 세션에서 게이트 루프 관찰(`/reload` 또는 새 세션 — 확장은 세션 시작 시 로드). 중단(abort) 직후 게이트 동작은 알려진 한계로 허용.
 
+### AI 판독 산출물 영어 전환
+
+**맥락**: 사용자 요청 — 스킬·AGENTS.md·훅 등 AI가 읽는 산출물을 영어로 전환.
+
+**작업**: `AGENTS.md`, 스킬 5종, 확장 2종(`work-principles.ts`·`test-gate.ts`) 주석·메시지, pre-commit 메시지 영어 재작성. 경로·구조·동작 불변, 언어만 전환. doc-workflow 컨벤션에 ‘vault 본문 한국어 / AI 판독 산출물 영어’ 규칙 명문화. `tsc -p .pi` 0, 훅 exit 0 재확인.
+
 ## 2026-08-16
 
 ### 게이트 중 수정 블록 하이라이트 (.prev 스냅샷 + 블록 LCS diff)

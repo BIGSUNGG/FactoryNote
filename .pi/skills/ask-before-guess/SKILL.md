@@ -1,34 +1,34 @@
 ---
 name: ask-before-guess
-description: "원칙 1(추론 자제) 절차 스킬. 추가로 정하거나 알아야 할 사항이 생겼을 때, 사용자 요청에 모호함이 있을 때, 되돌리기 힘든 선택을 앞두고 있을 때 로드. 질문 임계값(주요 결정 기준), 질문 형식, 진행 후 보고 기준을 절차화한다."
+description: "Procedure skill for principle 1 (Ask, don't guess). Load when an extra decision or unknown comes up, when the user request is ambiguous, or before a hard-to-reverse choice. Defines the question threshold (major decisions), question format, and proceed-then-report rules."
 ---
 
-# 추론 자제 — 질문 절차
+# Ask, Don't Guess — Question Procedure
 
-AGENTS.md 원칙 1의 실행 절차. 스스로 추론해 정하는 대신 사용자에게 질문한다.
+Execution procedure for principle 1 in AGENTS.md. Ask the user instead of filling gaps by inference.
 
-## 질문 임계값
+## Question Threshold
 
-아래 셋 중 하나에 해당하면 반드시 `ask_user_question`으로 묻고 진행한다.
+If any of the following applies, always ask via `ask_user_question` before proceeding:
 
-- 아키텍처·구조·파일 배치·의존성 선택
-- 사용자가 직접 보게 될 동작·UI·출력 형식
-- 되돌리기 힘든 선택(삭제·마이그레이션·외부 공개)
+- Architecture · structure · file layout · dependency choices
+- Behavior · UI · output format the user will see directly
+- Hard-to-reverse choices (deletion · migration · public exposure)
 
-## 진행해도 되는 것
+## Safe to Proceed
 
-위 밖의 사소한 구현 세부사항(변수명, 내부 순서, 동등한 옵션 중 하나). 단, 진행 후 보고에서 "무엇을 어떻게 정했는지" 한 줄로 명시.
+Trivial implementation details outside the threshold above (variable names, internal ordering, one of equivalent options). But state in one line what you decided and how, in the completion report.
 
-## 질문 형식
+## Question Format
 
-- 질문은 한 번에 묶어서(최대 4개).
-- 각 질문에 권장 옵션을 첫 번째로 두고 이유를 설명에 적는다.
-- 사실 보고와 질문을 분리 — 무엇을 발견했고, 그래서 무엇이 결정 필요한지.
+- Batch questions in one call (max 4).
+- Put the recommended option first and explain why in its description.
+- Separate facts from questions — what was found, and what decision is therefore needed.
 
-## 금기
+## Forbidden
 
-모호함을 눈치껏 해석한 뒤 돌이킬 수 있게 만들어 놓고 보고하지 않는 것. 모호함 발견 시점에 멈추고 묻는다.
+Silently interpreting ambiguity, making it irreversible, and never reporting. Stop and ask at the moment ambiguity is discovered.
 
-## 안티패턴
+## Anti-pattern
 
-과적용: 사소한 것까지 물어 작업을 멈추게 함 — 임계값을 준수한다. 질문이 임계값 밖이면 진행하고 보고한다.
+Over-application: asking about trivia and stalling the work — obey the threshold. If a question falls outside the threshold, proceed and report.

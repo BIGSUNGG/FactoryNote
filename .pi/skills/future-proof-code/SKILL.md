@@ -1,27 +1,27 @@
 ---
 name: future-proof-code
-description: "원칙 2(미래지향) 절차 스킬. 새 코드를 구현·리팩터링할 때, 추상화·모듈 경계·확장점을 결정할 때 로드. 객체지향 모듈화 기준과 '필요 범위 내' 절제 기준을 절차화한다."
+description: "Procedure skill for principle 2 (Build for the future). Load when implementing or refactoring code, or when deciding abstractions, module boundaries, or extension points. Defines OO modularization criteria and the 'needed scope only' restraint rule."
 ---
 
-# 미래지향 — 모듈화 기준
+# Build for the Future — Modularization Criteria
 
-AGENTS.md 원칙 2의 실행 절차. 확장성·유지보수성을 위한 객체지향 모듈화 기준.
+Execution procedure for principle 2 in AGENTS.md. Object-oriented modularization for extensibility and maintainability.
 
-## 기준
+## Criteria
 
-- 책임이 둘 이상이면 분리한다(판정/IO/표시). 분리한 단위는 이름으로 의도가 드러나게.
-- 같은 로직이 두 곳에서 쓰이면 한 곳으로. 한 곳이면 추상화하지 않는다("필요 범위 내").
-- 확장점은 **이미 두 번째 요구가 왔을 때** 만든다. 첫 요구에는 단순 구현 + 변경 집중 지점 주석 한 줄.
-- 객체/모듈 경계는 데이터 흐름 방향으로 — 호출자가 내부 표현을 몰라도 되게.
+- If a unit has more than one responsibility, split it (decision / IO / display). Each unit's name must reveal its intent.
+- Logic used in two places → one place. Used in one place → do not abstract ("needed scope only").
+- Create extension points **only when the second requirement arrives**. For the first requirement: simple implementation + one comment marking the change hotspot.
+- Object/module boundaries follow data-flow direction — callers must not need to know internal representation.
 
-## 점검 질문
+## Check Questions
 
-구현 후 자문:
+After implementing, ask yourself:
 
-1. 다음 사람이 이 모듈의 책임을 한 문장으로 말할 수 있는가?
-2. 요구가 하나 추가될 때 수정이 한 모듈에 집중되는가?
-3. 투기적 미래("나중에 필요할 것")를 위한 코드가 있는가? 있으면 삭제.
+1. Can the next person state this module's responsibility in one sentence?
+2. If one requirement is added, do the edits concentrate in one module?
+3. Is there any code for a speculative future ("might need later")? Delete it.
 
-## 안티패턴
+## Anti-pattern
 
-과적용: "나중에 필요할 것"으로 추상층 쌓기 — 두 번째 요구 전까지 금지. 미래지향은 예측이 아니라 **변경 집중 지점 정리**다.
+Over-application: stacking abstraction layers for "might need later" — forbidden until a second requirement exists. Future-proofing means **organizing change hotspots**, not prediction.

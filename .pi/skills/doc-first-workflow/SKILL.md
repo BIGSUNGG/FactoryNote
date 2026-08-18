@@ -1,30 +1,30 @@
 ---
 name: doc-first-workflow
-description: "원칙 3(문서주의) 절차 스킬. 작업을 시작하기 전 관련 문서를 참고할 때, 구현 중·완료 시 문서 갱신을 점검할 때, 문서주의 리마인더 훅 알림을 받았을 때 로드. 문서 선행 점검과 doc-workflow 스킬 연동, 훅 알림 대응을 절차화한다."
+description: "Procedure skill for principle 3 (Docs first). Load before starting work to consult related docs, during/after implementation to check doc updates, or when the docs-first reminder hook notification appears. Defines the docs-first checklist, doc-workflow skill coordination, and hook notification response."
 ---
 
-# 문서주의 — 선행·동반 점검
+# Docs First — Before & Along Checks
 
-AGENTS.md 원칙 3의 실행 절차. 요청한 것은 기획 문서로, 구현한 것은 구현 문서로.
+Execution procedure for principle 3 in AGENTS.md. Requests become planning docs; implementations become implementation records.
 
-## 작업 시작 전
+## Before Starting Work
 
-1. `vault/Home.md`에서 관련 문서 확인(ADR·설계·문제 기록).
-2. 과거 결정(ADR)이 이번 작업과 충돌하면 그대로 진행하지 말고 사용자에게 보고.
-3. doc-workflow 스킬의 트리거 표를 점검.
+1. Find related docs via `vault/Home.md` (ADRs · designs · problem records).
+2. If past decisions (ADRs) conflict with this work, do not proceed silently — report to the user.
+3. Review the trigger table in the doc-workflow skill.
 
-## 작업 중 / 완료 시
+## During / After Work
 
-doc-workflow 절차대로 ADR·Changelog·Dev-Log·Home 링크를 같은 세션에서 갱신한다.
+Update ADR · Changelog · Dev-Log · Home links in the same session, per the doc-workflow procedure.
 
-## 리마인더 훅 알림 대응
+## Responding to the Reminder Hook
 
-`.pi/extensions/work-principles.ts`가 코드 변경·문서 미변경 실행 종료 시 알림을 띄운다. 알림을 받으면:
+`.pi/extensions/work-principles.ts` notifies when a run changed code but no docs. On notification:
 
-1. 실제로 문서 갱신이 필요한 변경이었는지 확인(주석 한 줄 수정 등 불필요 사례면 무시).
-2. 필요하면 누락 문서(Changelog·Dev-Log·관련 ADR·Home 링크)를 즉시 보충.
-3. 판정 기준(문서 경로 분류)이 어긋난 오탐이면 확장의 `DOC_PATTERNS` 조정.
+1. Check whether the change actually required doc updates (ignore for trivial cases like a one-line comment fix).
+2. If needed, immediately fill the missing docs (Changelog · Dev-Log · related ADR · Home link).
+3. If the doc-path classification was wrong (false positive), adjust `DOC_PATTERNS` in the extension.
 
-## 안티패턴
+## Anti-pattern
 
-형식화: 문서 제목만 만들고 내용은 안 채우기 — 기록이 없으면 안 쓴 것과 같다.
+Formalism: creating doc titles without filling the content — an empty record is the same as none.

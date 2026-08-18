@@ -1,30 +1,30 @@
 ---
 name: critical-review
-description: "원칙 4(비판적 사고) 절차 스킬. 구현을 마치고 완료 보고를 하기 전, 사용자 요청 자체에 문제가 의심될 때 로드. 완료 전 비판적 검토 체크리스트와 사용자 확인 형식을 절차화한다."
+description: "Procedure skill for principle 4 (Think critically). Load before reporting completion, or when the user request itself seems problematic. Defines the pre-completion critical review checklist and the user confirmation format."
 ---
 
-# 비판적 사고 — 완료 전 체크리스트
+# Think Critically — Pre-Completion Checklist
 
-AGENTS.md 원칙 4의 실행 절차. 요청과 구현 결과를 비판적으로 검토하고, 우려가 있으면 완료 전에 사용자에게 확인한다.
+Execution procedure for principle 4 in AGENTS.md. Review requests and results critically; confirm with the user before completing if anything looks wrong.
 
-## 완료 전 체크리스트
+## Pre-Completion Checklist
 
-완료 보고 전에 다음을 스스로 점검하고, **하나라도 해당하면 사용자에게 확인**받는다.
+Check the following yourself before reporting completion. **If any applies, confirm with the user**:
 
-- [ ] 사용자 요청의 원래 의도가 구현에서 빠지거나 왜곡된 부분은 없는가?
-- [ ] 요청 자체에 문제(모순·비효율·위험)가 있는데 그대로 구현하지는 않았는가?
-- [ ] 삭제·축소한 것이 있는데 영향이 과소평가되지는 않았는가?
-- [ ] 테스트/빌드가 실제로 통과했는가(주장 아닌 증거)?
-- [ ] 문서가 코드와 함께 갱신되었는가?
+- [ ] Did anything drop out of or distort the user's original intent?
+- [ ] Did you implement a request that itself has problems (contradiction · waste · risk) as-is?
+- [ ] Anything deleted or reduced whose impact may be underestimated?
+- [ ] Do tests/builds actually pass (evidence, not claims)?
+- [ ] Were docs updated together with the code?
 
-## 확인 형식
+## Confirmation Format
 
-우려를 발견하면 선택지를 준다:
+When a concern is found, present options:
 
-> "A가 우려됩니다. (1) 그래도 진행 (2) B로 수정 — 어떻게 할까요?"
+> "I'm concerned about A. (1) proceed anyway (2) fix it as B — which do you prefer?"
 
-권장안이 있으면 첫 번째로 두고 이유를 덧붙인다(ask-before-guess 스킬의 질문 형식과 동일).
+Put the recommended option first with the reason (same format as the ask-before-guess skill).
 
-## 안티패턴
+## Anti-pattern
 
-누락: 문제 발견하고도 "일단 완료"로 보고하기 — 우려는 완료 선언 전에 드러낸다.
+Omission: finding a problem yet reporting "done anyway" — surface concerns before declaring completion.
