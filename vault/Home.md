@@ -62,6 +62,7 @@ FactoryNote 개발 문서의 중앙 인덱스(MOC)다. 모든 영역과 주요 �
 - [[ADR-021-sequence-flowchart-graphs]] — 그래프 종류 확장: Sequence(참여자·메시지·fragment) + Flowchart(노드·엣지·shape), envelope type 필드 판별, 읽기 전용 SVG 렌더러 2종
 - [[ADR-022-viewer-sse-push]] — 뷰어 갱신 폴링(2s state·0.5s chat) → SSE(`/api/events`) push 전환; 산물 write+게이트 오픈·채팅 회신 시점에만 push; SSE 연결로 하트비트 흡수; core 무변경
 - [[ADR-023-viewer-transition-ux]] — 단계 전환 UX: 게이트 결정 중 전체 '준비 중' 화면 제거→페이지 유지하며 확정 버튼 로딩; 이전 단계 읽기 전용 보기(코멘트·채팅 비활성); 뷰어 전용 변경
+- [[ADR-031-viewer-graph-detail-tabs]] — 문서 뷰어 탭 바: md 고정 탭 + 그래프 블록 더블클릭 상세 탭(tree·sequence·flowchart, 노드 드릴다운 공존), X 닫기·재클릭 포커스·스테이지 전환에도 탭 유지; 뷰어 전용 변경
 - [[parallel-worktree-seam-defects]] — 병렬 워크트리 seam 결함 + gate-server `revertTo` drop 포스트모템
 - [[graph-output-stale-design-prompt]] — 그래프 미출력: 낡은 design-prompt.md 주입 + 참조 규약 위반 포스트모템
 - [[graph-drilldown-pointer-events]] — 그래프 드릴다운 미출력: ReactFlow v11 pointer-events:none 주입 포스트모템

@@ -1,0 +1,21 @@
+{
+	"version": 2,
+	"type": "flowchart",
+	"title": "배포 파이프라인",
+	"nodes": [
+		{ "id": "start", "label": "시작", "shape": "terminal" },
+		{ "id": "build", "label": "빌드 (tsc -b)" },
+		{ "id": "test", "label": "테스트 (bun test)" },
+		{ "id": "check", "label": "전부 통과?", "shape": "decision" },
+		{ "id": "deploy", "label": "install.mjs 배포" },
+		{ "id": "end", "label": "완료", "shape": "terminal" }
+	],
+	"edges": [
+		{ "from": "start", "to": "build" },
+		{ "from": "build", "to": "test" },
+		{ "from": "test", "to": "check" },
+		{ "from": "check", "to": "deploy", "label": "예" },
+		{ "from": "check", "to": "build", "label": "아니오 — 수정 후 재빌드" },
+		{ "from": "deploy", "to": "end" }
+	]
+}

@@ -1,0 +1,9 @@
+{
+	"version": 2,
+	"id": "ui",
+	"childLevel": "classes",
+	"nodes": [
+		{ "id": "LoginView", "type": "class", "name": "LoginView", "module": "ui" },
+		{ "id": "Dashboard", "type": "class", "name": "Dashboard", "module": "ui" }
+	]
+}

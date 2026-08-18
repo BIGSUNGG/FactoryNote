@@ -1,0 +1,24 @@
+{
+	"version": 2,
+	"id": "module-architecture",
+	"childLevel": "modules",
+	"title": "모듈 관계도",
+	"nodes": [
+		{
+			"id": "ui",
+			"type": "module",
+			"label": "UI",
+			"layer": "API",
+			"children": "classes/ui.json",
+			"refs": [{ "to": "auth", "comment": "로그인 요청" }]
+		},
+		{
+			"id": "auth",
+			"type": "module",
+			"label": "Auth",
+			"layer": "Service",
+			"children": "classes/auth.json"
+		},
+		{ "id": "store", "type": "module", "label": "Store", "layer": "Repository" }
+	]
+}

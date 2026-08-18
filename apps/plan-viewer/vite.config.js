@@ -9,6 +9,14 @@ import { createMockApi } from "./dev/mock-api.js";
 // dev/mock-api.js 순수 모듈로 모방. 실구동은 pi 영속 게이트 서버가 /api/* 를 서빙한다.
 const dataDir = fileURLToPath(new URL("./src/data", import.meta.url));
 const load = (f) => readFileSync(`${dataDir}/${f}`, "utf8");
+// 데모 그래프 JSON 읽기 — 손상·부재 시 null(무시). 실서버는 parse* 헬퍼가 같은 계약.
+const readGraphJson = (f) => {
+	try {
+		return JSON.parse(load(f));
+	} catch {
+		return null;
+	}
+};
 
 const FAKE_REPLIES = [
 	"알겠습니다. 해당 부분을 반영했습니다.",
@@ -25,6 +33,77 @@ const FAKE_EDITS = [
 	"> ✏️ 수정된 부분: **「처리 매트릭스」** → 우선순위를 재조정했습니다.\n\n",
 ];
 const STAGE_NAMES = ["요청 이해", "시나리오", "구현 계획"];
+
+// 데모 그래프 데이터(ADR-018·020·021) — plan.md 의 `<!-- graph: -->` 참조와 1:1.
+// 모양은 실서버 viewer-state 가 서빙하는 그래프와 동일: tree 는 자식 레벨까지 조립된
+// 형태(loadGraphTree 결과), sequence·flowchart 는 단일 파일 파싱 결과.
+const DEMO_GRAPHS = [
+	{
+		file: "auth-sequence.json",
+		type: "sequence",
+		data: readGraphJson("graphs/auth-sequence.json"),
+	},
+	{
+		file: "deploy-flow.json",
+		type: "flowchart",
+		data: readGraphJson("graphs/deploy-flow.json"),
+	},
+	{
+		file: "module-architecture.json",
+		type: "tree",
+		data: {
+			file: "module-architecture.json",
+			title: "모듈 관계도",
+			childLevel: "modules",
+			nodes: [
+				{
+					id: "ui",
+					type: "module",
+					label: "UI",
+					layer: "API",
+					refs: [{ to: "auth", comment: "로그인 요청" }],
+					children: {
+						file: "classes/ui.json",
+						childLevel: "classes",
+						nodes: [
+							{
+								id: "LoginView",
+								type: "class",
+								name: "LoginView",
+								module: "ui",
+							},
+							{
+								id: "Dashboard",
+								type: "class",
+								name: "Dashboard",
+								module: "ui",
+							},
+						],
+					},
+				},
+				{
+					id: "auth",
+					type: "module",
+					label: "Auth",
+					layer: "Service",
+					children: {
+						file: "classes/auth.json",
+						childLevel: "classes",
+						nodes: [
+							{
+								id: "AuthService",
+								type: "class",
+								name: "AuthService",
+								module: "auth",
+							},
+						],
+					},
+				},
+				{ id: "store", type: "module", label: "Store", layer: "Repository" },
+			],
+		},
+	},
+];
 
 const readBody = (req) =>
 	new Promise((resolve) => {
@@ -45,7 +124,12 @@ export default defineConfig({
 					feature: "auth-module",
 					stageName: STAGE_NAMES[0],
 					artifacts: [
-						{ stage: 1, name: STAGE_NAMES[0], md: load("plan.md") },
+						{
+							stage: 1,
+							name: STAGE_NAMES[0],
+							md: load("plan.md"),
+							graphs: DEMO_GRAPHS,
+						},
 						{ stage: 2, name: STAGE_NAMES[1], md: load("scenarios.md") },
 						{ stage: 3, name: STAGE_NAMES[2], md: load("impl.md") },
 					],

@@ -10,7 +10,13 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ## [Unreleased]
 
+### Fixed
+
+- **테스트 뷰어 그래프 미출력** — dev mock(`bun run dev`)이 그래프를 서빙하지 않아(데모 md 에 `<!-- graph: -->` 참조·mock artifact `graphs` 부재) 뷰어에 그래프 블록이 전혀 보이지 않던 문제 수정. 데모 그래프 JSON 3종 추가(sequence·flowchart·계층 tree + 자식 파일), `plan.md` 의 죽은 placeholder 이미지를 참조 3개로 교체, mock artifact 에 `graphs` 배열 연결(실서버 viewer-state 모양과 동일), mock-api 자체체크 +1건.
+
 ### Added
+
+- **문서 뷰어 탭 바 + 그래프 상세 탭** — 문서 섹션 상단에 브라우저 스타일 탭: (1) md 문서 탭은 닫기 불가 고정 탭, (2) 그래프 블록(tree·sequence·flowchart 3종) 헤더/캔버스 빈 영역 더블클릭 → 같은 뷰를 크게 렌더하는 상세 탭 열기(노드 더블클릭 드릴다운은 그대로 유지), 재더블클릭 = 기존 탭 포커스(그래프 파일당 탭 1개), (3) 그래프 탭 X 버튼 닫기 + 이웃 탭 포커스 이동, (4) 스테이지 전환에도 탭 유지(세션 내 상태). 탭 전환은 hidden 토글로 문서 스크롤·코멘트 상태 보존. 신규 `TabBar.jsx`·`lib/viewerTabs.js`(순수 탭 로직) + 자체체크 6건. 코어·게이트 무변경, 뷰어 전용. [[ADR-031-viewer-graph-detail-tabs]]
 
 - **테스트 게이트(에이전트 훅 + pre-commit)** — `bun test` 통과 전에는 작업도 커밋도 끝나지 않음. `.pi/extensions/test-gate.ts`: `agent_settled`에 테스트 실행, 실패 시 실패 출력과 수정 지시를 주입해 에이전트 재실행(최대 3회, 초과 시 사용자 에스컬레이션). `scripts/git-hooks/pre-commit`(POSIX sh, `core.hooksPath` 활성화): 동일 논리로 커밋 차단 — 수동 커밋·다른 도구에도 적용. `.gitattributes` 훅 LF 고정. 자체 검증: 훅 통과/실패 경로 수동 실행 확인, `tsc -p .pi` 0 종료. [[ADR-029-test-gate]]
 

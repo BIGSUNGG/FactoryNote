@@ -12,6 +12,7 @@ function BlockContent({
 	activeTargetId,
 	onActivate,
 	graphData,
+	onOpenGraph,
 }) {
 	switch (block.type) {
 		case "heading": {
@@ -72,13 +73,26 @@ function BlockContent({
 			const label = LABELS[entry?.type ?? ""] ?? "📈 관계도 · 클릭하여 코멘트";
 			return (
 				<div className="block-content block-graph">
-					<div className="block-graph-head" title="클릭하여 코멘트">
+					<div
+						className="block-graph-head"
+						title="클릭하여 코멘트 · 더블클릭하여 상세 탭"
+						onDoubleClick={(e) => {
+							e.stopPropagation();
+							onOpenGraph?.(block.graphFile);
+						}}
+					>
 						{label}
 					</div>
 					<div
 						className="block-graph-canvas"
 						onClick={(e) => e.stopPropagation()}
 						onMouseUp={(e) => e.stopPropagation()}
+						onDoubleClick={(e) => {
+							// 노드 위 더블클릭은 GraphView 드릴다운이 처리 — 탭 열기에서 제외.
+							if (e.target.closest(".react-flow__node")) return;
+							e.stopPropagation();
+							onOpenGraph?.(block.graphFile);
+						}}
 					>
 						{!entry ? (
 							<div className="empty">
@@ -253,6 +267,7 @@ export default function Block({
 	onActivate,
 	activeTargetId,
 	graphData,
+	onOpenGraph,
 }) {
 	const [draft, setDraft] = useState("");
 
@@ -294,6 +309,7 @@ export default function Block({
 				activeTargetId={activeTargetId}
 				onActivate={onActivate}
 				graphData={graphData}
+				onOpenGraph={onOpenGraph}
 			/>
 
 			{pending.length > 0 && (

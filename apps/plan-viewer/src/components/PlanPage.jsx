@@ -5,8 +5,19 @@ import Stepper from "./Stepper";
 import Toc from "./Toc";
 import Document from "./Document";
 import GateBar from "./GateBar";
+import TabBar from "./TabBar";
+import GraphView from "./GraphView";
+import SequenceView from "./SequenceView";
+import FlowchartView from "./FlowchartView";
 import { mdToBlocks } from "../lib/mdToBlocks";
 import { diffBlockChanges } from "../lib/blockDiff";
+import {
+	DOC_TAB,
+	graphTabId,
+	openGraphTab,
+	closeTab,
+	nextActive,
+} from "../lib/viewerTabs";
 
 // plan 스타일 페이지 — 마크다운 문서 + 블록/영역 코멘트. Stage 1·3 이 공유.
 const STAGE_DEFS = [
@@ -31,6 +42,18 @@ function stepperState(n, viewed, real) {
 }
 
 const stripHtml = (html) => html.replace(/<[^>]+>/g, "").trim();
+
+/** 그래프 상세 탭 콘텐츠(ADR-031) — 블록과 동일한 뷰 컴포넌트를 탭 전체에 크게 렌더.
+ * tree = ReactFlow 줌/팬, sequence·flowchart = 스크롤로 탐색. 새 시각화 없음. */
+function GraphDetail({ file, entry }) {
+	if (!entry)
+		return (
+			<div className="empty">그래프 데이터({file})를 찾을 수 없습니다.</div>
+		);
+	if (entry.type === "sequence") return <SequenceView data={entry.data} />;
+	if (entry.type === "flowchart") return <FlowchartView data={entry.data} />;
+	return <GraphView tree={entry.data} />;
+}
 
 // Range 를 <mark> 로 감싼다. 한 번에 감싸는 기법은 여러 블록/노드에 걸친 범위에서
 // 에러를 던지므로, 텍스트 노드마다 잘라서 감싼다(멀티 블록 안전).
@@ -111,6 +134,19 @@ export default function PlanPage({
 	const [activeRange, setActiveRange] = useState(null);
 	const [rangeDraft, setRangeDraft] = useState("");
 	const [fontScale, setFontScale] = useState(1); // md 본문 글자 배율(−/+ 버튼)
+
+	// 문서 뷰어 탭(ADR-031): 고정 md 탭 + 그래프 상세 탭(그래프 파일당 1개).
+	// PlanPage 는 스테이지 전환에도 마운트 유지 → 탭도 유지. 상태는 세션 내에만.
+	const [tabs, setTabs] = useState([DOC_TAB]);
+	const [activeTab, setActiveTab] = useState(DOC_TAB.id);
+	const openGraph = (graphFile) => {
+		setTabs((ts) => openGraphTab(ts, graphFile));
+		setActiveTab(graphTabId(graphFile)); // 재더블클릭 = 기존 탭 포커스
+	};
+	const closeTabById = (id) => {
+		setTabs(closeTab(tabs, id));
+		setActiveTab(nextActive(tabs, id, activeTab));
+	};
 
 	// 코멘트를 로컬(인라인 표시용)에 추가함과 동시에 실시간 에이전트 채팅으로 즉시 전달.
 	// 게이트를 유지한 채 chatPending 루프로 에이전트에게 닿는다(ADR-009).
@@ -236,20 +272,46 @@ export default function PlanPage({
 			)}
 			<div className="layout">
 				<Toc items={toc} activeId={activeHeading} />
-				<Document
-					blocks={blocks}
-					changedIds={blockChanges.changed}
-					addedIds={blockChanges.added}
-					comments={comments}
-					onAddComment={commentFreeze.onAddComment ?? addComment}
-					onActivate={commentFreeze.onActivate ?? activate}
-					onRangeComment={commentFreeze.onRangeComment ?? onRangeComment}
-					activeTargetId={readOnly ? null : activeTargetId}
-					graphData={graphData}
-					fontScale={fontScale}
-					headingIds={toc.map((t) => t.id)}
-					onActiveHeading={!readOnly ? setActiveHeading : undefined}
-				/>
+				<div className="doc-column">
+					<TabBar
+						tabs={tabs}
+						activeId={activeTab}
+						onSelect={setActiveTab}
+						onClose={closeTabById}
+					/>
+					{/* 탭 전환은 hidden 토글 — Document 스크롤·코멘트 DOM 상태 보존 */}
+					<div className="doc-pane" hidden={activeTab !== DOC_TAB.id}>
+						<Document
+							blocks={blocks}
+							changedIds={blockChanges.changed}
+							addedIds={blockChanges.added}
+							comments={comments}
+							onAddComment={commentFreeze.onAddComment ?? addComment}
+							onActivate={commentFreeze.onActivate ?? activate}
+							onRangeComment={commentFreeze.onRangeComment ?? onRangeComment}
+							activeTargetId={readOnly ? null : activeTargetId}
+							graphData={graphData}
+							fontScale={fontScale}
+							headingIds={toc.map((t) => t.id)}
+							onActiveHeading={!readOnly ? setActiveHeading : undefined}
+							onOpenGraph={openGraph}
+						/>
+					</div>
+					{tabs
+						.filter((t) => t.graphFile)
+						.map((t) => (
+							<div
+								key={t.id}
+								className="graph-pane"
+								hidden={activeTab !== t.id}
+							>
+								<GraphDetail
+									file={t.graphFile}
+									entry={graphData[t.graphFile]}
+								/>
+							</div>
+						))}
+				</div>
 			</div>
 			{!readOnly && (
 				<GateBar

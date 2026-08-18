@@ -39,9 +39,21 @@ function hashPassword(pw: string): string {
 
 ## 🧩 인증 흐름
 
-![인증 시퀀스 다이어그램](https://via.placeholder.com/600x140/eeeeee/111827?text=Client+%E2%86%92+Server+%E2%86%92+DB)
+<!-- graph: auth-sequence.json -->
 
 클라이언트가 로그인을 요청하면 서버는 비밀번호를 해싱해 DB에 저장하고 JWT를 발급한다.
+
+## 🗺️ 모듈 관계도
+
+<!-- graph: module-architecture.json -->
+
+모듈 노드를 **더블클릭**하면 하위(클래스) 레벨로 드릴다운된다. 더블클릭으로 상세 탭도 열린다.
+
+## 🚢 배포 흐름
+
+<!-- graph: deploy-flow.json -->
+
+terminal·process·decision shape 와 실패 시 되돌아가는 백엣지(점선)를 확인할 수 있다.
 
 ## 📊 처리 매트릭스
 

@@ -9,6 +9,28 @@ tags: [development, dev-log]
 
 ## 2026-08-18
 
+### 테스트 뷰어 그래프 미출력 수정 — mock 에 데모 그래프 추가
+
+**맥락**: 사용자 보고 — 테스트 뷰어(`bun run dev`)에서 그래프가 안 보인다.
+
+**원인**: 뷰어 소스·테스트는 그래프 렌더 경로가 정상인데, **dev mock 이 그래프를 전혀 서빙하지 않았다** — 데모 md(`plan.md` 등)에 `<!-- graph: ... -->` 참조가 없고, `mock-api.js` artifact 가 `graphs` 배열을 실지 않아 `/api/state` 에 `graphs` 필드 자체가 없음(실서버 `viewer-state.ts` 는 md 참조 → stage 파일 읽기 → `parse*`/`loadGraphTree` 로 `{file,type,data}` 빌드). 그래서 문서에 그래프 블록이 아예 생성되지 않아 ADR-031 상세 탭 더블클릭도 테스트할 수 없었다. plan.md 의 시퀀스 자리는 죽은 placeholder 이미지(via.placeholder.com)였다.
+
+**작업**: 데모 그래프 JSON 3종(sequence `auth-sequence.json`·flowchart `deploy-flow.json`·계층 tree `module-architecture.json` + 자식 클래스 파일)을 `src/data/graphs/` 에 추가, `plan.md` 의 placeholder 이미지를 `<!-- graph: -->` 참조 3개로 교체, `vite.config.js` mock artifact 에 `graphs` 배열 연결(실서버 모양 그대로 — tree 는 자식까지 조립된 형태). mock-api.test.js 에 그래프 전달 자체체크 +1건.
+
+**결과**: `/api/state` stage 1 artifact 에 그래프 3종 포함 확인, 자체체크 233 pass(신규 1), `bun run build` 0 종료.
+
+### 문서 뷰어 탭 바 + 그래프 상세 탭
+
+**맥락**: 사용자 요청 — 문서 뷰어 섹션 상단에 브라우저 스타일 탭 추가. 그래프 블록 더블클릭 → 상세 탭, X 닫기, md 첫 탭은 고정(닫기 불가).
+
+**작업**: 질문 4개로 계약 확정(대상 3종 그래프·노드 드릴다운 공존·같은 뷰 확대 렌더·재클릭 포커스+스테이지 전환에도 탭 유지). `PlanPage` 에 탭 상태(useState, 스테이지 전환에도 마운트 유지 → 탭 유지), `TabBar.jsx`(고정 탭은 X 미렌더), `lib/viewerTabs.js` 순수 로직(열기/중복 방지/닫기/포커스 이동), `Block.jsx` 그래프 헤더·캔버스 더블클릭(`react-flow__node` 가드로 드릴다운과 공존), 탭 전환 hidden 토글(문서 스크롤 보존). CSS 는 layout.css 에 탭 바·팬 추가, `.doc-wrap` 그리드 슬롯을 `.doc-column` 으로 이관.
+
+**발견**: `bun test` 첫 실행 실패 = 의존성 미설치(vite 없음) — 루트 `bun install` 후 해결. UA `[hidden]` 이 저작자 display 속성에 밀리는 함 방지용 `display:none` 명시 규칙 필요.
+
+**배제**: 탭 드래그 순서 변경·새로고침 지속·SVG 줌 컨트롤(스크롤 팬으로 충분)·새 시각화.
+
+**결과**: 자체체크 231 pass(신규 6), `bun run build` 0 종료. [[ADR-031-viewer-graph-detail-tabs]]
+
 ### 4대 작업 원칙 하네스 적용
 
 **맥락**: 사용자 요청 — 추론 자제·미래지향·문서주의·비판적 사고 4원칙을 pi 하네스 엔지니어링으로 적용. 원칙 1을 이 작업 자체에 적용해 3결정 질문 확정: 프로젝트 한정(`.pi/`), 프롬프트+스킬 유도 기본+문서주의 훅 리마인더, 주요 결정만 질문. 선행 조사: pi v0.84 엔지니어링 표면 6층([[pi-harness-engineering-surfaces]]).
