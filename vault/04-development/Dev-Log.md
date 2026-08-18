@@ -7,6 +7,22 @@ tags: [development, dev-log]
 
 날짜별 작업 기록. 무엇을 했는지, 왜, 무엇이 남았는지. [[Changelog]]는 외부용 단위, 본 파일은 일일 흐름.
 
+## 2026-08-18
+
+### 4대 작업 원칙 하네스 적용
+
+**맥락**: 사용자 요청 — 추론 자제·미래지향·문서주의·비판적 사고 4원칙을 pi 하네스 엔지니어링으로 적용. 원칙 1을 이 작업 자체에 적용해 3결정 질문 확정: 프로젝트 한정(`.pi/`), 프롬프트+스킬 유도 기본+문서주의 훅 리마인더, 주요 결정만 질문. 선행 조사: pi v0.84 엔지니어링 표면 6층([[pi-harness-engineering-surfaces]]).
+
+**작업**: `AGENTS.md` 신규 작성(4대 원칙 + 오리엔테이션 축소 복원), `.pi/skills/` 원칙별 4스킬(질문·모듈화·문서·검토 절차, 아래 후속 참조), `.pi/extensions/work-principles.ts`(`tool_call` 경로 분류 → `agent_settled` 문서 미갱신 경고), `.pi/tsconfig.json`(전역 pi 패키지 `dist/index.d.ts` paths 매핑 — LSP 모듈 해석 해소). 문서: 기획 [[01-plan]] · 결정 [[ADR-028-work-principles-harness-application]] · 구현 [[02-implementation]] · 조사노트 · Home 링크.
+
+**발견**: 기존 `AGENTS.md`·`.pi/skills/design/SKILL.md`가 작업 트리에서 미스테이지 삭제 상태(세션 중 외부 삭제 추정). 사용자 지시로 AGENTS.md는 신규 작성, design 스킬은 그대로 둠.
+
+**배제**: 하드 게이트(도구 차단 — 오탐 위험), 매 턴 시스템 프롬프트 주입(AGENTS.md와 중복).
+
+**남은 것**: `/reload` 또는 새 세션에서 훅 런타임 검증(문서 미갱신 코드 변경 시 알림).
+
+**후속(스킬 분할)**: 사용자 요청으로 단일 `work-principles` 스킬을 원칙별 4파일로 분할 — `ask-before-guess`(원칙 1) · `future-proof-code`(원칙 2) · `doc-first-workflow`(원칙 3) · `critical-review`(원칙 4). 원 스킬 삭제, AGENTS.md·기획·ADR-028·구현 기록·Changelog 참조 동기화.
+
 ## 2026-08-16
 
 ### 게이트 중 수정 블록 하이라이트 (.prev 스냅샷 + 블록 LCS diff)
