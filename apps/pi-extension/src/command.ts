@@ -51,11 +51,17 @@ function feedbackLine(): string {
 	return `FactoryNote feedback 수준: ${feedbackLevel} (${spec.label})`;
 }
 
+const FEEDBACK_LEVEL_KEYS = Object.keys(FEEDBACK_LEVELS) as FeedbackLevel[];
+const FEEDBACK_OPTIONS: readonly string[] = [
+	...FEEDBACK_LEVEL_KEYS.map((l) => `${l} — ${FEEDBACK_LEVELS[l].label}`),
+	"취소 — 상태 변경 안 함",
+];
+
 /** /factorynote 명령 등록(on|off · auto · feedback <level>). */
 export function registerFactoryNoteCommand(pi: ExtensionAPI): void {
 	pi.registerCommand("factorynote", {
 		description:
-			"FactoryNote plan 모드 토글 (on|off) · auto [on|off] = 게이트 자동 승인 · feedback <none|low|medium|high|ultra> = 검토 수준",
+			"FactoryNote plan 모드 (on|off) · auto [on|off] = 게이트 자동 승인 · feedback <none|low|medium|high|ultra> = 검토 수준. 인자 없으면 feedback 수준 선택 팝업 후 plan 모드 ON",
 		handler: async (args, ctx) => {
 			const parts = (args ?? "")
 				.trim()
@@ -88,10 +94,28 @@ export function registerFactoryNoteCommand(pi: ExtensionAPI): void {
 				return;
 			}
 			const a = parts.join(" ");
-			if (a === "on") planMode = true;
-			else if (a === "off") planMode = false;
-			else planMode = !planMode;
-			ctx.ui.notify(modeLine(), planMode ? "info" : "info");
+			if (a === "off") {
+				planMode = false;
+				ctx.ui.notify(modeLine(), "info");
+				return;
+			}
+			// bare 또는 `on`: feedback 수준 선택 팝업 후 plan 모드 ON(취소 시 상태 유지).
+			if (ctx.hasUI) {
+				const choice = await ctx.ui.select(
+					`FactoryNote plan 모드 ON — feedback 수준 선택 (현재: ${feedbackLevel})`,
+					[...FEEDBACK_OPTIONS],
+				);
+				if (!choice || choice.startsWith("취소")) {
+					ctx.ui.notify(
+						"FactoryNote plan 모드 ON 취소 — 현재 상태 유지",
+						"info",
+					);
+					return;
+				}
+				feedbackLevel = choice.split(" — ")[0] as FeedbackLevel;
+			}
+			planMode = true;
+			ctx.ui.notify(`${modeLine()} · ${feedbackLine()}`, "info");
 		},
 	});
 }
