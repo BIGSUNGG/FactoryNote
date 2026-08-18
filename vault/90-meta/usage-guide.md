@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-11
+updated: 2026-08-18
 tags: [meta, usage, manual, how-to]
 ---
 
@@ -7,6 +7,8 @@ tags: [meta, usage, manual, how-to]
 
 FactoryNote MVP를 pi 하네스에서 **설치하고 직접 사용하는 방법**을 다룬다.
 아키텍처/코드는 [[implementation-architecture]], 기획은 [[multi-agent-pipeline]] 을 본다.
+
+> **TL;DR**: `bun scripts/install.mjs` 설치 후 pi에서 `/factorynote`로 plan 모드를 켜고, 기능 요청 → 3단계 산출물 작성 → 웹 게이트에서 검토·확정하는 흐름을 안내한다. 전제 조건(pi-subagents 확장)과 트러블슈팅 포함.
 
 ## 전제 조건
 

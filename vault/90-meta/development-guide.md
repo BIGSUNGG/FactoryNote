@@ -1,11 +1,13 @@
 ---
-updated: 2026-08-06
+updated: 2026-08-18
 tags: [meta, development, contributing, testing]
 ---
 
 # 개발 가이드 — 빌드·테스트·확장
 
 FactoryNote MVP를 **수정·확장**하는 기여자를 위한 가이드. 사용법은 [[usage-guide]], 코드 구조는 [[implementation-architecture]] 을 본다.
+
+> **TL;DR**: 빌드·타입체크·테스트(`bun run build` · `bun test`) 명령과 테스트 전략, 확장 시나리오(단계 추가·뷰어 수정·새 어댑터)를 다룬다. JS 컴파일 산출물이 없고 `tsc -b`는 타입검사만 한다는 것이 핵심 전제.
 
 ## 레포 레이아웃 (요약)
 

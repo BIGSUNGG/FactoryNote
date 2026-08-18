@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-16
+updated: 2026-08-18
 tags: [development, dev-log]
 ---
 
@@ -40,6 +40,18 @@ tags: [development, dev-log]
 **맥락**: 사용자 요청 — 스킬·AGENTS.md·훅 등 AI가 읽는 산출물을 영어로 전환.
 
 **작업**: `AGENTS.md`, 스킬 5종, 확장 2종(`work-principles.ts`·`test-gate.ts`) 주석·메시지, pre-commit 메시지 영어 재작성. 경로·구조·동작 불변, 언어만 전환. doc-workflow 컨벤션에 ‘vault 본문 한국어 / AI 판독 산출물 영어’ 규칙 명문화. `tsc -p .pi` 0, 훅 exit 0 재확인.
+
+### 에이전트 가독 문서 구조 개선 (리뷰 루프 worker)
+
+**맥락**: 부모 세션 오케스트레이션 리뷰 루프의 구현 요청 — 문서 구조·작성법을 에이전트가 읽기 좋게 개선. 범위: vault/ 구조·컨벤션·템플릿 + doc-workflow 스킬, 내용 의미 변경 금지.
+
+**작업**: (1) `Doc-Conventions.md`에 ‘에이전트 가독성’ 섹션 신설 — TL;DR 선행·결론 먼저·유형별 안정 섹션 어휘·freshness 엄수·링크 무결성. frontmatter 권장→필수. (2) doc-workflow 스킬 동기화. (3) 템플릿 — `adr.md` TL;DR 란 추가(플레이스홀더 위키링크→코드 표기, 링크 검사 오탐 회피), `feature-doc.md` 신규. (4) `Home.md` — TL;DR + ‘에이전트 읽기 지도’(7단계 목적별 읽기 순서). (5) 핵심 문서 5종 TL;DR 적용(내용 무변경). (6) frontmatter 스윕 — 누락은 `vault/README.md` 1건뿐, 보강. 결정 기록: [[ADR-030-agent-readable-docs]].
+
+**발견(고치지 않고 보고)**: Changelog·Dev-Log의 `updated`가 08-18 편집에도 08-16으로 stale — 이번 갱신에서 수정. 그 외 내용 오류 미발견.
+
+**검증**: `bun test` exit 0(게이트 기준), 위키링크·상대경로 대상 존재 점검.
+
+**남은 것**: 나머지 기존 문서 TL;DR는 수정 시점 점진 적용(전면 재작성 배제).
 
 ## 2026-08-16
 

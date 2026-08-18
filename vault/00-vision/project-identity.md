@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-06
+updated: 2026-08-18
 tags: [vision, identity]
 ---
 
@@ -7,6 +7,8 @@ tags: [vision, identity]
 
 FactoryNote가 무엇이고, 왜 존재하며, Plannotator와 무엇이 다른지를 정의한다.
 아키텍처 상세는 [[multi-agent-pipeline]]을 본다.
+
+> **TL;DR**: FactoryNote는 범용 Human-Gated Plan 생성 워크플로 패키지다. AI가 3단계 산출물을 순차 작성하고, 사용자가 각 단계마다 검토·수정·확정(게이트)한다. "AI가 요청 이해 전에 코드를 서두르는 문제"를 인간 승인으로 통제하는 것이 핵심.
 
 ## 한 줄 정의
 

@@ -1,14 +1,16 @@
 ---
 status: proposed
-updated: 2026-07-26
+updated: 2026-08-18
 tags: [adr]
 ---
 
 # ADR-NNN: 제목
 
+> **TL;DR**: 이 결정은 ~를 ~하게 한다(1-2문장). 대체 문서는 `ADR-NNN-...`(위키링크로 기재).
+
 ## 상태
 
-proposed | accepted | superseded by [[ADR-NNN-...]]
+proposed | accepted | superseded by `ADR-NNN-...`(대상이 정해지면 위키링크로 교체)
 
 ## 날짜
 

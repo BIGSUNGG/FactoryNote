@@ -45,7 +45,9 @@ Check the following before starting or finishing work.
 
 - File names: `Kebab-Case.md`, no spaces. ADRs: `ADR-NNN-kebab-title.md`.
 - Every doc starts with an H1 title.
-- frontmatter (optional, recommended): `updated: YYYY-MM-DD`, `tags: [area, topic]`. ADRs require `status`.
+- frontmatter (required): `updated: YYYY-MM-DD`, `tags: [area, topic]`. ADRs require `status`.
+- Agent readability: substantive docs (except logs/indexes like Changelog·Dev-Log·Home) carry a `> **TL;DR**:` block right under the intro — 3 sentences max. Paragraphs lead with the conclusion. Use the stable section vocabulary per doc type (ADR: 상태·날짜·맥락·결정·이유·대안·결과·참고 / problem: 현상·재현·원인·조치·영향·교훈 / research: 요약·증거·결론).
+- Link integrity: wikilink and relative-path targets must exist; check links when creating or renaming docs.
 - Relationships use Obsidian wikilinks `[[Kebab-Name]]`. New docs link from [[Home]] or their area.
 - Body text in Korean; identifiers/paths kept in English. (User-facing vault docs stay Korean; AI-facing harness artifacts — AGENTS.md, skills, hook sources — are English.)
 - If you touched a doc, set `updated` to today.

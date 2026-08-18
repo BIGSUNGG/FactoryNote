@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-16
+updated: 2026-08-18
 tags: [development, changelog]
 ---
 
@@ -19,6 +19,8 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 ### Changed
 
 - **AI 판독 산출물 영어 전환** — `AGENTS.md`, 스킬 5종(`ask-before-guess`·`future-proof-code`·`doc-first-workflow`·`critical-review`·`doc-workflow`), 훅 소스·메시지(`work-principles.ts`·`test-gate.ts`), `scripts/git-hooks/pre-commit` 메시지를 영어로 재작성. vault/ 문서는 한국어 유지(doc-workflow 컨벤션에 명문화). 구조·경로·동작 무변경, 언어만 전환.
+
+- **에이전트 가독 문서 구조 컨벤션** — TL;DR 요약 선행(로그·인덱스 제외, 3문장 이내)·문서 유형별 안정적 섹션 어휘(ADR/문제/조사/설계)·frontmatter(`updated`·`tags`) 권장→필수 격상·결론 먼저 쓰기·링크 무결성 규칙을 `Doc-Conventions.md`·`doc-workflow` 스킬에 반영. 템플릿: `adr.md` TL;DR 란 추가, 기획·기능 문서 템플릿 `feature-doc.md` 신규. `Home.md` 상단에 목적별 읽기 순서 ‘에이전트 읽기 지도’ 추가. 핵심 문서 5종(Home·development-guide·usage-guide·project-identity·implementation-architecture)에 TL;DR 패턴 적용(내용 재작성 없이 요약만 추가), `vault/README.md` frontmatter 보강. 전 문서 frontmatter 스윕 결과 누락 1건(README) 외 완비. [[ADR-030-agent-readable-docs]]
 
 - **게이트 중 수정 블록 하이라이트** — 채팅·코멘트로 에이전트가 산출물을 재작성하면 변경·추가된 블록이 뷰어에서 배경색으로 상시 하이라이트. (1) 코어 `writeArtifact` 가 단계 산출물(md) 덮어쓰기 직전 버전을 `<파일>.prev` 로 스냅샷(그래프 json·보조 파일 제외), `readArtifactPrev`·`clearArtifactPrev` 추가 — 게이트 확정 시 `.prev` 삭제(하이라이트 = '이번 게이트에서의 수정'만), 회귀 무효화(`invalidateArtifactsAfter`)도 동반 삭제. (2) `viewer-state` 가 `/api/state` 산출물에 `prevMd` 필드 포함(.prev 존재 시에만). (3) 뷰어 `lib/blockDiff.js` 신규 — prev↔현재 블록을 콘텐츠 지문(`blockKey`)으로 LCS 매칭, 매칭 안 된 현재 블록(추가·수정)을 `Block.jsx` 의 `.block.changed` 클래스 + `blocks.css` 모노톤 배경(추가 연두·수정 주황)으로 표시. 외부 diff 라이브러리 없음(자체 LCS O(n·m) DP), 최초 작성 문서(prev 없음)는 하이라이트 생략, word-level 미지원(블록 단위). **추가 블록 구분·등장 연출** — 미매칭 prev↔new 순서 짝짓기로 순수 추가(대응 prev 없음)를 별도 마킹(`diffBlockChanges → {changed, added}`), 추가 블록만 페이드인+솟아오름+진한 연두 플래시 등장 애니메이션(prefers-reduced-motion 대응), 툴팁도 '추가된 블록' 구분. 신규 자체체크 14건(코어 prev 3 + 게이트 prevMd 서빙 1 + blockDiff 9 + 목업 1). 자체체크 214 pass. `dev:viewer` 목업도 동일 의미 반영(재작성 시 prevMd 스냅샷·확정 시 리셋, 재작성 = 상단 배너 + 하단 마지막 블록 문자 수정으로 양 끝 마커 시연). **스크롤 레일 변경 마커** — 문서 스크롤바 트랙에 변경 블록 위치를 색 마커로 표시(수정 주황·추가 연두). **커스텀 스크롤바 전환** — `.doc` 는 네이티브 스크롤바를 완전히 숨기고(`scrollbar-width: none`, webkit 규칙 제거) `DocScrollbar` 컴포넌트가 트랙+thumb 렌더: thumb 드래그·트랙 클릭·트랙 키보드(화살표/Page/Home/End, `role="scrollbar"`+`aria-valuenow`), 휠·키보드·touch 는 `.doc` 네이티브 스크롤 유지(overflow 유지, 스크롤 물리 재구현 없음). ADR-027 마커는 트랙 안 세그먼트로 통합 — 스크롤바·마커 단일 객체. 신규 자체체크 6건. 자체체크 220 pass. [[ADR-027-revision-highlight]]
 

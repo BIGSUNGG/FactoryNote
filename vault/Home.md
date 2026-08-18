@@ -7,13 +7,29 @@ tags: [moc]
 
 FactoryNote 개발 문서의 중앙 인덱스(MOC)다. 모든 영역과 주요 문서로 연결된다.
 
+> **TL;DR**: FactoryNote 개발 문서의 중앙 인덱스. 7영역(vision·architecture·decisions·design·development·problems·research·meta)과 주요 문서로 연결된다. 에이전트는 아래 읽기 지도 순서로 진입한다.
+
+## 에이전트 읽기 지도
+
+에이전트가 목적별로 문서를 읽는 순서. **처음 왔다면 1번부터.**
+
+| 목적 | 읽기 순서 |
+| ------ | ------ |
+| 1. 첫 방문 오리엔테이션 | [[project-identity]](무엇인가·5대 원칙) → 본 문서(인덱스) → 루트 `AGENTS.md`(작업 원칙·빌드) |
+| 2. 구현 이해 | [[implementation-architecture]](코드 맵·모듈 책임·데이터 계약) → [[implementation-flows]](동작 시나리오 14개) |
+| 3. 결정 이력 | `02-decisions/` — ADR 번호가 클수록 최근 결정. `status` 확인(superseded = 폐지) |
+| 4. 사용 | [[usage-guide]](설치·실행·게이트 UX) |
+| 5. 개발·수정 | [[development-guide]](빌드·테스트·확장) → [[Doc-Conventions]] · [[How-To-Update-Docs]](문서 규칙) |
+| 6. 문제·사고 | `05-problems/` 포스트모템 |
+| 7. 최근 작업 | [[Changelog]] · [[Dev-Log]] |
+
 ## 영역
 
 | 영역 | 용도 | 상태 |
 | ------ | ------ | ------ |
 | `00-vision/` | 정체성 · 목표 · 5대 원칙 · 용어집 | [[project-identity]] |
 | `01-architecture/` | 3단계 파이프라인 · 에이전트 역할 · 구현 아키텍처 | [[multi-agent-pipeline]] · [[implementation-architecture]] · [[implementation-flows]] |
-| `02-decisions/` | ADR (정해진 사항) | [[ADR-001-documentation-system]] · [[ADR-002-hybrid-harness-and-graph-git]] · [[ADR-003-viewer-architecture]] · [[ADR-004-monorepo-structure]] · [[ADR-005-mvp-implementation]] · [[ADR-006-graph-editor]] · [[ADR-007-pipeline-hardening]] · [[ADR-008-3-stage-pipeline]] · [[ADR-009-tier-1-agent-orchestration]] · [[ADR-009-realtime-chat-loop]] · [[ADR-010-context-overflow-file-protocol]] · [[ADR-010-md-design-stage]] · [[ADR-011-comment-to-chat-consolidation]] · [[ADR-012-child-tool-allowlist-spawn]] · [[ADR-013-parallel-feedback-pipeline]] · [[ADR-014-dynamic-feedback-agents]] · [[ADR-015-stage-artifact-folders]] · [[ADR-016-graph-json-externalization]] · [[ADR-017-feedback-levels]] · [[ADR-018-hierarchical-graph-tree]] · [[ADR-019-stage-2-graph-required]] · [[ADR-020-multi-named-graphs]] · [[ADR-021-sequence-flowchart-graphs]] · [[ADR-022-viewer-sse-push]] · [[ADR-023-viewer-transition-ux]] · [[ADR-024-chat-send-queue]] · [[ADR-025-stage-request-chat-record]] · [[ADR-026-stage-request-queue-transit]] · [[ADR-027-revision-highlight]] · [[ADR-028-work-principles-harness-application]] · [[ADR-029-test-gate]] |
+| `02-decisions/` | ADR (정해진 사항) | [[ADR-001-documentation-system]] · [[ADR-002-hybrid-harness-and-graph-git]] · [[ADR-003-viewer-architecture]] · [[ADR-004-monorepo-structure]] · [[ADR-005-mvp-implementation]] · [[ADR-006-graph-editor]] · [[ADR-007-pipeline-hardening]] · [[ADR-008-3-stage-pipeline]] · [[ADR-009-tier-1-agent-orchestration]] · [[ADR-009-realtime-chat-loop]] · [[ADR-010-context-overflow-file-protocol]] · [[ADR-010-md-design-stage]] · [[ADR-011-comment-to-chat-consolidation]] · [[ADR-012-child-tool-allowlist-spawn]] · [[ADR-013-parallel-feedback-pipeline]] · [[ADR-014-dynamic-feedback-agents]] · [[ADR-015-stage-artifact-folders]] · [[ADR-016-graph-json-externalization]] · [[ADR-017-feedback-levels]] · [[ADR-018-hierarchical-graph-tree]] · [[ADR-019-stage-2-graph-required]] · [[ADR-020-multi-named-graphs]] · [[ADR-021-sequence-flowchart-graphs]] · [[ADR-022-viewer-sse-push]] · [[ADR-023-viewer-transition-ux]] · [[ADR-024-chat-send-queue]] · [[ADR-025-stage-request-chat-record]] · [[ADR-026-stage-request-queue-transit]] · [[ADR-027-revision-highlight]] · [[ADR-028-work-principles-harness-application]] · [[ADR-029-test-gate]] · [[ADR-030-agent-readable-docs]] |
 | `03-design/` | 기능별 설계 산출물 | [[03-design/plan-page/core-features]] · [[03-design/module-design/features]] · [[03-design/classes/features]] · [[03-design/plan-viewer/ui-mapping]] · [[03-design/workflow-core/06-viewer-ui]] · [[03-design/work-principles/01-plan]] |
 | `04-development/` | Changelog · Dev-Log (수정 사항) | [[Changelog]] · [[Dev-Log]] |
 | `05-problems/` | 이슈 · 블로커 · 포스트모템 | [[parallel-worktree-seam-defects]] · [[graph-output-stale-design-prompt]] · [[graph-drilldown-pointer-events]] · [[graph-showcase-stale-dist]] · [[chat-rewrite-gate-reopen]] · [[chat-loop-reentry]] · [[viewer-xss-gate-bypass]] |

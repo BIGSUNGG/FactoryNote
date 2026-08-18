@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-16
+updated: 2026-08-18
 tags: [architecture, implementation, code-map, data-flow]
 ---
 
@@ -7,6 +7,8 @@ tags: [architecture, implementation, code-map, data-flow]
 
 FactoryNote MVP의 **실제 코드 구조·모듈 책임·런타임 데이터 흐름**을 기술한다.
 기획/설계 배경은 [[multi-agent-pipeline]] · [[03-design/workflow-core/01-requirements|요구사항]], 구현 결정은 [[ADR-005-mvp-implementation]] 을 본다.
+
+> **TL;DR**: FactoryNote MVP의 실제 코드 구조·모듈 책임·런타임 데이터 흐름·데이터 계약. Engine(중립 코어)·Adapter(Pi)·Viewer(정적)·CLI 4계층이며, 로컬 웹 페이지가 게이트다. 구현을 이해해야 하면 이 문서에서 시작한다.
 
 > 한 줄: `/factorynote` 로 plan 모드를 켜면, 에이전트가 `factorynote_plan` 도구로 3단계 산출물을 작성·제출하고, **로컬 웹 페이지가 게이트**가 되어 사용자 결정을 받아 단계를 전이한다.
 
