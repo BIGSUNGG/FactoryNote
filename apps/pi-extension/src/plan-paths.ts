@@ -7,7 +7,6 @@ import {
 	DESIGN_LEVELS,
 	feedbackLevelCountSpec,
 	feedbackMenuForStage,
-	feedbackProfileOf,
 	parseFeedback,
 	type ArtifactPaths,
 	type DesignAgent,
@@ -61,7 +60,7 @@ export function buildMenuMarkdown(
 	def: StageDefinition,
 	level: FeedbackLevel,
 ): string {
-	const menu = feedbackMenuForStage(feedbackProfileOf(def.kind));
+	const menu = feedbackMenuForStage(def.id);
 	const lines = [
 		`# Stage ${def.id}(${def.name}) Feedback 메뉴`,
 		"",
@@ -151,7 +150,7 @@ export function deriveReport(
 			role: "feedback",
 			outcomes: parseFeedbackBatch(
 				clampReportInput(input.feedbackResult),
-				feedbackMenuForStage(feedbackProfileOf(def.kind)),
+				feedbackMenuForStage(def.id),
 			),
 		};
 	}

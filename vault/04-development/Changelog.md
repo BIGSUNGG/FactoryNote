@@ -10,13 +10,6 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ## [Unreleased]
 
-### Changed
-
-- **/factorynote 설정 대시보드 — 서브커맨드 전면 폐지·설정 메뉴 통합** — `/factorynote` 를 인자 없는 단일 명령으로 축소하고 모든 서브커맨드(`feedback`·`stage`·`auto`·`on`·`off`)를 제거. 설정 대시보드(명령 영역 설정 메뉴)에서 feedback 수준 · design 위성 수준(designLevel low/medium/high — 신규 항목) · 최대 스테이지 개수 상한 · auto-advance 4개 항목과 plan 모드 on/off(`confirm` → ON, `off` 항목 → OFF)를 설정한다. 설정은 전부 세션 메모리(pi 재시작 시 기본값 복귀), `factorynote_plan` 도구 파라미터(`maxStages`·`designLevel`)가 메뉴 설정보다 우선하는 기존 시맨틱 유지. designLevel 세션 기본값 신설 — 도구 호출이 파라미터를 생략하면 메뉴 설정값 적용. UI 없는 환경은 호출마다 모드 토글 폴백. 자체체크 253 pass(메뉴 조작 자체체크 10건 신규 포함). [[ADR-032-settings-dashboard-menu]]
-
-### Added
-
-- **디렉터 동적 스테이지 구성(고정 3단계 대체)** — 스테이지 카탈로그 6종(기존 3종 + 리스크 분석 `risk-analysis` · 테스트 전략 `test-strategy` · 비기능 검증 `nfr`). 디렉터(Tier 1)가 피처 시작 시 `factorynote_plan` 의 `stages` 파라미터로 종류·개수·순서를 매번 새로 결정 — 미제출 시 `nextAction=compose` 로 카탈로그 메뉴 요청, 구성 승인 게이트 없음(디렉터 전권). 구성은 `state.json` 에 영속화, 산출물 파일명은 위치 접두(`<NN>-<kind>.md`)로 종류 반복에도 유일. 최대 스테이지 개수는 `/factorynote stage <n>` (또는 도구 `maxStages`) — 초과 구성은 잘라서 적용하고 state 에 영속화. 엔진·회귀·무효화·뷰어 스템퍼 전부 구성 위치 기준으로 일반화, 구 state 는 레거시 3종 구성으로 마이그레이션. Feedback 메뉴는 종류→프로필 사상(`feedbackProfileOf`)으로 기존 검토 축 레지스트리 재사용. 뷰어 상단 바에 기능명 + 정해진 구성 스테이지 목록(칩 — 현재 단계 강조·이후 단계 흐림) 표시, 준비 중 화면에도 구성 목록 안내(고정 3단계 표시 제거). 자체체크 238 pass. [[ADR-031-dynamic-stage-composition]]
 ### Fixed
 
 - **탭·그래프 블록 드래그가 실제 브라우저에서 안 되던 문제 — 드래그 메커니즘을 HTML5 DnD 에서 포인터 이벤트로 전환** — `draggable`+`dragstart` 기반 드래그 세션이 임베디드 웹뷰 환경에서 개시되지 않아 분할 드래그 전체가 무반응이던 결함 수정. 신규 `lib/armDrag.js`(포인터다운 + 4px 임계값 초과 시 드래그 개시 — 클릭은 그대로 동작)로 탭·그래프 헤더 드래그 통일, 드롭 판정은 PlanPage window 포인터 리스너가 `e.target.closest('[data-zone]')` 으로 수행. 임계값 미만 이동 = 드래그 미개시 자체체크 포함 렌더 자체체크 8건. 실서빙 페이지에서 포인터 플로우 전체 검증(헤더 드래그→분할, 탭 드래그→하단 분할). [[ADR-032-viewer-tab-splitting]]

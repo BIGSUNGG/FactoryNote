@@ -11,7 +11,6 @@ import {
 	notifyViewerState,
 } from "./gate-server.ts";
 import {
-	LEGACY_KINDS,
 	initialState,
 	markArtifactReady,
 	saveState,
@@ -31,7 +30,7 @@ test("setup", async () => {
 		"01-understanding-and-scenarios.md",
 		"# 요구사항·시나리오\n\n데모.",
 	);
-	let s = initialState("demo", [...LEGACY_KINDS]);
+	let s = initialState("demo");
 	s = markArtifactReady(s);
 	await saveState(root, s);
 });
@@ -161,7 +160,7 @@ test("gate /api/state returns Stage 2 design md + 그래프 3종 혼합 서빙(A
 			],
 		}),
 	);
-	await saveState(root, { ...initialState("graphdemo", [...LEGACY_KINDS]), stage: 2 });
+	await saveState(root, { ...initialState("graphdemo"), stage: 2 });
 
 	type TreeResp = {
 		file: string;
@@ -287,7 +286,7 @@ test("gate /api/state exposes prevMd for rewritten artifact (ADR-027)", async ()
 		"01-understanding-and-scenarios.md",
 		"v2 revised",
 	);
-	await saveState(root, markArtifactReady(initialState("prevdemo", [...LEGACY_KINDS])));
+	await saveState(root, markArtifactReady(initialState("prevdemo")));
 
 	const captured: { md?: string | undefined; prevMd?: string | undefined } = {};
 	await runGate({
@@ -393,7 +392,7 @@ test("gate /api/state hides artifacts past current stage on revert", async () =>
 	);
 	await writeArtifact(root, "regress", "02-design.md", "# 설계");
 	await writeArtifact(root, "regress", "03-implementation-plan.md", "# Plan");
-	await saveState(root, { ...initialState("regress", [...LEGACY_KINDS]), stage: 2 });
+	await saveState(root, { ...initialState("regress"), stage: 2 });
 
 	const captured: { stages?: number[] } = {};
 	await runGate({
@@ -444,7 +443,7 @@ test("gate /api/decision forwards revertTo to the engine (FR-7)", async () => {
 		"# Req",
 	);
 	await writeArtifact(root, "revtgt", "02-design.md", "# 설계");
-	await saveState(root, { ...initialState("revtgt", [...LEGACY_KINDS]), stage: 3 });
+	await saveState(root, { ...initialState("revtgt"), stage: 3 });
 	const event = await runGate({
 		root,
 		feature: "revtgt",

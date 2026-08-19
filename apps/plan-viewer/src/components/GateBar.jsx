@@ -6,7 +6,6 @@ import { useState } from "react";
 export default function GateBar({
 	stage,
 	label,
-	stageCount = 3, // 구성 단계 수 — 마지막 단계 판정 기준(동적 구성).
 	stageLabels = {},
 	onConfirm,
 	onRevert,
@@ -14,7 +13,7 @@ export default function GateBar({
 	loading = false, // 확정/검토 요청 제출 후 다음 산출물 준비 중(확정 버튼 로딩, 전체 화면 전환 없음)
 	loadingLabel, // 로딩 사유 라벨(예: 확정 요청이 큐 대기 중 '앞선 채팅 응답 후 진행…'). 미지정 시 단계별 기본 라벨.
 }) {
-	const isLast = stage >= stageCount;
+	const isLast = stage >= 3;
 	// 회귀 대상 후보 = 현재 단계보다 앞선 Stage(1..stage-1).
 	const targets = [];
 	for (let s = 1; s < stage; s++) targets.push(s);

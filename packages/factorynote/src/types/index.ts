@@ -7,7 +7,6 @@ export type {
 	GateVerdict,
 	HistoryEntry,
 	StageId,
-	StageKind,
 	ValidThrough,
 } from "./gate.ts";
 export type {

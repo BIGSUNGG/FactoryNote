@@ -25,15 +25,14 @@ import {
 	syncDocTabs,
 } from "../lib/splitLayout";
 
-// plan 스타일 페이지 — 마크다운 문서 + 블록/영역 코멘트. 모든 단계가 공유.
-// 단계 목록은 서버 구성(state.stages) 기준; 미전달 시 레거시 3단계 폴백.
-const LEGACY_STAGE_DEFS = [
+// plan 스타일 페이지 — 마크다운 문서 + 블록/영역 코멘트. Stage 1·3 이 공유.
+const STAGE_DEFS = [
 	{ n: 1, label: "요청 이해·시나리오", route: "" },
 	{ n: 2, label: "모듈·클래스 설계", route: "design" },
 	{ n: 3, label: "구현 계획", route: "impl" },
 ];
-const stagesFor = (viewed, real, defs) =>
-	defs.map((s) => {
+const stagesFor = (viewed, real) =>
+	STAGE_DEFS.map((s) => {
 		// 두 축을 분리(F2): '작성 여부'는 실제 서버 단계(real) 기준, '지금 보는 단계'는 viewed.
 		// - s.n > real: 아직 작성 안 됨(잠금·선택 불가)
 		// - s.n === viewed: 지금 보고 있는 단계(현재 편집=current, 이전 단계 읽기 전용=view)
@@ -104,8 +103,6 @@ export default function PlanPage({
 	mainDocLabel, // 주 문서 탭 라벨(파일명). 없으면 기본 "문서".
 	stage,
 	activeStage, // 실제 서버 단계(state.stage) — 스테퍼 작성여부 기준
-	stageDefs, // 서버 구성([{ n, name }]) — 동적 스테이지 목록. 미전달 시 레거시 3단계.
-	feature, // 기능명 — 상단 바 표시용.
 	onGate,
 	onReview,
 	stageLabels = {},
@@ -116,16 +113,11 @@ export default function PlanPage({
 	loadingLabel, // 로딩 사유 라벨(확정 요청 큐 대기 중 안내). GateBar 로 전달.
 	onSelectStage, // 읽기 전용 이전 단계 선택/복귀(단계 전환 이벤트)
 }) {
-	const stageDefList =
-		stageDefs && stageDefs.length > 0
-			? stageDefs.map((s) => ({ n: s.n, label: s.name }))
-			: LEGACY_STAGE_DEFS;
-	const label =
-		stageDefList.find((d) => d.n === stage)?.label ?? `Stage ${stage}`;
+	const label = STAGE_DEFS[stage - 1].label;
 	// 스테퍼: 작성 여부는 실제 서버 단계(activeStage)로, 강조(현재/읽기전용)는 보고 있는 단계(stage)로.
 	// 읽기 전용으로 이전 단계를 봐도 뒤의 실제 작성 단계는 'done'(작성됨)으로 유지되어
 	// '아직 안 쓴 단계(locked)'처럼 보이지 않는다. onSelectStage 없으면 레거시 해시 라우팅.
-	const stages = stagesFor(stage, activeStage ?? stage, stageDefList);
+	const stages = stagesFor(stage, activeStage ?? stage);
 	const blocks = useMemo(() => mdToBlocks(mdSource), [mdSource]);
 
 	// 변경 하이라이트(ADR-027): prev 가 있을 때만 prev↔현재 블록 diff 로 변경·추가 블록 마킹.
@@ -412,7 +404,7 @@ export default function PlanPage({
 
 	return (
 		<>
-			<Topbar feature={feature} stages={stageDefList} stage={stage} />
+			<Topbar />
 			<Stepper stages={stages} onSelect={onSelectStage} />
 			{readOnly && (
 				<div className="readonly-banner" role="status">
@@ -488,7 +480,6 @@ export default function PlanPage({
 				<GateBar
 					stage={stage}
 					label={label}
-					stageCount={stageDefList.length}
 					stageLabels={stageLabels}
 					onConfirm={sendConfirm}
 					onRevert={sendRevert}

@@ -17,7 +17,7 @@ export function Center({ children }) {
 	);
 }
 
-export function PreparingScreen({ stage, stageName, stages = [] }) {
+export function PreparingScreen({ stage, stageName }) {
 	return (
 		<div
 			style={{
@@ -37,14 +37,6 @@ export function PreparingScreen({ stage, stageName, stages = [] }) {
 					Stage {stage}({stageName}) 준비 중… 이 탭을 닫지 마세요. 준비되면
 					자동으로 표시됩니다.
 				</p>
-				{stages.length > 0 && (
-					<p style={{ color: "#777", fontSize: 13 }}>
-						파이프라인 구성({stages.length}단계):{" "}
-						{stages
-							.map((s, i) => `${i + 1}. ${s.name ?? s.label ?? s.n}`)
-							.join(" → ")}
-					</p>
-				)}
 			</div>
 		</div>
 	);
