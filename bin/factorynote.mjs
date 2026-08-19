@@ -10,18 +10,15 @@ import { join } from "node:path";
 const HOME = process.env.FACTORYNOTE_HOME || process.cwd();
 const ROOT = join(HOME, ".factorynote");
 
-// 레거시 state(고정 3단계, stages 필드 없음) 위치→이름 폴백.
-const LEGACY_STAGE_NAMES = [
+const STAGE_NAMES = [
 	"",
-	"요청 이해·시나리오",
-	"모듈·클래스 설계",
+	"요청 이해",
+	"시나리오",
+	"모듈 아키텍처",
+	"클래스 설계",
 	"구현 계획",
+	"최종 검증",
 ];
-
-function stageName(s) {
-	if (Array.isArray(s.stages)) return s.stages[s.stage - 1] ?? "?";
-	return LEGACY_STAGE_NAMES[s.stage] || "?";
-}
 
 async function readState(feature) {
 	try {
@@ -34,9 +31,8 @@ async function readState(feature) {
 
 function fmt(s) {
 	if (!s) return "(상태 없음)";
-	const name = stageName(s);
-	const total = Array.isArray(s.stages) ? s.stages.length : 3;
-	return `feature=${s.feature} stage=${s.stage}/${total}(${name}) gateOpen=${s.gateOpen} done=${s.done} loop=${s.loopCount} updated=${new Date(s.updatedAt).toISOString()}`;
+	const name = STAGE_NAMES[s.stage] || "?";
+	return `feature=${s.feature} stage=${s.stage}(${name}) gateOpen=${s.gateOpen} done=${s.done} loop=${s.loopCount} updated=${new Date(s.updatedAt).toISOString()}`;
 }
 
 async function statusOne(feature) {
@@ -87,7 +83,7 @@ const HELP = `FactoryNote CLI — human-gated plan pipeline 상태 도구.
   factorynote help               이 도움말
 
 계획 구동(산출물 작성·게이트)은 pi 에서:
-  /factorynote            설정 대시보드(plan 모드 on/off·설정 메뉴)
+  /factorynote            plan 모드 토글
   (plan 모드에서 기능 요청 → 3단계 게이트 파이프라인)
 
 상태/산출물 위치: .factorynote/<feature>/`;

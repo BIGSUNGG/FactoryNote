@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-18
+updated: 2026-08-19
 tags: [development, changelog]
 ---
 
@@ -10,17 +10,25 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ## [Unreleased]
 
-### Changed
+### Fixed
 
-- **/factorynote 설정 대시보드 — 서브커맨드 전면 폐지·설정 메뉴 통합** — `/factorynote` 를 인자 없는 단일 명령으로 축소하고 모든 서브커맨드(`feedback`·`stage`·`auto`·`on`·`off`)를 제거. 설정 대시보드(명령 영역 설정 메뉴)에서 feedback 수준 · design 위성 수준(designLevel low/medium/high — 신규 항목) · 최대 스테이지 개수 상한 · auto-advance 4개 항목과 plan 모드 on/off(`confirm` → ON, `off` 항목 → OFF)를 설정한다. 설정은 전부 세션 메모리(pi 재시작 시 기본값 복귀), `factorynote_plan` 도구 파라미터(`maxStages`·`designLevel`)가 메뉴 설정보다 우선하는 기존 시맨틱 유지. designLevel 세션 기본값 신설 — 도구 호출이 파라미터를 생략하면 메뉴 설정값 적용. UI 없는 환경은 호출마다 모드 토글 폴백. 자체체크 253 pass(메뉴 조작 자체체크 10건 신규 포함). [[ADR-032-settings-dashboard-menu]]
+- **탭·그래프 블록 드래그가 실제 브라우저에서 안 되던 문제 — 드래그 메커니즘을 HTML5 DnD 에서 포인터 이벤트로 전환** — `draggable`+`dragstart` 기반 드래그 세션이 임베디드 웹뷰 환경에서 개시되지 않아 분할 드래그 전체가 무반응이던 결함 수정. 신규 `lib/armDrag.js`(포인터다운 + 4px 임계값 초과 시 드래그 개시 — 클릭은 그대로 동작)로 탭·그래프 헤더 드래그 통일, 드롭 판정은 PlanPage window 포인터 리스너가 `e.target.closest('[data-zone]')` 으로 수행. 임계값 미만 이동 = 드래그 미개시 자체체크 포함 렌더 자체체크 8건. 실서빙 페이지에서 포인터 플로우 전체 검증(헤더 드래그→분할, 탭 드래그→하단 분할). [[ADR-032-viewer-tab-splitting]]
+
+- **테스트 뷰어 그래프 미출력** — dev mock(`bun run dev`)이 그래프를 서빙하지 않아(데모 md 에 `<!-- graph: -->` 참조·mock artifact `graphs` 부재) 뷰어에 그래프 블록이 전혀 보이지 않던 문제 수정. 데모 그래프 JSON 3종 추가(sequence·flowchart·계층 tree + 자식 파일), `plan.md` 의 죽은 placeholder 이미지를 참조 3개로 교체, mock artifact 에 `graphs` 배열 연결(실서버 viewer-state 모양과 동일), mock-api 자체체크 +1건.
 
 ### Added
 
 - **뷰어 가시 변경 → 테스트 뷰어 갱신 룰 (문서 우선 원칙 3 하위 규칙)** — 뷰어에서 사용자가 보는 것(렌더링·UI·레이아웃·예시 문서)에 변경이 생기면 같은 세션에서 테스트 뷰어 데모(`apps/plan-viewer/dev/mock-api.js` 시나리오 · `src/data/*.md` 예시 문서)를 갱신해 `cd apps/plan-viewer && bun run dev`(5180포트)로 바로 확인 가능하게 한다. `AGENTS.md` 원칙 3에 하위 항목 추가, `.pi/extensions/viewer-test-viewer.ts` 비차단 리마인더 훅 신규(뷰어 코드 변경·테스트 뷰어 미갱신 실행 종료 시 경고, 기존 work-principles 훅과 같은 패턴), `development-guide.md` '뷰어 수정' 섹션에 절차·검증 명령 명시. [[ADR-031-viewer-test-viewer-rule]]
 - **디렉터 동적 스테이지 구성(고정 3단계 대체)** — 스테이지 카탈로그 6종(기존 3종 + 리스크 분석 `risk-analysis` · 테스트 전략 `test-strategy` · 비기능 검증 `nfr`). 디렉터(Tier 1)가 피처 시작 시 `factorynote_plan` 의 `stages` 파라미터로 종류·개수·순서를 매번 새로 결정 — 미제출 시 `nextAction=compose` 로 카탈로그 메뉴 요청, 구성 승인 게이트 없음(디렉터 전권). 구성은 `state.json` 에 영속화, 산출물 파일명은 위치 접두(`<NN>-<kind>.md`)로 종류 반복에도 유일. 최대 스테이지 개수는 `/factorynote stage <n>` (또는 도구 `maxStages`) — 초과 구성은 잘라서 적용하고 state 에 영속화. 엔진·회귀·무효화·뷰어 스템퍼 전부 구성 위치 기준으로 일반화, 구 state 는 레거시 3종 구성으로 마이그레이션. Feedback 메뉴는 종류→프로필 사상(`feedbackProfileOf`)으로 기존 검토 축 레지스트리 재사용. 뷰어 상단 바에 기능명 + 정해진 구성 스테이지 목록(칩 — 현재 단계 강조·이후 단계 흐림) 표시, 준비 중 화면에도 구성 목록 안내(고정 3단계 표시 제거). 자체체크 238 pass. [[ADR-031-dynamic-stage-composition]]
 
-
 - **병렬 위성 Design 에이전트(designLevel + 단계별 역할 메뉴)** — Design 스테이지를 선택적 병렬화. (1) `DesignLevel`(low/medium/high, 기본 low=현행 단일 에이전트) + `DESIGN_LEVELS` 정책(`designLevelCountSpec` = 주 1+위성 N 지시 문구) 추가. (2) `packages/factorynote/src/design-agents.ts` 신규 레지스트리 — Stage 별 3역할 총 9개(`requirements-scope`·`scenario-acceptance`·`nonfunctional-constraints` / `module-structure`·`data-model`·`behavior-flows` / `work-breakdown`·`risk-effort`·`verification-plan`), `designMenuForStage` 로 단계별 3역할 반환. (3) spawn-design 지시문 확장: 주 문서(`draft.md`, 기존 `factorynote-design` 그대로 — 그래프·승격·게이트·검증 주 문서 기준 유지) + non-low 시 `designLevel` 만큼 위성(`factorynote-design-<role>`, `draft.<role>.md` 작성·그래프 금지·경로만 반환) 을 `runs.all` 로 병렬 스폰 — 재작성 라운드도 동일 웨이브(`designSatelliteTask`/`designSatelliteRevisionTask`). (4) `design-menu.md` 설계 메뉴 파일(현 단계 역할 + 레벨 지시)을 `design-prompt.md`·`feedback-menu.md` 와 함께 기록·전이 시 갱신. (5) `invalidateArtifactsAfter` 가 단계 위성 파일(`draft.<role>.md`)도 함께 삭제(역할명은 `designMenuForStage` 로 결정론적 도출). (6) 계약: 위성은 그래프 미작성(Stage 2 그래프 어휘 결합 시 분기 방지), 승격 제외, 뷰어 미표시 제약은 `viewer-state.ts` 읽기 경로 TODO 로 기록(다중 문서 뷰어는 범위 밖). (7) `factorynote_plan` 스키마에 `designLevel` 파라미터 추가, 에이전트 9개(`factorynote-design-<role>.md`) 신규 배포. 자체검증: `designMenuForStage` 9역할·`designLevelCountSpec` 1/2/3, spawn-design 지시문 주+위성 병렬 스폰·파일 경로 명시, 위성 무효화 테스트 추가 — 자체체크 230 pass. [[ADR-031-parallel-design-satellites]]
+- **다중 문서 뷰어 탭 — 병렬 위성 design 문서 1:1 렌더** — 뷰어가 단일 md 문서 렌더에서 다중 문서 탭 뷰로 확장. (1) 게이트 `/api/state` 산출물 항목에 `satellites?: {file, md}[]` 추가 — `viewer-state` 가 단계 메뉴 역할명(`satelliteFileName`)으로 피처 루트의 위성 파일(`draft.<role>.md`, ADR-031)을 읽어 존재하는 것만 서빙, 없으면 필드 생략(회귀 시 무효화가 위성 파일도 삭제해 stale 없음). (2) 뷰어 탭 1:1 — 주 문서 탭(라벨=서빙 파일명) + 위성 탭(id `doc:<파일명>`, 라벨=파일명, 고정)을 `viewerTabs.docTabs` 로 구성, 문서 1개여도 탭 바 항상 표시. (3) `splitLayout.syncDocTabs` — 문서 집합 변동 시 전 leaf 의 문서 탭을 새 목록으로 교체(라벨 갱신 포함), 그래프 탭·사용자 분할 배치·복제 사본 유지, 빈 leaf 축소. (4) 위성 탭은 읽기 전용 렌더(코멘트·scroll-spy 없음 — 게이트·승격은 주 문서 기준 유지), 분할·드래그는 동일. 신규 자체체크 7건(docTabs 1 · syncDocTabs 4 · 게이트 서빙 1 · App 렌더 1 + mock-api 통과 1), 자체체크 261 pass. 테스트 뷰어: 예시 위성 문서 2종(`sat-requirements-scope.md`·`sat-scenario-acceptance.md`) + Stage 1 시나리오 연결. [[ADR-033-viewer-multi-doc-tabs]]
+
+- **문서 뷰어 탭 분할(브라우저식)** — 탭을 드래그해 대상 영역의 좌/우/상/하 드롭 존에 놓으면 분할·탭 이동, 중앙 드롭은 탭 병합, 탭 우클릭 메뉴(왼/오른/위/아래로 분할)는 탭 복제 분할. 무한 중첩 이진 트리 모델, 영역별 탭 스트립, divider 드래그 비율 조정, 마지막 탭 닫힌 영역 자동 제거, 문서 탭은 전체 마지막 1개만 닫기 불가. 세션 내 상태만(새로고침 시 단일 뷰 복귀). 신규 `lib/splitLayout.js`(순수 변환)·`components/SplitNode.jsx`(재귀 렌더) + 자체체크 11건(순수 7 + 렌더 4). 코어·게이트 무변경, 뷰어 전용. [[ADR-032-viewer-tab-splitting]]
+
+- **그래프 블록 헤더 드래그 → 탭 분리(ADR-032 확장)** — 그래프 블록(tree·sequence·flowchart)의 헤더(파일명 바)를 드래그하면 탭 드래그와 동일한 5방향 드롭 존이 표시되고, 가장자리 드롭 = 해당 방향으로 분할하며 그래프 탭을 새 영역에 열기, 중앙 드롭 = 분할 없이 대상 영역에 탭으로 열기. 이미 열린 그래프 탭은 복제 없이 이동(그래프당 탭 1개 유지). 드래그는 헤더로만 시작 — 캔버스(tree = ReactFlow 팬, SVG 뷰 = 스크롤)·더블클릭·노드 드릴다운 무변경. 렌더 자체체크 3건 추가. 코어·게이트 무변경, 뷰어 전용. [[ADR-032-viewer-tab-splitting]]
+
+- **문서 뷰어 탭 바 + 그래프 상세 탭** — 문서 섹션 상단에 브라우저 스타일 탭: (1) md 문서 탭은 닫기 불가 고정 탭, (2) 그래프 블록(tree·sequence·flowchart 3종) 헤더/캔버스 빈 영역 더블클릭 → 같은 뷰를 크게 렌더하는 상세 탭 열기(노드 더블클릭 드릴다운은 그대로 유지), 재더블클릭 = 기존 탭 포커스(그래프 파일당 탭 1개), (3) 그래프 탭 X 버튼 닫기 + 이웃 탭 포커스 이동, (4) 스테이지 전환에도 탭 유지(세션 내 상태). 탭 전환은 hidden 토글로 문서 스크롤·코멘트 상태 보존. 신규 `TabBar.jsx`·`lib/viewerTabs.js`(순수 탭 로직) + 자체체크 6건. 코어·게이트 무변경, 뷰어 전용. [[ADR-031-viewer-graph-detail-tabs]]
 
 - **테스트 게이트(에이전트 훅 + pre-commit)** — `bun test` 통과 전에는 작업도 커밋도 끝나지 않음. `.pi/extensions/test-gate.ts`: `agent_settled`에 테스트 실행, 실패 시 실패 출력과 수정 지시를 주입해 에이전트 재실행(최대 3회, 초과 시 사용자 에스컬레이션). `scripts/git-hooks/pre-commit`(POSIX sh, `core.hooksPath` 활성화): 동일 논리로 커밋 차단 — 수동 커밋·다른 도구에도 적용. `.gitattributes` 훅 LF 고정. 자체 검증: 훅 통과/실패 경로 수동 실행 확인, `tsc -p .pi` 0 종료. [[ADR-029-test-gate]]
 

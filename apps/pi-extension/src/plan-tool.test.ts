@@ -9,7 +9,6 @@ import { test, expect } from "bun:test";
 import { drivePlan, type DrivePlanOutput } from "./plan-tool.ts";
 import { getOrCreateGate } from "./gate-manager.ts";
 import {
-	LEGACY_KINDS,
 	initialState,
 	loadState,
 	readArtifact,
@@ -57,10 +56,6 @@ async function driveUntilGate(opts: {
 			...extra,
 		});
 	let out = await call({});
-	// 신규 파이프라인: 첫 호출은 compose — 레거시 3종 구성으로 응답해 진행한다.
-	if (out.nextAction === "compose") {
-		out = await call({ stages: [...LEGACY_KINDS] });
-	}
 	for (;;) {
 		if (out.done || out.gateResult !== null) return out;
 		if (out.nextAction === "spawn-design") {
@@ -90,7 +85,6 @@ test("setup", async () => {
 
 test("Tier 1: 진입 → spawn-design(파일 프로토콜: spawnOptions + draftPath, 본문 無)", async () => {
 	const out = await drivePlan({
-		stages: [...LEGACY_KINDS],
 		root,
 		viewerDistDir: VIEWER_DIST,
 		feature: "firstcall",
@@ -112,7 +106,6 @@ test("Tier 1: 진입 → spawn-design(파일 프로토콜: spawnOptions + draftP
 
 test("방향1+3a: spawn 지시문이 agent=<명명에이전트> 지시 + spawnTask 경로 참조 + 에이전트 파일 allowlist 단언", async () => {
 	const out = await drivePlan({
-		stages: [...LEGACY_KINDS],
 		root,
 		viewerDistDir: VIEWER_DIST,
 		feature: "agentcheck",
@@ -152,7 +145,6 @@ test("design 위성: high 수준 spawn-design 지시문이 주+위성 병렬 스
 		root,
 		viewerDistDir: VIEWER_DIST,
 		feature: "satellites",
-		stages: ["understanding", "design", "implementation"],
 		open: false,
 		designLevel: "high",
 	});
@@ -244,7 +236,7 @@ test("Tier 1: feedback 이슈 → Design 수정 1회 → gate(개선판 저장, 
 
 test("ADR-018·020: 그래프 트리 승격 — 에이전트 이름 그대로 다중 승격 + 고아 제외 + confirm → stage 3", async () => {
 	const feat = "graphfeat";
-	await saveState(root, { ...initialState(feat, [...LEGACY_KINDS]), stage: 2 });
+	await saveState(root, { ...initialState(feat), stage: 2 });
 	const base = {
 		root,
 		viewerDistDir: VIEWER_DIST,
@@ -279,7 +271,7 @@ test("ADR-018·020: 그래프 트리 승격 — 에이전트 이름 그대로 �
 	});
 	const onReady = postDecision("confirm");
 
-	let out = await drivePlan({ stages: [...LEGACY_KINDS], ...base, onReady });
+	let out = await drivePlan({ ...base, onReady });
 	expect(out.nextAction).toBe("spawn-design");
 	await writeFile(out.draftPath!, draftMd, "utf8");
 	await writeFile(join(root, feat, "module-deps.json"), rootJson, "utf8");
@@ -320,12 +312,7 @@ test("ADR-018·020: 그래프 트리 승격 — 에이전트 이름 그대로 �
 		"utf8",
 	);
 
-	out = await drivePlan({
-		stages: [...LEGACY_KINDS],
-		...base,
-		designArtifact: out.draftPath!,
-		onReady,
-	});
+	out = await drivePlan({ ...base, designArtifact: out.draftPath!, onReady });
 	expect(out.nextAction).toBe("spawn-feedback");
 	out = await drivePlan({
 		...base,
@@ -364,23 +351,13 @@ test("ADR-018·020: 그래프 트리 승격 — 에이전트 이름 그대로 �
 
 test("단계별 스폰 명령 분기: Stage 1 그래프 언급 없음 · Stage 2 필수 · Stage 3 선택", async () => {
 	const b = { root, viewerDistDir: VIEWER_DIST, open: false } as const;
-	const out1 = await drivePlan({
-		stages: [...LEGACY_KINDS],
-		...b,
-		feature: "graphcmd1",
-	});
+	const out1 = await drivePlan({ ...b, feature: "graphcmd1" });
 	expect(out1.spawnTask).not.toContain("그래프");
-	await saveState(root, {
-		...initialState("graphcmd2", [...LEGACY_KINDS]),
-		stage: 2,
-	});
+	await saveState(root, { ...initialState("graphcmd2"), stage: 2 });
 	const out2 = await drivePlan({ ...b, feature: "graphcmd2" });
 	expect(out2.spawnTask).toContain("필수");
 	expect(out2.spawnTask).toContain("module-deps.json");
-	await saveState(root, {
-		...initialState("graphcmd3", [...LEGACY_KINDS]),
-		stage: 3,
-	});
+	await saveState(root, { ...initialState("graphcmd3"), stage: 3 });
 	const out3 = await drivePlan({ ...b, feature: "graphcmd3" });
 	expect(out3.spawnTask).toContain("선택");
 	expect(out3.spawnTask).not.toContain("필수");
@@ -388,7 +365,7 @@ test("단계별 스폰 명령 분기: Stage 1 그래프 언급 없음 · Stage 2
 
 test("Stage 2 그래프 강제: 그래프 없는 draft → 자동 반려(재작성 지시) → 그래프 완성 → 게이트 진행", async () => {
 	const feat = "graphreq";
-	await saveState(root, { ...initialState(feat, [...LEGACY_KINDS]), stage: 2 });
+	await saveState(root, { ...initialState(feat), stage: 2 });
 	const base = {
 		root,
 		viewerDistDir: VIEWER_DIST,
@@ -397,17 +374,12 @@ test("Stage 2 그래프 강제: 그래프 없는 draft → 자동 반려(재작�
 	} as const;
 	const onReady = postDecision("confirm");
 
-	let out = await drivePlan({ stages: [...LEGACY_KINDS], ...base, onReady });
+	let out = await drivePlan({ ...base, onReady });
 	expect(out.nextAction).toBe("spawn-design");
 
 	// v1: 그래프 없음 → Feedback 가지 않고 재작성 반려(spawn-design)
 	await writeFile(out.draftPath!, "# 설계\n\n그래프 없음.\n", "utf8");
-	out = await drivePlan({
-		stages: [...LEGACY_KINDS],
-		...base,
-		designArtifact: out.draftPath!,
-		onReady,
-	});
+	out = await drivePlan({ ...base, designArtifact: out.draftPath!, onReady });
 	expect(out.nextAction).toBe("spawn-design");
 	expect(out.spawnTask).toContain("그래프");
 	expect(out.spawnTask).toContain("필수");
@@ -423,19 +395,14 @@ test("Stage 2 그래프 강제: 그래프 없는 draft → 자동 반려(재작�
 		JSON.stringify({ version: 2, childLevel: "modules", nodes: [] }),
 		"utf8",
 	);
-	out = await drivePlan({
-		stages: [...LEGACY_KINDS],
-		...base,
-		designArtifact: out.draftPath!,
-		onReady,
-	});
+	out = await drivePlan({ ...base, designArtifact: out.draftPath!, onReady });
 	expect(out.gateResult?.verdict).toBe("confirm");
 	expect(out.stage).toBe(3);
 });
 
 test("Stage 2 그래프 강제: 재작성 상한 소진 → 게이트 에스컬레이션", async () => {
 	const feat = "graphesc";
-	await saveState(root, { ...initialState(feat, [...LEGACY_KINDS]), stage: 2 });
+	await saveState(root, { ...initialState(feat), stage: 2 });
 	const base = {
 		root,
 		viewerDistDir: VIEWER_DIST,
@@ -444,22 +411,12 @@ test("Stage 2 그래프 강제: 재작성 상한 소진 → 게이트 에스컬�
 	} as const;
 	const onReady = postDecision("confirm");
 
-	let out = await drivePlan({ stages: [...LEGACY_KINDS], ...base, onReady });
+	let out = await drivePlan({ ...base, onReady });
 	await writeFile(out.draftPath!, "# v1 그래프 없음", "utf8");
-	out = await drivePlan({
-		stages: [...LEGACY_KINDS],
-		...base,
-		designArtifact: out.draftPath!,
-		onReady,
-	});
+	out = await drivePlan({ ...base, designArtifact: out.draftPath!, onReady });
 	expect(out.nextAction).toBe("spawn-design"); // 반려 1회(수정 지시)
 	await writeFile(out.draftPath!, "# v2 여전히 그래프 없음", "utf8");
-	out = await drivePlan({
-		stages: [...LEGACY_KINDS],
-		...base,
-		designArtifact: out.draftPath!,
-		onReady,
-	});
+	out = await drivePlan({ ...base, designArtifact: out.draftPath!, onReady });
 	// 상한 소진 → 게이트 에스컬레이션 안내(잔존 이슈에 그래프 필수 명시)
 	expect(out.message).toContain("필수");
 	expect(out.message).toContain("그래프");
@@ -475,15 +432,10 @@ test("게이트 전이 시 design-prompt.md 갱신: Stage 1 confirm → Stage 2 
 	} as const;
 	const onReady = postDecision("confirm");
 
-	let out = await drivePlan({ stages: [...LEGACY_KINDS], ...base, onReady });
+	let out = await drivePlan({ ...base, onReady });
 	expect(out.nextAction).toBe("spawn-design");
 	await writeFile(out.draftPath!, "# 요구사항 v1\n", "utf8");
-	out = await drivePlan({
-		stages: [...LEGACY_KINDS],
-		...base,
-		designArtifact: out.draftPath!,
-		onReady,
-	});
+	out = await drivePlan({ ...base, designArtifact: out.draftPath!, onReady });
 	expect(out.nextAction).toBe("spawn-feedback");
 	out = await drivePlan({
 		...base,
@@ -500,7 +452,7 @@ test("게이트 전이 시 design-prompt.md 갱신: Stage 1 confirm → Stage 2 
 
 test("Stage 2 그래프 강제: 참조 코멘트에 경로 포함(규약 위반) → 파일명 전용 안내로 반려 + 반려 라운드에도 지시 파일 갱신", async () => {
 	const feat = "graphpath";
-	await saveState(root, { ...initialState(feat, [...LEGACY_KINDS]), stage: 2 });
+	await saveState(root, { ...initialState(feat), stage: 2 });
 	const base = {
 		root,
 		viewerDistDir: VIEWER_DIST,
@@ -509,7 +461,7 @@ test("Stage 2 그래프 강제: 참조 코멘트에 경로 포함(규약 위반)
 	} as const;
 	const onReady = postDecision("confirm");
 
-	let out = await drivePlan({ stages: [...LEGACY_KINDS], ...base, onReady });
+	let out = await drivePlan({ ...base, onReady });
 	expect(out.nextAction).toBe("spawn-design");
 	// 이전 단계 잔여 지시 시뮬레이션 — 반려 라운드에도 현 단계 지시로 갱신돼야 한다.
 	await writeArtifact(root, feat, "design-prompt.md", "STALE stage1 prompt");
@@ -518,12 +470,7 @@ test("Stage 2 그래프 강제: 참조 코멘트에 경로 포함(규약 위반)
 		"<!-- graph: graph/chat.graph.json -->\n# 설계\n",
 		"utf8",
 	);
-	out = await drivePlan({
-		stages: [...LEGACY_KINDS],
-		...base,
-		designArtifact: out.draftPath!,
-		onReady,
-	});
+	out = await drivePlan({ ...base, designArtifact: out.draftPath!, onReady });
 	expect(out.nextAction).toBe("spawn-design"); // 반려(재작성 지시)
 	expect(out.spawnTask).toContain("파일명만");
 	expect(await readArtifact(root, feat, "design-prompt.md")).toContain(
@@ -535,11 +482,7 @@ test("#3 gateOpen resume: 게이트 열린 채 재시작 → 산출물 보존 + 
 	const feat = "resumefeat";
 	const md = "# 요구사항(이미 저장됨)\n\n데모.";
 	await writeArtifact(root, feat, "01-understanding-and-scenarios.md", md);
-	await saveState(root, {
-		...initialState(feat, [...LEGACY_KINDS]),
-		stage: 1,
-		gateOpen: true,
-	});
+	await saveState(root, { ...initialState(feat), stage: 1, gateOpen: true });
 	let posted = false;
 	const out = await drivePlan({
 		root,
@@ -588,17 +531,12 @@ test("검토 요청(ADF-013): 게이트 열린 동안 +1 사이클 → feedback�
 	};
 
 	// 진입 → spawn-design → v1 작성.
-	let out = await drivePlan({ stages: [...LEGACY_KINDS], ...base, onReady });
+	let out = await drivePlan({ ...base, onReady });
 	expect(out.nextAction).toBe("spawn-design");
 	await writeFile(out.draftPath!, "# v1 요구사항\n", "utf8");
 
 	// design 보고 → spawn-feedback.
-	out = await drivePlan({
-		stages: [...LEGACY_KINDS],
-		...base,
-		designArtifact: out.draftPath!,
-		onReady,
-	});
+	out = await drivePlan({ ...base, designArtifact: out.draftPath!, onReady });
 	expect(out.nextAction).toBe("spawn-feedback");
 
 	// feedback 보고(CLEAN) → 게이트 오픈 → onReady 가 review-request POST → runGate 가 review-request 로 resolve → spawn-feedback(재검토) 반환.
@@ -622,12 +560,7 @@ test("검토 요청(ADF-013): 게이트 열린 동안 +1 사이클 → feedback�
 	await writeFile(out.draftPath!, "# v2 수정본\n", "utf8");
 
 	// 수정본 design 보고 → dfLoop=1 >= maxLoops(1) → 게이트 → onReady(confirm) → stage 2.
-	out = await drivePlan({
-		stages: [...LEGACY_KINDS],
-		...base,
-		designArtifact: out.draftPath!,
-		onReady,
-	});
+	out = await drivePlan({ ...base, designArtifact: out.draftPath!, onReady });
 	expect(out.gateResult?.verdict).toBe("confirm");
 	expect(out.stage).toBe(2);
 	// 검토 요청 사이클이 반영된 수정본이 산물로 저장.
@@ -645,7 +578,7 @@ test("ADR-017: feedbackLevel none → design 보고가 Feedback 스폰 없이 �
 		open: false,
 		feedbackLevel: "none" as const,
 	};
-	let out = await drivePlan({ stages: [...LEGACY_KINDS], ...base });
+	let out = await drivePlan({ ...base });
 	expect(out.nextAction).toBe("spawn-design");
 	await writeFile(out.draftPath!, "# none 수준 산출물\n", "utf8");
 
@@ -672,13 +605,9 @@ test("ADR-017: feedbackLevel high → spawn-feedback 지시문에 4~6개 수 지
 		open: false,
 		feedbackLevel: "high" as const,
 	};
-	let out = await drivePlan({ stages: [...LEGACY_KINDS], ...base });
+	let out = await drivePlan({ ...base });
 	await writeFile(out.draftPath!, "# v1\n", "utf8");
-	out = await drivePlan({
-		stages: [...LEGACY_KINDS],
-		...base,
-		designArtifact: out.draftPath!,
-	});
+	out = await drivePlan({ ...base, designArtifact: out.draftPath! });
 	expect(out.nextAction).toBe("spawn-feedback");
 	expect(out.feedbackLevel).toBe("high");
 	expect(out.message).toContain("4~6");
@@ -697,13 +626,9 @@ test("ADR-017: feedbackLevel low → 정확히 1개(1~3 영역 담당) 지시", 
 		open: false,
 		feedbackLevel: "low" as const,
 	};
-	let out = await drivePlan({ stages: [...LEGACY_KINDS], ...base });
+	let out = await drivePlan({ ...base });
 	await writeFile(out.draftPath!, "# v1\n", "utf8");
-	out = await drivePlan({
-		stages: [...LEGACY_KINDS],
-		...base,
-		designArtifact: out.draftPath!,
-	});
+	out = await drivePlan({ ...base, designArtifact: out.draftPath! });
 	expect(out.nextAction).toBe("spawn-feedback");
 	expect(out.feedbackLevel).toBe("low");
 	expect(out.message).toContain("정확히 1개");
@@ -730,11 +655,7 @@ test("채팅 루프: 게이트 대기 중 채팅 → chatPending → chatRespons
 	};
 
 	// 게이트가 열리는 호출에 onReady 로 채팅을 보낸다(결정 아님 → chatPending 반환 유도).
-	let out = await drivePlan({
-		stages: [...LEGACY_KINDS],
-		...base,
-		onReady: postChat,
-	});
+	let out = await drivePlan({ ...base, onReady: postChat });
 	let dc = 0;
 	while (!out.chatPending && !out.done && out.gateResult === null) {
 		if (out.nextAction === "spawn-design") {
@@ -799,7 +720,7 @@ test("게이트 열린 상태에서 designArtifact(재작성)+chatResponse 재�
 	await getOrCreateGate({ root, feature, viewerDistDir: VIEWER_DIST }); // 게이트 사전 생성 — runOpenGate 의 appendAgentChat 이 게이트를 찾도록
 	await writeFile(draftPath, "# 구 초안\n", "utf8");
 	await saveState(root, {
-		...initialState(feature, [...LEGACY_KINDS]),
+		...initialState(feature),
 		stage: 1,
 		gateOpen: true,
 		dfPhase: "design",
@@ -847,94 +768,6 @@ test("게이트 열린 상태에서 designArtifact(재작성)+chatResponse 재�
 			(m) => m.role === "agent" && m.text === "수정 반영했습니다.",
 		),
 	).toBe(true);
-});
-
-test("동적 구성: 첫 호출(구성 미제출) → compose 요청(카탈로그 메뉴)", async () => {
-	const out = await drivePlan({
-		root,
-		viewerDistDir: VIEWER_DIST,
-		feature: "compose-me",
-		open: false,
-	});
-	expect(out.nextAction).toBe("compose");
-	expect(out.done).toBe(false);
-	expect(out.message).toContain("understanding");
-	expect(out.message).toContain("risk-analysis");
-	expect(out.message).toContain("test-strategy");
-	expect(out.message).toContain("nfr");
-	// 상태 미생성 — 구성 제출 전에는 파이프라인이 시작되지 않는다.
-	expect(await loadState(root, "compose-me")).toBeUndefined();
-});
-
-test("동적 구성: stages 제출 → 구성 영속화 + 1단계 spawn-design", async () => {
-	const out = await drivePlan({
-		root,
-		viewerDistDir: VIEWER_DIST,
-		feature: "compose-4",
-		stages: ["understanding", "design", "risk-analysis", "implementation"],
-		open: false,
-	});
-	expect(out.nextAction).toBe("spawn-design");
-	expect(out.stage).toBe(1);
-	const s = await loadState(root, "compose-4");
-	expect(s?.stages).toEqual([
-		"understanding",
-		"design",
-		"risk-analysis",
-		"implementation",
-	]);
-});
-
-test("동적 구성: 미등록 종류 제출 → 에러 안내 + 상태 미생성", async () => {
-	const out = await drivePlan({
-		root,
-		viewerDistDir: VIEWER_DIST,
-		feature: "compose-bad",
-		stages: ["understanding", "bogus"],
-		open: false,
-	});
-	expect(out.nextAction).toBe("compose");
-	expect(out.message).toContain("bogus");
-	expect(await loadState(root, "compose-bad")).toBeUndefined();
-});
-
-test("최대 스테이지 상한: 초과 구성은 잘라서 적용 + 상한 state 영속화", async () => {
-	const out = await drivePlan({
-		root,
-		viewerDistDir: VIEWER_DIST,
-		feature: "cap-clamp",
-		stages: [
-			"understanding",
-			"design",
-			"risk-analysis",
-			"test-strategy",
-			"implementation",
-		],
-		maxStages: 2,
-		open: false,
-	});
-	expect(out.nextAction).toBe("spawn-design");
-	const s = await loadState(root, "cap-clamp");
-	expect(s?.stages).toEqual(["understanding", "design"]);
-	expect(s?.maxStages).toBe(2);
-});
-
-test("최대 스테이지 상한: 진행 중 상한 갱신 → state 반영", async () => {
-	await drivePlan({
-		root,
-		viewerDistDir: VIEWER_DIST,
-		feature: "cap-update",
-		stages: ["understanding", "design", "implementation"],
-		open: false,
-	});
-	await drivePlan({
-		root,
-		viewerDistDir: VIEWER_DIST,
-		feature: "cap-update",
-		maxStages: 1,
-		open: false,
-	});
-	expect((await loadState(root, "cap-update"))?.maxStages).toBe(1);
 });
 
 test("teardown", async () => {

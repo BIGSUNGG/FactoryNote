@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-18
+updated: 2026-08-19
 tags: [development, dev-log]
 ---
 
@@ -9,17 +9,53 @@ tags: [development, dev-log]
 
 ## 2026-08-19
 
-### /factorynote 설정 대시보드(서브커맨드 폐지 · 메뉴 확장)
+### 다중 문서 뷰어 탭 — 위성 design 문서 1:1 렌더 (ADR-033)
 
-**맥락**: 사용자 요청(`/goal`) — `/factorynote feedback` 같은 서브커맨드를 다 없애고 대시보드에서만 값 조절, 대시보드에 stage·design 값 조절 추가. '대시보드' = 명령어 실행 시 커맨드 영역에 나오는 설정 메뉴(기존 구현 — feedback 항목만 있던 상태). 사전 확정: on|off 포함 서브커맨드 전부 폐지 · design 값 = designLevel(low/medium/high) · 세션 메모리만 유지 · plan 모드 on/off 는 메뉴 항목.
+**맥락**: ADR-031 병렬 위성 에이전트가 `draft.<role>.md` 를 쓰지만 뷰어는 주 문서만 표시(`viewer-state.ts` TODO). 사용자 요청: 각 design 에이전트 문서를 탭과 1:1로. 협의 결정 2건: 탭 라벨=파일명 그대로, 탭 바 항상 표시(문서 1개여도).
 
-**작업**: `command.ts` 재작성 — 인자 파싱 제거, 메뉴 항목 feedback·design·stage·auto + plan 모드 전환(confirm → ON · off → OFF · close → 유지), designLevel 세션 상태 신설(기본 low). `index.ts` 가 세션 designLevel 을 기본값으로 주입(파라미터 > 세션 설정 > 기본값 — maxStages 와 동일 우선순위). feature/dashboard 머지 손상 동반 수습: `index.ts` maxStages 파라미터 구문 오류(미닫힘 누락), `engine.test.ts` `invalidateArtifactsAfter` 인자 누락, `plan-tool.test.ts` 위성 테스트가 동적 구성(ADR-031) 미반영으로 compose 에 머무르던 실패(stages 제출 추가). `command.test.ts` 신규 — 가짜 명령 컨텍스트로 메뉴 조작 자체체크 10건. 문서: [[ADR-032-settings-dashboard-menu]] · Changelog · 사용 가이드 · 구현 아키텍처 · Home 갱신.
+**작업**: 게이트(`viewer-state.ts` — 산출물 항목에 `satellites` 조립: `designMenuForStage` 역할 × `satelliteFileName` 로 피처 루트에서 읽어 존재분만, TODO 주석 해소) → 뷰어(`viewerTabs.docTabs`·`docTabId` 위성 탭 구성, `splitLayout.syncDocTabs` 문서 집합 변동 동기화, `PlanPage` 위성 탭 읽기 전용 렌더 + 레이아웃 초기화·동기화 effect, `SplitNode` pane 클래스 판정, `App` `satelliteDocs`·`mainDocLabel` 전달) → 테스트 뷰어(예시 위성 문서 2종 + vite.config Stage 1 시나리오).
 
-**발견**: `@earendil-works/pi-coding-agent` 는 루트가 아닌 `apps/pi-extension/node_modules` 에 설치되어 pi-lens TS 서버만 미해석 연쇄 오류(implicit-any)를 낸다 — 실제 게이트는 `tsc -b`(통과). 판정은 항상 `bun run typecheck` 기준으로.
+**발견**: syncDocTabs 가 기존 문서 탭 객체를 그대로 유지하면 스테이지 전환 시 주 탭 라벨이 이전 단계 파일명으로 남는다 — 문서 탭은 새 목록 버전으로 교체(라벨 갱신). App 렌더 테스트가 포착.
 
-**결과**: 자체체크 253 pass, `bun run typecheck` 0 종료.
+**검증**: `bun run typecheck` 0 · `bun test` 261 pass(신규 7). dev 뷰어(port 5181 — 5180 은 다른 워크트리 dev 서버 점유로 우회)에서 `/api/state` 위성 2종 서빙 + 뷰어 200 확인.
+
+**배제**: 위성 탭 코멘트·Toc 연동(주 문서 기준 유지), 위성 승격(표시 전용), 다중 문서 scroll-spy 중첩.
 
 ## 2026-08-18
+
+### 드래그 미동작 수정 — HTML5 DnD → 포인터 이벤트 전환 (ADR-032)
+
+**맥락**: 사용자 보고 — “드래그 안 되는데?” 탭·그래프 헤더 드래그가 실제 브라우저에서 무반응. 합성 이벤트(happy-dom) 자체체크는 통과했으나 브라우저의 HTML5 드래그 세션 개시 자체에 의존하는 구조라 임베디드 웹뷰 환경에서 세션이 시작되지 않은 것으로 판단.
+
+**작업**: 드래그 메커니즘을 포인터 이벤트로 전면 전환. 신규 `lib/armDrag.js` — pointerdown + 4px 임계값 초과 시에만 드래그 개시(클릭·탭 선택·블록 코멘트 보존). `TabBar.jsx`·`Block.jsx` 의 draggable/onDragStart/onDragEnd 제거 → onPointerDown + armDrag. `SplitNode.jsx` 드롭 존은 표시·히트테스트용으로 유지(이벤트 핸들러 제거), 드롭 판정은 `PlanPage` 의 window 포인터 리스너가 `e.target.closest('[data-zone]')` 으로 수행. `.viewer-tab`·`.block-graph-head` 에 user-select:none. 렌더 자체체크를 포인터 플로우로 재작성 + 임계값 미만 클릭 보존 체크 추가(총 8건).
+
+**발견**: (1) happy-dom 합성 dragstart 이벤트는 React 핸들러만 검증할 뿐 브라우저의 드래그 세션 개시를 검증하지 못함 — “테스트 통과 ≠ 실제 브라우저 동작”의 대표 사례. (2) 조사 중 dev 서버 HMR 캐시가 편집 중간 상태(Block.jsx export removed)로 오염돼 빈 페이지가 되는 현상 — dev 서버 재시작으로 해결.
+
+**검증**: `bun test` 248건 통과 + `bun run build` exit 0. 실서빙 페이지(dev 5180)에서 포인터 플로우 전체 검증 — 헤더 드래그→오른쪽 드롭 = 2영역 분할, 탭 드래그→아래 드롭 = 3영역 분할 확인.
+
+**배제**: 드래그 고스트 이미지(존 하이라이트로 피드백 충분), 터치 전용 제스처(포인터 이벤트가 기본 커버).
+
+### 그래프 블록 헤더 드래그 → 탭 분리 (ADR-032 확장)
+
+**맥락**: 사용자 요청 — 그래프 블록처럼 더블클릭 시 탭이 생기는 오브젝트를 드래그해서 탭을 분리하게. 협의에서 2결정: (1) 드래그 시작점 = 블록 헤더만(tree 캔버스는 ReactFlow 팬과 충돌하므로 제외), (2) 드롭 효과 = 기존 탭 드래그와 동일한 5존 재사용(가장자리 = 분할 + 새 영역에 열기, 중앙 = 분할 없이 탭으로 열기).
+
+**작업**: `Block.jsx` 그래프 헤더에 draggable + onDragStart/onDragEnd 배선(BlockContent props 통과 포함). `Document.jsx` `onGraphDragStart`/`onGraphDragEnd` 통과. `PlanPage.jsx` drag 상태를 `{paneId,tabId} | {graphFile}` 공용으로 확장, `dropGraphBlock` 신규 — 이미 열린 그래프 탭 검색 후 가장자리 드롭 = `splitPane(move)` 로 이동, 중앙 드롭 = `moveTab` 또는 `openGraphTab`(그래프당 탭 1개 규칙 유지). `graph.css` 헤더 cursor: grab. 렌더 자체체크 3건(SplitTab.test.jsx: 헤더 드래그 드롭 존·가장자리 분할·중앙 열기·재드래그 이동).
+
+**검증**: `bun test` 247건 통과 + `bun run build` exit 0. 데모는 기존 plan.md 그래프 참조로 가능(시나리오 변경 불필요).
+
+**배제**: 캔버스 드래그 시작(ReactFlow 팬·SVG 스크롤·텍스트 선택 충돌), 더블클릭 동작 변경(무변경 유지).
+
+### 문서 뷰어 탭 분할 — 브라우저식 무한 중첩 (ADR-032)
+
+**맥락**: 사용자 요청 — 탭을 분할해서 볼 수 있게, 대부분의 브라우저처럼(탭 드래그 분할 + 우클릭 팝업 분할 버튼). `/goal` 드래프팅에서 4결정 확정: (1) 무한 중첩 분할, (2) 영역별 탭 스트립, (3) 문서 탭 포함 전 탭 분할 가능, (4) 세션 내 상태만.
+
+**작업**: 분할 레이아웃 = 이진 트리(leaf = 탭 목록, split = 방향·비율·자식 2개). 순수 변환 `lib/splitLayout.js` 신규(split/move/close/collapse/ratio, viewerTabs.js 패턴) + 자체체크 7건. `components/SplitNode.jsx` 신규 — 재귀 렌더 + 드래그 중 5방향 드롭 존 오버레이(가장자리 = 분할·이동, 중앙 = 병합) + divider 포인터 리사이즈. `TabBar.jsx` 드래그·우클릭 props 확장(기존 배선 무변경). `PlanPage.jsx` flat 탭 상태 → 분할 트리 상태 전환 + 우클릭 분할 메뉴 포털(탭 복제 분할). pinned 문서 탭 규칙 완화 — '닫기 불가' → '레이아웃 전체 마지막 1개만 닫기 불가'(분할 복제본은 닫기 가능, 영역은 마지막 탭 닫히면 제거·트리 축소). 렌더 자체체크 4건(SplitTab.test.jsx: 드롭 존 표시·드롭 분할·중앙 병합·우클릭 메뉴·영역 제거).
+
+**발견**: (1) `mapNode` 가 fn 결과를 재순회하면 replacer 가 원본 pane id 를 유지한 새 노드를 만들 때 무한 재귀 — fn 은 원본 노드마다 1회만 적용해야 함. (2) happy-dom 테스트 간 `GlobalRegistrator.unregister()` 누락 시 다음 파일 register 충돌.
+
+**검증**: `bun test` 109건 통과 + `bun run build`(typecheck + viewer build + install) exit 0. 테스트 뷰어 데모는 `plan.md` 기존 그래프 참조 3개로 분할 시연 가능 — 시나리오·예시 문서 변경 불필요(`bun run dev` → 그래프 더블클릭 탭 → 드래그/우클릭 분할).
+
+**배제**: localStorage 영속화(게이트 페이지 특성상 복원 가치 낮음), 2분할 제한 모델(사용자가 무한 중첩 선택), 외부 분할 라이브러리(의존성 금지 + 직접 구현 수십 줄).
 
 ### 뷰어 가시 변경 → 테스트 뷰어 갱신 룰 (원칙 3 하위 규칙)
 
@@ -51,6 +87,28 @@ tags: [development, dev-log]
 **작업**: 코어(design-agents.ts 레지스트리 9역할 · df-policy.ts DESIGN_LEVELS/designLevelCountSpec · types feedback.ts DesignAgent/DesignLevel · df-task.ts designSatellite(Revision)Task · df-transition.ts spawnDesign/nextDesignFeedbackStep designLevel 전달 · artifact.ts 위성 무효화) → 어댑터(plan-paths.ts buildDesignMenuMarkdown/satelliteFileName/DESIGN_BATCH_SPLIT_RULE · plan-directive.ts spawn-design 메시지 주+위성 병렬 지시 · plan-tool/plan-gate.ts design-menu.md 기록 + designLevel 스레딩 · index.ts 스키마 + 지시문) → 에이전트 9개 신규 → 테스트(orchestration·engine·plan-tool) → 빌드·설치(42 에이전트 배포). 플레이스홀더 ADR-0NN → ADR-031 치환.
 
 **결과**: `bun run typecheck` 0 · `bun test` 230 pass · `bun run build` 통과(뷰어 dist + install 배포). ADR-031 작성, Home.md ADR 인덱스 + Changelog 반영. 잔여: designLevel=high 수동 확인(계약 #8) — /factorynote plan 모드에서 확인 필요.
+
+### 테스트 뷰어 그래프 미출력 수정 — mock 에 데모 그래프 추가
+
+**맥락**: 사용자 보고 — 테스트 뷰어(`bun run dev`)에서 그래프가 안 보인다.
+
+**원인**: 뷰어 소스·테스트는 그래프 렌더 경로가 정상인데, **dev mock 이 그래프를 전혀 서빙하지 않았다** — 데모 md(`plan.md` 등)에 `<!-- graph: ... -->` 참조가 없고, `mock-api.js` artifact 가 `graphs` 배열을 실지 않아 `/api/state` 에 `graphs` 필드 자체가 없음(실서버 `viewer-state.ts` 는 md 참조 → stage 파일 읽기 → `parse*`/`loadGraphTree` 로 `{file,type,data}` 빌드). 그래서 문서에 그래프 블록이 아예 생성되지 않아 ADR-031 상세 탭 더블클릭도 테스트할 수 없었다. plan.md 의 시퀀스 자리는 죽은 placeholder 이미지(via.placeholder.com)였다.
+
+**작업**: 데모 그래프 JSON 3종(sequence `auth-sequence.json`·flowchart `deploy-flow.json`·계층 tree `module-architecture.json` + 자식 클래스 파일)을 `src/data/graphs/` 에 추가, `plan.md` 의 placeholder 이미지를 `<!-- graph: -->` 참조 3개로 교체, `vite.config.js` mock artifact 에 `graphs` 배열 연결(실서버 모양 그대로 — tree 는 자식까지 조립된 형태). mock-api.test.js 에 그래프 전달 자체체크 +1건.
+
+**결과**: `/api/state` stage 1 artifact 에 그래프 3종 포함 확인, 자체체크 233 pass(신규 1), `bun run build` 0 종료.
+
+### 문서 뷰어 탭 바 + 그래프 상세 탭
+
+**맥락**: 사용자 요청 — 문서 뷰어 섹션 상단에 브라우저 스타일 탭 추가. 그래프 블록 더블클릭 → 상세 탭, X 닫기, md 첫 탭은 고정(닫기 불가).
+
+**작업**: 질문 4개로 계약 확정(대상 3종 그래프·노드 드릴다운 공존·같은 뷰 확대 렌더·재클릭 포커스+스테이지 전환에도 탭 유지). `PlanPage` 에 탭 상태(useState, 스테이지 전환에도 마운트 유지 → 탭 유지), `TabBar.jsx`(고정 탭은 X 미렌더), `lib/viewerTabs.js` 순수 로직(열기/중복 방지/닫기/포커스 이동), `Block.jsx` 그래프 헤더·캔버스 더블클릭(`react-flow__node` 가드로 드릴다운과 공존), 탭 전환 hidden 토글(문서 스크롤 보존). CSS 는 layout.css 에 탭 바·팬 추가, `.doc-wrap` 그리드 슬롯을 `.doc-column` 으로 이관.
+
+**발견**: `bun test` 첫 실행 실패 = 의존성 미설치(vite 없음) — 루트 `bun install` 후 해결. UA `[hidden]` 이 저작자 display 속성에 밀리는 함 방지용 `display:none` 명시 규칙 필요.
+
+**배제**: 탭 드래그 순서 변경·새로고침 지속·SVG 줌 컨트롤(스크롤 팬으로 충분)·새 시각화.
+
+**결과**: 자체체크 231 pass(신규 6), `bun run build` 0 종료. [[ADR-031-viewer-graph-detail-tabs]]
 
 ### 4대 작업 원칙 하네스 적용
 

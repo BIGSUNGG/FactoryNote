@@ -1,0 +1,23 @@
+{
+	"version": 2,
+	"type": "sequence",
+	"title": "로그인 시나리오",
+	"participants": [
+		{ "id": "user", "name": "사용자" },
+		{ "id": "ui", "name": "LoginView" },
+		{ "id": "auth", "name": "AuthService" },
+		{ "id": "db", "name": "UserStore" }
+	],
+	"body": [
+		{ "from": "user", "to": "ui", "label": "자격증명 입력" },
+		{ "from": "ui", "to": "auth", "label": "login(id, pw)" },
+		{ "from": "auth", "to": "db", "label": "find(id)" },
+		{ "from": "db", "to": "auth", "label": "user record", "kind": "reply" },
+		{
+			"kind": "alt",
+			"label": "비밀번호 일치?",
+			"body": [{ "from": "auth", "to": "ui", "label": "token 발급", "kind": "reply" }]
+		},
+		{ "from": "ui", "to": "user", "label": "대시보드 전환" }
+	]
+}

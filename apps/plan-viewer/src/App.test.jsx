@@ -372,38 +372,45 @@ test("확정 요청이 큐 대기 중인 동안 게이트 재오픈(채팅 루�
 	expect(btn.disabled).toBe(false);
 });
 
-// ——— 상단 바: 동적 스테이지 구성 목록(ADR-031) ———
-test("상단 바·스템퍼가 정해진 구성(4단계) 스테이지 목록 표시", async () => {
+// ——— 7) 병렬 위성 문서 → 탭 1:1 렌더(ADR-031) ———
+test("위성 문서가 파일과 탭 1:1 로 렌더 — 라벨=파일명, 탭 바 항상 표시", async () => {
 	await React.act(async () => {
 		currentState = makeState({
-			stage: 2,
-			stageName: "리스크 분석",
-			stages: [
-				{ n: 1, name: "요청 이해·시나리오" },
-				{ n: 2, name: "리스크 분석" },
-				{ n: 3, name: "테스트 전략" },
-				{ n: 4, name: "구현 계획" },
+			stage: 1,
+			stageName: "요구사항·시나리오",
+			artifacts: [
+				{
+					stage: 1,
+					name: "요구사항",
+					file: "stage1.md",
+					format: "markdown",
+					md: "# Stage 1 — 본문",
+					satellites: [
+						{ file: "draft.requirements-scope.md", md: "# 위성 1" },
+						{ file: "draft.scenario-acceptance.md", md: "# 위성 2" },
+					],
+				},
 			],
 		});
 		pushState(currentState);
 		await new Promise((r) => setTimeout(r, 0));
 	});
-	const chips = [...container.querySelectorAll(".stage-chip")];
-	expect(chips.map((c) => c.textContent)).toEqual([
-		"1요청 이해·시나리오",
-		"2리스크 분석",
-		"3테스트 전략",
-		"4구현 계획",
+	const tabLabels = [...container.querySelectorAll(".viewer-tab-label")].map(
+		(el) => el.textContent,
+	);
+	expect(tabLabels).toEqual([
+		"stage1.md",
+		"draft.requirements-scope.md",
+		"draft.scenario-acceptance.md",
 	]);
-	// 현재 단계 강조·이후 단계 ahead.
-	expect(chips[1].className).toContain("current");
-	expect(chips[2].className).toContain("ahead");
-	expect(chips[0].className).not.toContain("ahead");
-	// 스템퍼도 동일 구성 기준 — 고정 3단계가 아닌 4스텝.
-	expect(container.querySelectorAll(".step").length).toBe(4);
-});
-
-test("상단 바: stages 미전달(레거시 state) → 레거시 3단계 폴백", () => {
-	// 기본 fixture 는 stages 필드 없음 — 뷰어가 레거시 3단계로 폴백한다.
-	expect(container.querySelectorAll(".stage-chip").length).toBe(3);
+	// 위성 본문 전환 렌더: 위성 탭 클릭 시 해당 md 표시.
+	const satTab = [...container.querySelectorAll(".viewer-tab")].find((el) =>
+		el.textContent.includes("draft.scenario-acceptance.md"),
+	);
+	await React.act(async () => {
+		satTab.dispatchEvent(
+			new window.MouseEvent("click", { bubbles: true, cancelable: true }),
+		);
+	});
+	expect(container.textContent).toContain("위성 2");
 });

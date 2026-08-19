@@ -116,11 +116,7 @@ export default function App() {
 			// 대기 채팅이 있으면 그 뒤에 순서대로, 게이트가 열려 있고 앞 대기가 없으면 서버가
 			// 즉시 decision 으로 resolve 한다(채널 단일화 — /api/decision 미경유).
 			// 마지막 단계 confirm·수정·회귀는 기존대로 /api/decision 로 즉시 전달.
-			if (
-				decision.verdict === "confirm" &&
-				state &&
-				state.stage < (state.stages?.length ?? 3)
-			) {
+			if (decision.verdict === "confirm" && state && state.stage < 3) {
 				await fetch("/api/chat", {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
@@ -163,11 +159,7 @@ export default function App() {
 	if (phase === "loading") return <Center>게이트 로딩 중…</Center>;
 	if (phase === "preparing")
 		return (
-			<PreparingScreen
-				stage={state?.stage}
-				stageName={state?.stageName}
-				stages={state?.stages || []}
-			/>
+			<PreparingScreen stage={state?.stage} stageName={state?.stageName} />
 		);
 	if (!state) return <Center>게이트 로딩 중…</Center>;
 
@@ -189,9 +181,10 @@ export default function App() {
 		<PlanPage
 			mdSource={pickMarkdown(state, curStage)}
 			prevMdSource={cur?.prevMd}
+			satelliteDocs={cur?.satellites ?? []}
+			mainDocLabel={cur?.file}
 			stage={curStage}
 			activeStage={state.stage} // 스테퍼 작성여부 기준(실제 서버 단계)
-			stageDefs={state.stages || []} // 서버 구성(동적 스테이지 목록)
 			stageName={state.stageName}
 			feature={state.feature}
 			stageLabels={stageLabels}

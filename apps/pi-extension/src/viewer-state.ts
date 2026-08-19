@@ -1,7 +1,8 @@
 // 뷰어 대시보드 상태 조립 — /api/state 가 서빙하는 페이로드.
 // 회귀 정합성(#1): state.stage 이후 단계의 (무효한) 산출물은 숨긴다. 계층 그래프 트리(ADR-018) 조립 포함.
 import {
-	LEGACY_KINDS,
+	STAGES,
+	designMenuForStage,
 	graphDirNameFor,
 	graphRefFiles,
 	loadGraphTree,
@@ -10,8 +11,7 @@ import {
 	parseGraphSequenceFile,
 	readArtifact,
 	readArtifactPrev,
-	stageDefAt,
-	stageDefs,
+	stageById,
 } from "@factorynote/core";
 import type {
 	ArtifactFormat,
@@ -20,13 +20,12 @@ import type {
 	GraphLevel,
 	GraphSequenceFile,
 } from "@factorynote/core";
+import { satelliteFileName } from "./plan-paths.ts";
 
 export interface ViewerState {
 	feature: string;
 	stage: number;
 	stageName: string;
-	/** 파이프라인 구성(동적) — 스텝퍼·진행 요청이 이 목록을 기준으로 동작한다. */
-	stages: { n: number; name: string }[];
 	requiresArtifact: boolean;
 	done: boolean;
 	/** 현 단계 산출물이 사용자 검토 대기 중인지(에이전트가 게이트를 열었는지). 뷰어 폴링 신호. */
@@ -41,6 +40,9 @@ export interface ViewerState {
 		/** 직전 버전 md(ADR-027 변경 하이라이트 기준). 게이트 중 재작성된 산출물에만 존재 —
 		 * 확정 시 서버가 삭제하므로 승인된 단계에는 없다. 뷰어는 md↔prevMd 블록 diff. */
 		prevMd?: string;
+		/** 병렬 위성 design 문서(ADR-031) — draft.<role>.md 가 존재하는 역할만 포함.
+		 * 뷰어는 각 문서를 탭과 1:1 로 렌더한다. 게이트·승격은 주 문서 기준(위성은 표시 전용). */
+		satellites?: { file: string; md: string }[];
 		/** md 의 `<!-- graph: ... -->` 참조들이 가리키는 그래프들(ADR-018·020·021). 없으면 미포함.
 		 * type: tree = 중첩 조립 트리, sequence·flowchart = 단일 파일 데이터. */
 		graphs?: {
@@ -56,22 +58,27 @@ export async function buildViewerState(
 	feature: string,
 ): Promise<ViewerState> {
 	const state = (await loadState(root, feature)) ?? null;
-	const kinds = state?.stages ?? [...LEGACY_KINDS];
-	const defs = stageDefs(kinds);
 	const stage = state?.stage ?? 1;
-	const def = stageDefAt(kinds, stage);
+	const def = stageById(stage as 1 | 2 | 3);
 	const artifacts: ViewerState["artifacts"] = [];
-	for (const s of defs) {
+	for (const s of STAGES) {
 		if (!s.artifactFile) continue;
 		// 회귀 정합성(#1): revert 로 state.stage 가 뒤로 옮겨졌다면 그 이후 단계의
 		// (이제 무효한) 산출물은 뷰어에서 숨긴다. state 미지정 시 기존 동작 유지.
 		if (state && s.id > state.stage) continue;
 		const raw = await readArtifact(root, feature, s.artifactFile);
 		if (raw === undefined) continue;
-		// TODO(병렬 위성 문서, ADR-031): 뷰어는 단계당 단일 산출물(draft.md -> stageN/)만 읽는다.
-		// designLevel>low 시 작업 영역 루트에 생성되는 위성 문서(draft.<role>.md)는 미표시 —
-		// 게이트·검증·승격이 주 문서 기준이므로 표시는 선택. 다중 문서 뷰어 구현 시
-		// satelliteFileName(role)로 위성 파일들을 읽어 병합해 표시한다(구현은 범위 밖).
+		// 병렬 위성 문서 서빙(ADR-031): 위성 파일(draft.<role>.md)은 승격 없이 피처 루트에
+		// 남으므로 단계 메뉴(designMenuForStage) 이름으로 읽어 존재하는 것만 포함한다.
+		// 회귀 시 invalidateArtifactsAfter 가 위성 파일도 삭제하므로 stale 노출 없음.
+		const satellites: NonNullable<
+			ViewerState["artifacts"][number]["satellites"]
+		> = [];
+		for (const role of designMenuForStage(s.id)) {
+			const file = satelliteFileName(role);
+			const satRaw = await readArtifact(root, feature, file);
+			if (satRaw !== undefined) satellites.push({ file, md: satRaw });
+		}
 		// 변경 하이라이트 기준(ADR-027): 재작성 전 버전. 없으면(최초 작성·확정 후) 생략.
 		const prevRaw = await readArtifactPrev(root, feature, s.artifactFile);
 		// 그래프 서빙(ADR-018·020·021): 참조마다 stageN/ 에서 읽어 종류별 파싱·조립.
@@ -114,6 +121,7 @@ export async function buildViewerState(
 			format: s.format,
 			md: raw,
 			...(prevRaw !== undefined ? { prevMd: prevRaw } : {}),
+			...(satellites.length > 0 ? { satellites } : {}),
 			...(graphs.length > 0 ? { graphs } : {}),
 		});
 	}
@@ -121,7 +129,6 @@ export async function buildViewerState(
 		feature,
 		stage,
 		stageName: def.name,
-		stages: defs.map((d) => ({ n: d.id, name: d.name })),
 		requiresArtifact: def.producesArtifact,
 		done: state?.done ?? false,
 		gateOpen: state?.gateOpen ?? false,

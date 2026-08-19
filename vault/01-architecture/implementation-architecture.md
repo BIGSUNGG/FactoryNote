@@ -10,7 +10,7 @@ FactoryNote MVP의 **실제 코드 구조·모듈 책임·런타임 데이터 �
 
 > **TL;DR**: FactoryNote MVP의 실제 코드 구조·모듈 책임·런타임 데이터 흐름·데이터 계약. Engine(중립 코어)·Adapter(Pi)·Viewer(정적)·CLI 4계층이며, 로컬 웹 페이지가 게이트다. 구현을 이해해야 하면 이 문서에서 시작한다.
 
-> 한 줄: `/factorynote` 로 plan 모드를 켜면, 에이전트가 `factorynote_plan` 도구로 스테이지를 구성(동적)하고 단계별 산출물을 작성·제출하며, **로컬 웹 페이지가 게이트**가 되어 사용자 결정을 받아 단계를 전이한다.
+> 한 줄: `/factorynote` 로 plan 모드를 켜면, 에이전트가 `factorynote_plan` 도구로 3단계 산출물을 작성·제출하고, **로컬 웹 페이지가 게이트**가 되어 사용자 결정을 받아 단계를 전이한다.
 
 ## 3계층 코드 맵
 
@@ -18,7 +18,7 @@ FactoryNote MVP의 **실제 코드 구조·모듈 책임·런타임 데이터 �
 
 | 계층 | 위치 | 핵심 파일 | 책임 |
 | ---- | ---- | ---- | ---- |
-| **Engine** (중립) | `packages/factorynote/src/` | `types.ts` · `stages.ts` · `engine.ts` · `persistence.ts` | 스테이지 카탈로그·동적 구성 정의·순수 상태기계·영속(atomic r/w). `node:*` 만 사용(런타임 npm 의존 0). |
+| **Engine** (중립) | `packages/factorynote/src/` | `types.ts` · `stages.ts` · `engine.ts` · `persistence.ts` | 3단계 정의·순수 상태기계·영속(atomic r/w). `node:*` 만 사용(런타임 npm 의존 0). |
 | **Adapter** (Pi) | `apps/pi-extension/src/` | `index.ts` · `plan-tool.ts` · `gate-server.ts` | `/factorynote` 명령·plan 모드 프롬프트 주입·`factorynote_plan` 도구·게이트 HTTP 서버. Pi 에이전트와 코어를 연결. |
 | **Viewer** (정적) | `apps/plan-viewer/` | `src/App.jsx` · `components/{PlanPage,GateBar}.jsx` · `lib/mdToBlocks.js` | 브라우저에서 산출물 렌더 + 코멘트 + 게이트 버튼. `/api/state` fetch → `/api/decision` POST. |
 | **CLI** (중립) | `bin/factorynote.mjs` | — | 순수 Node 상태 조회(`status`). Tier 0 진입점(ADR-003). |
@@ -29,9 +29,9 @@ FactoryNote MVP의 **실제 코드 구조·모듈 책임·런타임 데이터 �
 
 판정·실행의 **제어흐름과 신뢰성**만 담당한다. 산출물 *내용* 판단은 에이전트(LLM)가 한다(하이브리드 원칙, [[01-requirements|NFR-4]]).
 
-- **`stages.ts`** — M1 Stage Catalog. `STAGE_CATALOG` 6종(`StageKindDefinition`: kind·이름·산출물·포맷·`designPrompt`·`fileSuffix`·`graph` — none/optional/required 로 단계별 그래프 의무 분기, ADR-019) + 구성 인스턴스화 `stageDefs`·`stageDefAt`(위치 id·산출물 파일명 `<NN>-<kind>.md` 부여, [[ADR-031-dynamic-stage-composition]]). 모든 종류가 산출물을 생성한다. Feedback 검토 축은 여기 없음 — 전역 `FEEDBACK_AGENTS` 레지스트리([[ADR-014-dynamic-feedback-agents]]), 새 종류는 `feedbackProfileOf` 로 기존 1|2|3 프로필에 사상.
-- **`engine.ts`** — 순수 상태기계. `initialState(feature, stages)` · `markArtifactReady` · `applyVerdict(state, decision)`(confirm→다음 단계/마지막 단계에서 완료, modify→loopCount++·`atLoopCeiling` 경성 에스컬레이션, revert→`revertTo`(생략 시 1단계, clamp `1..현단계-1`) 점프 + `validThrough` 갱신) · `MAX_LOOPS`/`atLoopCeiling`(FR-2). 단계 전이는 `state.stages` 구성 길이 기준. 부작용 없는 함수 — `engine.test.ts` 로 LLM/pi 없이 검증.
-- **`persistence.ts`** — M3. `.factorynote/<feature>/state.json` atomic 쓰기(write-then-rename), 손상 시 `.corrupt-<ts>` 백업 후 `undefined` 복구(NFR-2). `stages` 누락 구 state 는 레거시 3종 구성으로 마이그레이션(미등록 종류는 손상 복구, [[ADR-031-dynamic-stage-composition]]). 산출물 r/w — 단계 산출물(`<NN>-<kind>.md` 규약 파일)은 `<feature>/stageN/` 서브폴더(위치 N 을 파일명에서 추론), 보조 파일(draft·design-prompt·feedback-menu)은 feature 루트([[ADR-015-stage-artifact-folders]]). 경로를 인자로 받아 pi 의존 0.
+- **`stages.ts`** — M1 Stage Registry. `STAGES` 배열(3개 `StageDefinition`: id·이름·산출물·포맷·`designPrompt`·`artifactFile`·`graph` — none/optional/required 로 단계별 그래프 의무 분기, ADR-019). 3단계 모두 산출물을 생성한다. Feedback 검토 축은 여기 없음 — 전역 `FEEDBACK_AGENTS` 레지스트리([[ADR-014-dynamic-feedback-agents]]).
+- **`engine.ts`** — 순수 상태기계. `initialState` · `markArtifactReady` · `applyVerdict(state, decision)`(confirm→다음 단계/완료, modify→loopCount++·`atLoopCeiling` 경성 에스컬레이션, revert→`revertTo`(생략 시 1단계, clamp `1..현단계-1`) 점프 + `validThrough` 갱신) · `MAX_LOOPS`/`atLoopCeiling`(FR-2). 부작용 없는 함수 — `engine.test.ts` 로 LLM/pi 없이 검증.
+- **`persistence.ts`** — M3. `.factorynote/<feature>/state.json` atomic 쓰기(write-then-rename), 손상 시 `.corrupt-<ts>` 백업 후 `undefined` 복구(NFR-2). 산출물 r/w — 단계 산출물(`STAGES.artifactFile` 등록 파일)은 `<feature>/stageN/` 서브폴더에 배치, 보조 파일(draft·design-prompt·feedback-menu)은 feature 루트([[ADR-015-stage-artifact-folders]]). 경로를 인자로 받아 pi 의존 0.
 - **`types/`** — 타입 디렉터리(`gate.ts`·`pipeline.ts`·`feedback.ts`·`graph.ts` + `index.ts` 배럴). `StageId`·`GateVerdict`·`GateDecision`·`PipelineState` 와 오케스트레이션 계약(`SpawnOptions`·`DesignFeedbackDirective`·`ArtifactPaths`)·그래프 프로토콜 타입. `FeedbackAgent`·`FeedbackCapability` 는 `feedback.ts` 에 — 레지스트리(feedback-agents.ts)와 데이터 파일 간 순환 import 방지(2026-08 하드닝).
 
 > 코어는 `@factorynote/core` 로 import된다. 런타임 npm 의존이 0이라 **복사만으로 다른 harness에 이식** 가능하다(NFR-1).
@@ -41,12 +41,12 @@ FactoryNote MVP의 **실제 코드 구조·모듈 책임·런타임 데이터 �
 Pi 와 코어를 잇는 유일한 계층. pi가 jiti로 TS 를 직접 로드한다.
 
 - **`index.ts`** — 확장 진입(기본 내보내기 팩토리).
-  - `pi.registerCommand("factorynote", …)` — **설정 대시보드**(세션 상태 소유: `planMode`·`autoAdvance`·`feedbackLevel`·`designLevel`·`stageCap`). 인자 없는 명령이 설정 메뉴를 연다 — feedback·design·stage·auto 4개 설정 항목과 plan 모드 on/off([[ADR-032-settings-dashboard-menu]]). 서브커맨드 없음.
-  - `pi.on("before_agent_start", …)` — `planMode` 가 ON 일 때 매 턴 **계획 전용 시스템 프롬프트**를 주입("코드 금지, `factorynote_plan` 으로 구성→단계 구동").
+  - `pi.registerCommand("factorynote", …)` — plan 모드 **토글**(세션 내 불리언 `planMode`). `/factorynote on|off` 로 명시 설정도 가능.
+  - `pi.on("before_agent_start", …)` — `planMode` 가 ON 일 때 매 턴 **계획 전용 시스템 프롬프트**를 주입("코드 금지, `factorynote_plan` 으로 3단계 구동").
   - `pi.registerTool("factorynote_plan", …)` — 파이프라인 구동 도구(아래).
   - `resolveViewerDistDir(cwd)` — 뷰어 dist 후보 탐색: `FACTORYNOTE_VIEWER_DIST` 환경변수 → `<extdir>/viewer/dist`(설치형) → `<cwd>/apps/plan-viewer/dist`(개발).
 - **`plan-tool.ts`** — `drivePlan(input)`. 도구의 단일 구동 단위(Tier 1, [[ADR-009-tier-1-agent-orchestration]]):
-  1. 상태 로드(손상 시 복구). 완료 시 종료 안내. **신규 피처 + 구성 미제출 → `nextAction=compose`(카탈로그 메뉴 요청) — `stages` 제출 시 구성 영속화로 파이프라인 시작, `maxStages` 상한 초과 구성은 잘라서 적용(디렉터 동적 구성, [[ADR-031-dynamic-stage-composition]]).**
+  1. 상태 로드(손상 시 복구). 완료 시 종료 안내.
   2. **인터럽트 복구**: 게이트 열린 채 재진입 시 디스크 산출물로 게이트 재오픈. 게이트 열림 중 `designArtifact` 재제출(채팅 수정)은 draft 반영 후 재오픈.
   3. 산출물 단계 진입 시 `design-prompt.md`·`feedback-menu.md` 기록(파일 프로토콜, ADR-010) 후 **Stage 2 그래프 강제**(`enforceRequiredGraph` — 미충족 시 재작성 반려/상한 소진 시 게이트 에스컬레이션, ADR-019).
   4. `nextDesignFeedbackStep`(`df-transition.ts`) 순수 전이로 Design↔Feedback 스폰 지시문 라우팅 → `spawnDirective` 가 Director 에이전트에게 자식 스폰 과제 반환(동기 스폰 불가 하네스 — 파일 경로 교환).
@@ -61,7 +61,7 @@ Pi 와 코어를 잇는 유일한 계층. pi가 jiti로 TS 를 직접 로드한�
 빌드 산출물 `dist/` 가 게이트 서버를 통해 서빙된다.
 
 - **`App.jsx`** — **SSE push 수신 상태머신**(loading/reviewing/preparing/closed, [[ADR-022-viewer-sse-push]]). 단일 `EventSource` 로 `state`·`chat` 이벤트 수신 — 폴링 없음. 확정·검토 요청 중에도 기존 페이지 유지 + 게이트 바 로딩 연출, 게이트 재오픈 시 같은 탭에서 다음 단계로 교체(알림). 헤더 스텝퍼로 **이전 단계 읽기 전용 보기** 전환 가능([[ADR-023-viewer-transition-ux]]).
-- **`PlanPage.jsx`** — 마크다운 단계(1/2/3 공통). 마크다운 → 블록(`mdToBlocks`) 렌더 + 블록/셀/드래그 영역 코멘트 + pending 큐([[core-features]] 사양). 게이트 버튼 → `onGate({verdict, comments})`. 그래프는 md 의 `<!-- graph: <파일명> -->` 참조 블록으로 렌더(아래 `GraphView`).
+- **`PlanPage.jsx`** — 마크다운 단계(1/2/3 공통). 마크다운 → 블록(`mdToBlocks`) 렌더 + 블록/셀/드래그 영역 코멘트 + pending 큐([[core-features]] 사양). 게이트 버튼 → `onGate({verdict, comments})`. 그래프는 md 의 `<!-- graph: <파일명> -->` 참조 블록으로 렌더(아래 `GraphView`). 문서 뷰어 탭(`TabBar.jsx` + `lib/viewerTabs.js`, [[ADR-031-viewer-graph-detail-tabs]])과 브라우저식 탭 분할(`SplitNode.jsx` + `lib/splitLayout.js` — 드래그 드롭 존·우클릭 복제 분할·무한 중첩 이진 트리, [[ADR-032-viewer-tab-splitting]]) 포함.
 - **`GraphView.jsx`** — 읽기 전용 계층 드릴다운 그래프(react-flow). `/api/state` 의 `artifacts[].graphs[]`(산출물당 다중·에이전트 자유 네이밍, [[ADR-020-multi-named-graphs]]) 참조 위치에 인라인 렌더 — 종류는 envelope `type` 으로 분기: 계층 트리(드릴다운, [[ADR-018-hierarchical-graph-tree]]) · sequence · flowchart([[ADR-021-sequence-flowchart-graphs]]). 배치는 뷰어 자동 배치(좌표 필드 금지) — 드래그·연결·편집 없음, 수정은 채팅으로.
 - **`GateBar.jsx`** — 하단 게이트 바: **✓ 확정**(confirm) / **✎ 수정 지시**(modify, pending 코멘트 전송) / **← 정정**(revert).
 
@@ -215,7 +215,7 @@ factorynote/
 | 산출물/상태 위치 | `.factorynote/<feature>/` 통합, 단계 산출물은 `stageN/` 서브폴더 | 시드 부합 + gitignore 1건; [[ADR-015-stage-artifact-folders]] |
 | 에이전트 티어 | **Tier 1**(Design↔Feedback 자식 스폰 루프, 유일 경로) | [[ADR-009-tier-1-agent-orchestration]]; Tier 0·NFR-7 폐지 |
 | 제어 vs 판단 | 제어·영속=코드, 산출물=LLM | 하이브리드 원칙(NFR-4) |
-| 단계별 렌더 | 모든 단계가 동일 문서 경로(PlanPage), 스템퍼는 `/api/state.stages` 구성 기준 동적 렌더, 그래프는 읽기 전용 자동 배치 블록(GraphView) | [[ADR-016-graph-json-externalization]] · [[ADR-031-dynamic-stage-composition]] |
+| 단계별 렌더 | 3단계 모두 동일 문서 경로(PlanPage), 그래프는 읽기 전용 자동 배치 블록(GraphView) | [[ADR-016-graph-json-externalization]] · [[ADR-008-3-stage-pipeline]] |
 | 그래프 데이터 | md 옆 계층 트리 `.json`(루트 + 자식 파일 서브디렉터리) + `<!-- graph: -->` 참조, 나가는 refs {to,comment}, position 금지·자동 배치·드릴다운 | [[ADR-018-hierarchical-graph-tree]] · [[ADR-016-graph-json-externalization]] |
 | 회귀(revert) | **다단계 점프**(`revertTo` + clamp `1..현단계-1`) + 대상 이후 산출물 무효화 | FR-7; 뷰어→gate-server→엔진 seam |
 | 반복 상한 | modify@ceiling 시 **경성 에스컬레이션**(잔존 이슈 + 재작성/회귀/재협의 옵션) | FR-2(`MAX_LOOPS`/`atLoopCeiling`) |
@@ -227,7 +227,7 @@ factorynote/
 
 ## 참고
 
-- [[multi-agent-pipeline]] — 파이프라인·에이전트 역할(기획)
+- [[multi-agent-pipeline]] — 3단계 파이프라인·에이전트 역할(기획)
 - [[03-design/workflow-core/01-requirements|workflow-core 요구사항]] — FR/NFR
 - [[ADR-003-viewer-architecture]] · [[ADR-005-mvp-implementation]] · [[ADR-004-monorepo-structure]]
 - [[90-meta/usage-guide]] · [[90-meta/development-guide]]

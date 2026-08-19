@@ -13,49 +13,6 @@
 	letter-spacing: -0.02em;
 	color: var(--primary);
 }
-.topbar-feature {
-	font-size: 14px;
-	color: var(--muted);
-	white-space: nowrap;
-}
-/* 현 파이프라인 구성(정해진 스테이지 목록) — 칩 나열, 현재 단계 강조·이후 단계 흐림. */
-.topbar-stages {
-	display: flex;
-	align-items: center;
-	gap: var(--s1);
-	margin-left: auto;
-	overflow-x: auto;
-	white-space: nowrap;
-}
-.stage-chip {
-	display: inline-flex;
-	align-items: center;
-	gap: var(--s1);
-	padding: 2px var(--s2);
-	font-size: 12px;
-	color: var(--success);
-	border-radius: 999px;
-}
-.stage-chip .num {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 16px;
-	height: 16px;
-	border-radius: 999px;
-	border: 1.5px solid currentColor;
-	font-size: 10px;
-	font-weight: 700;
-}
-.stage-chip.current {
-	color: var(--primary);
-	font-weight: 600;
-	background: var(--primary-tint);
-}
-.stage-chip.ahead {
-	color: var(--muted);
-	opacity: 0.55;
-}
 .stepper {
 	display: flex;
 	flex: none;
@@ -160,10 +117,97 @@
 	font-weight: 500;
 	background: var(--primary-tint);
 }
-/* .doc 래퍼 — 그리드 슬롯·폭 클램프 소유(ADR-027 변경 마커 레일 위치 기준). */
+/* 문서 뷰어 탭(ADR-031): 문서 섹션 상단 탭 바 + 탭별 뷰어 팬.
+ * .doc-column 이 그리드 슬롯(col2+col3)을 차지하고, .doc-wrap 은 기존 폭 클램프·레일 유지. */
+.doc-column {
+	grid-column: 2 / -1;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	min-width: 0;
+}
+.viewer-tabs {
+	display: flex;
+	flex: none;
+	align-items: center;
+	gap: 4px;
+	padding: 6px 8px;
+	background: var(--surface);
+	border-bottom: 1px solid var(--border);
+	overflow-x: auto;
+}
+.viewer-tab {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	max-width: 220px;
+	padding: 4px 10px;
+	font-size: 13px;
+	color: var(--muted);
+	border-radius: var(--radius);
+	cursor: pointer;
+	white-space: nowrap;
+	user-select: none; /* 포인터 드래그 분할 중 텍스트 선택 방지(ADR-032) */
+}
+.viewer-tab:hover {
+	background: rgba(17, 24, 39, 0.05);
+	color: var(--text);
+}
+.viewer-tab.active {
+	color: var(--primary);
+	font-weight: 600;
+	background: var(--primary-tint);
+}
+.viewer-tab-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.viewer-tab-close {
+	border: none;
+	background: none;
+	color: inherit;
+	opacity: 0.6;
+	cursor: pointer;
+	font-size: 11px;
+	line-height: 1;
+	padding: 2px;
+	border-radius: 4px;
+}
+.viewer-tab-close:hover {
+	opacity: 1;
+	background: rgba(17, 24, 39, 0.08);
+}
+/* 탭 콘텐츠 팬 — 비활성 탭은 hidden(display:none)으로 DOM·스크롤 상태 보존.
+ * UA [hidden] 이 저작자 display 속성에 밀리지 않도록 닫힘 상태를 명시. */
+.doc-pane,
+.graph-pane {
+	flex: 1;
+	min-height: 0;
+}
+.doc-pane[hidden],
+.graph-pane[hidden] {
+	display: none;
+}
+.doc-pane {
+	display: flex;
+	flex-direction: column;
+}
+.doc-pane .doc-wrap {
+	flex: 1;
+	min-height: 0;
+}
+/* 그래프 상세 탭 — 같은 뷰를 크게: SVG 뷰는 스크롤(팬), ReactFlow 는 줌/팬. */
+.graph-pane {
+	overflow: auto;
+	background: var(--surface);
+	padding: var(--s4);
+}
+.graph-pane .rf-wrap {
+	height: 65vh; /* 블록 내 고정 높이 대신 상세 탭에서는 넓게 */
+}
+/* .doc 래퍼 — 폭 클램프 소유(ADR-027 변경 마커 레일 위치 기준). 그리드 슬롯은 .doc-column 이 담당. */
 .doc-wrap {
 	--doc-ratio: 0.75; /* 16:9에서 가시 그리드 폭(G) 대비 .doc 차지 비율. 세로(9:16)는 항상 100%. 이 값만 바꾸면 16:9 폭 조절됨. */
-	grid-column: 2 / -1; /* col2 + col3 = 가시 그리드 배경 폭(G) 전체 차지 → 100%=G */
 	min-height: 0;
 	position: relative; /* 레일 오버레이 기준 */
 	/* 화면 비율에 따라 연속 변화(16:9·9:16 하드코딩 없음):
@@ -291,3 +335,119 @@
 }
 
 /* === 블록 코멘트 시스템 — 본문의 모든 블록이 hover-to-comment 대상 === */
+/* 탭 분할 레이아웃(ADR-032) — 분할 트리 재귀 렌더·드롭 존·divider. */
+.split-node {
+	display: flex;
+	flex: 1;
+	min-height: 0;
+	min-width: 0;
+}
+.split-h {
+	flex-direction: row;
+}
+.split-v {
+	flex-direction: column;
+}
+.split-child {
+	display: flex;
+	min-height: 0;
+	min-width: 0;
+}
+.split-child > * {
+	flex: 1;
+	min-height: 0;
+	min-width: 0;
+}
+.split-leaf {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-height: 0;
+	min-width: 0;
+}
+.split-leaf-body {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-height: 0;
+}
+/* 분할 경계 divider — 드래그로 비율 조정. */
+.split-divider {
+	flex: none;
+	background: var(--border);
+}
+.split-h > .split-divider {
+	width: 4px;
+	cursor: col-resize;
+}
+.split-v > .split-divider {
+	height: 4px;
+	cursor: row-resize;
+}
+.split-divider:hover {
+	background: var(--primary);
+}
+/* 드래그 중 드롭 존 — 좌/우/상/하(분할) + 중앙(탭 이동). */
+.split-zones {
+	position: absolute;
+	inset: 0;
+	z-index: 5;
+	display: grid;
+	grid-template-columns: 1fr 2fr 1fr;
+	grid-template-rows: 1fr 2fr 1fr;
+	grid-template-areas:
+		"left up right"
+		"left center right"
+		"left down right";
+	background: rgba(255, 255, 255, 0.45);
+}
+.split-zone-left {
+	grid-area: left;
+}
+.split-zone-right {
+	grid-area: right;
+}
+.split-zone-up {
+	grid-area: up;
+}
+.split-zone-down {
+	grid-area: down;
+}
+.split-zone-center {
+	grid-area: center;
+}
+.split-zone.hover {
+	background: var(--primary-tint);
+	outline: 2px dashed var(--primary);
+	outline-offset: -2px;
+}
+/* 탭 우클릭 분할 메뉴. */
+.split-menu {
+	position: fixed;
+	z-index: 100;
+	display: flex;
+	flex-direction: column;
+	padding: 4px;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	box-shadow: 0 4px 16px rgba(17, 24, 39, 0.12);
+}
+.split-menu button {
+	text-align: left;
+	padding: 6px 12px;
+	border: none;
+	background: none;
+	font-size: 13px;
+	color: var(--text);
+	border-radius: var(--radius-sm);
+	cursor: pointer;
+	white-space: nowrap;
+}
+.split-menu button:hover {
+	background: var(--primary-tint);
+}
+.viewer-tab.dragging {
+	opacity: 0.5;
+}

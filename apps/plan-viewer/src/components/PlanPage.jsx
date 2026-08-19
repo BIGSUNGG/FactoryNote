@@ -1,22 +1,38 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import Topbar from "./Topbar";
 import Stepper from "./Stepper";
 import Toc from "./Toc";
 import Document from "./Document";
 import GateBar from "./GateBar";
+import SplitNode from "./SplitNode";
+import GraphView from "./GraphView";
+import SequenceView from "./SequenceView";
+import FlowchartView from "./FlowchartView";
 import { mdToBlocks } from "../lib/mdToBlocks";
 import { diffBlockChanges } from "../lib/blockDiff";
+import { DOC_TAB, docTabs, graphTabId, openGraphTab } from "../lib/viewerTabs";
+import {
+	createRootLayout,
+	findLeaf,
+	allLeaves,
+	splitPane,
+	moveTab,
+	closeTabIn,
+	setActive,
+	setRatio,
+	replacePane,
+	syncDocTabs,
+} from "../lib/splitLayout";
 
-// plan 스타일 페이지 — 마크다운 문서 + 블록/영역 코멘트. 모든 단계가 공유.
-// 단계 목록은 서버 구성(state.stages) 기준; 미전달 시 레거시 3단계 폴백.
-const LEGACY_STAGE_DEFS = [
+// plan 스타일 페이지 — 마크다운 문서 + 블록/영역 코멘트. Stage 1·3 이 공유.
+const STAGE_DEFS = [
 	{ n: 1, label: "요청 이해·시나리오", route: "" },
 	{ n: 2, label: "모듈·클래스 설계", route: "design" },
 	{ n: 3, label: "구현 계획", route: "impl" },
 ];
-const stagesFor = (viewed, real, defs) =>
-	defs.map((s) => {
+const stagesFor = (viewed, real) =>
+	STAGE_DEFS.map((s) => {
 		// 두 축을 분리(F2): '작성 여부'는 실제 서버 단계(real) 기준, '지금 보는 단계'는 viewed.
 		// - s.n > real: 아직 작성 안 됨(잠금·선택 불가)
 		// - s.n === viewed: 지금 보고 있는 단계(현재 편집=current, 이전 단계 읽기 전용=view)
@@ -32,6 +48,18 @@ function stepperState(n, viewed, real) {
 }
 
 const stripHtml = (html) => html.replace(/<[^>]+>/g, "").trim();
+
+/** 그래프 상세 탭 콘텐츠(ADR-031) — 블록과 동일한 뷰 컴포넌트를 탭 전체에 크게 렌더.
+ * tree = ReactFlow 줌/팬, sequence·flowchart = 스크롤로 탐색. 새 시각화 없음. */
+function GraphDetail({ file, entry }) {
+	if (!entry)
+		return (
+			<div className="empty">그래프 데이터({file})를 찾을 수 없습니다.</div>
+		);
+	if (entry.type === "sequence") return <SequenceView data={entry.data} />;
+	if (entry.type === "flowchart") return <FlowchartView data={entry.data} />;
+	return <GraphView tree={entry.data} />;
+}
 
 // Range 를 <mark> 로 감싼다. 한 번에 감싸는 기법은 여러 블록/노드에 걸친 범위에서
 // 에러를 던지므로, 텍스트 노드마다 잘라서 감싼다(멀티 블록 안전).
@@ -71,10 +99,10 @@ function highlightRange(range, className) {
 export default function PlanPage({
 	mdSource,
 	prevMdSource, // 게이트 중 재작성 전 버전(ADR-027 변경 하이라이트 기준). 없으면 하이라이트 생략.
+	satelliteDocs = [], // 병렬 위성 design 문서 [{file, md}](ADR-031) — 파일당 탭 1:1.
+	mainDocLabel, // 주 문서 탭 라벨(파일명). 없으면 기본 "문서".
 	stage,
 	activeStage, // 실제 서버 단계(state.stage) — 스테퍼 작성여부 기준
-	stageDefs, // 서버 구성([{ n, name }]) — 동적 스테이지 목록. 미전달 시 레거시 3단계.
-	feature, // 기능명 — 상단 바 표시용.
 	onGate,
 	onReview,
 	stageLabels = {},
@@ -85,16 +113,11 @@ export default function PlanPage({
 	loadingLabel, // 로딩 사유 라벨(확정 요청 큐 대기 중 안내). GateBar 로 전달.
 	onSelectStage, // 읽기 전용 이전 단계 선택/복귀(단계 전환 이벤트)
 }) {
-	const stageDefList =
-		stageDefs && stageDefs.length > 0
-			? stageDefs.map((s) => ({ n: s.n, label: s.name }))
-			: LEGACY_STAGE_DEFS;
-	const label =
-		stageDefList.find((d) => d.n === stage)?.label ?? `Stage ${stage}`;
+	const label = STAGE_DEFS[stage - 1].label;
 	// 스테퍼: 작성 여부는 실제 서버 단계(activeStage)로, 강조(현재/읽기전용)는 보고 있는 단계(stage)로.
 	// 읽기 전용으로 이전 단계를 봐도 뒤의 실제 작성 단계는 'done'(작성됨)으로 유지되어
 	// '아직 안 쓴 단계(locked)'처럼 보이지 않는다. onSelectStage 없으면 레거시 해시 라우팅.
-	const stages = stagesFor(stage, activeStage ?? stage, stageDefList);
+	const stages = stagesFor(stage, activeStage ?? stage);
 	const blocks = useMemo(() => mdToBlocks(mdSource), [mdSource]);
 
 	// 변경 하이라이트(ADR-027): prev 가 있을 때만 prev↔현재 블록 diff 로 변경·추가 블록 마킹.
@@ -119,6 +142,160 @@ export default function PlanPage({
 	const [activeRange, setActiveRange] = useState(null);
 	const [rangeDraft, setRangeDraft] = useState("");
 	const [fontScale, setFontScale] = useState(1); // md 본문 글자 배율(−/+ 버튼)
+
+	// 다중 문서 탭(ADR-031): 주 문서 + 위성 문서 파일 1:1. 라벨=파일명, 모두 고정.
+	const docTabList = useMemo(
+		() => docTabs(mainDocLabel, satelliteDocs),
+		[mainDocLabel, satelliteDocs],
+	);
+	// 위성 문서 블록 파싱(탭 렌더용) — 파일명 → blocks.
+	const satelliteBlocks = useMemo(() => {
+		const m = {};
+		for (const s of satelliteDocs) m[s.file] = mdToBlocks(s.md);
+		return m;
+	}, [satelliteDocs]);
+
+	// 문서 뷰어 탭 + 분할 레이아웃(ADR-031·ADR-032): 분할 트리(leaf = 탭 목록).
+	// PlanPage 는 스테이지 전환에도 마운트 유지 → 레이아웃도 유지. 상태는 세션 내에만.
+	const [layout, setLayout] = useState(() =>
+		createRootLayout(docTabs(mainDocLabel, satelliteDocs), DOC_TAB.id),
+	);
+	// 문서 집합 변동(위성 등장·스테이지 전환) 시 탭 동기화 — 그래프 탭·사용자 배치 유지.
+	const docKey = docTabList.map((t) => t.id).join("|");
+	useEffect(() => {
+		setLayout((l) => syncDocTabs(l, docTabList));
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [docKey]);
+	const [focusPane, setFocusPane] = useState(null);
+	const [drag, setDrag] = useState(null); // { paneId, tabId } | { graphFile } — 탭·그래프 블록 드래그 중
+	const [hoverZone, setHoverZone] = useState(null); // { paneId, zone }
+	const [menu, setMenu] = useState(null); // { x, y, paneId, tabId } — 탭 우클릭 분할 메뉴
+	const focusedId =
+		focusPane && findLeaf(layout, focusPane)
+			? focusPane
+			: allLeaves(layout)[0]?.id;
+
+	const openGraph = (graphFile) => {
+		setLayout((l) =>
+			replacePane(l, focusedId, (leaf) => ({
+				...leaf,
+				tabs: openGraphTab(leaf.tabs, graphFile),
+				activeId: graphTabId(graphFile), // 재더블클릭 = 기존 탭 포커스
+			})),
+		);
+	};
+	const selectTab = (paneId, tabId) => {
+		setFocusPane(paneId);
+		setLayout((l) => setActive(l, paneId, tabId));
+	};
+	const closeTabAt = (paneId, tabId) =>
+		setLayout((l) => closeTabIn(l, paneId, tabId));
+	const startDrag = (paneId, tabId) => {
+		setFocusPane(paneId);
+		setDrag({ paneId, tabId });
+	};
+	// 그래프 블록 헤더 드래그(ADR-032) — 드롭 시 해당 그래프 탭 분리.
+	const startGraphDrag = (graphFile) => setDrag({ graphFile });
+	const endDrag = () => {
+		setDrag(null);
+		setHoverZone(null);
+	};
+	// 드롭 — 가장자리 존 = 해당 방향 분할, 중앙 = 대상 영역에 탭.
+	const dropZone = (paneId, zone) => {
+		if (!drag) return;
+		if (drag.graphFile) {
+			dropGraphBlock(paneId, zone, drag.graphFile);
+		} else {
+			const { paneId: from, tabId } = drag;
+			setLayout((l) => {
+				const tab = findLeaf(l, from)?.tabs.find((t) => t.id === tabId);
+				if (!tab) return l;
+				return zone === "center"
+					? moveTab(l, tabId, from, paneId)
+					: splitPane(l, paneId, zone, [tab], { move: true });
+			});
+		}
+		setFocusPane(paneId);
+		endDrag();
+	};
+	// 그래프 블록 드롭 — 이미 열린 탭이면 복제 없이 이동(그래프당 탭 1개).
+	const dropGraphBlock = (paneId, zone, graphFile) => {
+		const id = graphTabId(graphFile);
+		setLayout((l) => {
+			const from = allLeaves(l).find((leaf) =>
+				leaf.tabs.some((t) => t.id === id),
+			);
+			if (zone === "center") {
+				if (from) {
+					return from.id === paneId
+						? setActive(l, paneId, id)
+						: moveTab(l, id, from.id, paneId);
+				}
+				return replacePane(l, paneId, (leaf) => ({
+					...leaf,
+					tabs: openGraphTab(leaf.tabs, graphFile),
+					activeId: id,
+				}));
+			}
+			const tab = from?.tabs.find((t) => t.id === id) ?? {
+				id,
+				label: graphFile,
+				graphFile,
+			};
+			return splitPane(l, paneId, zone, [tab], { move: !!from });
+		});
+	};
+	// 드래그 세션(포인터 기반, ADR-032): 이동 중 존 하이라이트, 놓으면 드롭.
+	// HTML5 DnD 대신 포인터 이벤트 — 웹뷰에서 드래그 세션 미개시 문제 회피.
+	useEffect(() => {
+		if (!drag) return;
+		const zoneOf = (e) => {
+			const zone = e.target.closest?.("[data-zone]");
+			const pane = e.target.closest?.("[data-pane-id]");
+			return zone && pane
+				? { paneId: pane.dataset.paneId, zone: zone.dataset.zone }
+				: null;
+		};
+		const move = (e) => setHoverZone(zoneOf(e));
+		const up = (e) => {
+			const z = zoneOf(e);
+			if (z) dropZone(z.paneId, z.zone);
+			else endDrag();
+		};
+		window.addEventListener("pointermove", move);
+		window.addEventListener("pointerup", up);
+		return () => {
+			window.removeEventListener("pointermove", move);
+			window.removeEventListener("pointerup", up);
+		};
+	}, [drag]); // eslint-disable-line react-hooks/exhaustive-deps
+	// 우클릭 메뉴 — 탭 복제 분할(원본 유지). 바깥 클릭·Esc 로 닫힘.
+	const openMenu = (e, paneId, tabId) => {
+		e.preventDefault();
+		setMenu({ x: e.clientX, y: e.clientY, paneId, tabId });
+	};
+	const splitByMenu = (direction) => {
+		setLayout((l) => {
+			const tab = findLeaf(l, menu.paneId)?.tabs.find(
+				(t) => t.id === menu.tabId,
+			);
+			return tab
+				? splitPane(l, menu.paneId, direction, [tab], { move: false })
+				: l;
+		});
+		setMenu(null);
+	};
+	useEffect(() => {
+		if (!menu) return;
+		const close = () => setMenu(null);
+		const esc = (e) => e.key === "Escape" && setMenu(null);
+		document.addEventListener("mousedown", close);
+		document.addEventListener("keydown", esc);
+		return () => {
+			document.removeEventListener("mousedown", close);
+			document.removeEventListener("keydown", esc);
+		};
+	}, [menu]);
 
 	// 코멘트를 로컬(인라인 표시용)에 추가함과 동시에 실시간 에이전트 채팅으로 즉시 전달.
 	// 게이트를 유지한 채 chatPending 루프로 에이전트에게 닿는다(ADR-009).
@@ -227,7 +404,7 @@ export default function PlanPage({
 
 	return (
 		<>
-			<Topbar feature={feature} stages={stageDefList} stage={stage} />
+			<Topbar />
 			<Stepper stages={stages} onSelect={onSelectStage} />
 			{readOnly && (
 				<div className="readonly-banner" role="status">
@@ -244,26 +421,65 @@ export default function PlanPage({
 			)}
 			<div className="layout">
 				<Toc items={toc} activeId={activeHeading} />
-				<Document
-					blocks={blocks}
-					changedIds={blockChanges.changed}
-					addedIds={blockChanges.added}
-					comments={comments}
-					onAddComment={commentFreeze.onAddComment ?? addComment}
-					onActivate={commentFreeze.onActivate ?? activate}
-					onRangeComment={commentFreeze.onRangeComment ?? onRangeComment}
-					activeTargetId={readOnly ? null : activeTargetId}
-					graphData={graphData}
-					fontScale={fontScale}
-					headingIds={toc.map((t) => t.id)}
-					onActiveHeading={!readOnly ? setActiveHeading : undefined}
-				/>
+				<div className="doc-column">
+					<SplitNode
+						node={layout}
+						renderTab={(t) =>
+							t.id === DOC_TAB.id ? (
+								<Document
+									blocks={blocks}
+									changedIds={blockChanges.changed}
+									addedIds={blockChanges.added}
+									comments={comments}
+									onAddComment={commentFreeze.onAddComment ?? addComment}
+									onActivate={commentFreeze.onActivate ?? activate}
+									onRangeComment={
+										commentFreeze.onRangeComment ?? onRangeComment
+									}
+									activeTargetId={readOnly ? null : activeTargetId}
+									graphData={graphData}
+									fontScale={fontScale}
+									headingIds={toc.map((t) => t.id)}
+									onActiveHeading={!readOnly ? setActiveHeading : undefined}
+									onOpenGraph={openGraph}
+									onGraphDragStart={startGraphDrag}
+								/>
+							) : t.docFile ? (
+								// 위성 문서 탭 — 읽기 전용 렌더(게이트·코멘트는 주 문서 기준, ADR-031).
+								<Document
+									blocks={satelliteBlocks[t.docFile] ?? []}
+									comments={[]}
+									onAddComment={() => {}}
+									onActivate={() => {}}
+									onRangeComment={() => {}}
+									activeTargetId={null}
+									graphData={{}}
+									fontScale={fontScale}
+								/>
+							) : (
+								<GraphDetail
+									file={t.graphFile}
+									entry={graphData[t.graphFile]}
+								/>
+							)
+						}
+						focusedPaneId={focusedId}
+						drag={drag}
+						hoverZone={hoverZone}
+						onTabSelect={selectTab}
+						onTabClose={closeTabAt}
+						onTabDragStart={startDrag}
+						onTabContextMenu={openMenu}
+						onRatioChange={(splitId, ratio) =>
+							setLayout((l) => setRatio(l, splitId, ratio))
+						}
+					/>
+				</div>
 			</div>
 			{!readOnly && (
 				<GateBar
 					stage={stage}
 					label={label}
-					stageCount={stageDefList.length}
 					stageLabels={stageLabels}
 					onConfirm={sendConfirm}
 					onRevert={sendRevert}
@@ -297,6 +513,32 @@ export default function PlanPage({
 				</button>
 			</div>
 			{rangePopover}
+			{menu &&
+				createPortal(
+					<div
+						className="split-menu"
+						role="menu"
+						style={{ top: menu.y, left: menu.x }}
+						onMouseDown={(e) => e.stopPropagation()} // 메뉴 클릭이 바깥 클릭 닫힘보다 먼저
+					>
+						{[
+							["left", "왼쪽으로 분할"],
+							["right", "오른쪽으로 분할"],
+							["up", "위로 분할"],
+							["down", "아래로 분할"],
+						].map(([dir, label]) => (
+							<button
+								key={dir}
+								type="button"
+								role="menuitem"
+								onClick={() => splitByMenu(dir)}
+							>
+								{label}
+							</button>
+						))}
+					</div>,
+					document.body,
+				)}
 		</>
 	);
 }

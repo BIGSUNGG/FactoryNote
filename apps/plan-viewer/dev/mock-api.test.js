@@ -155,6 +155,64 @@ describe("mock-api: 실서버 큐 의미론", () => {
 	});
 });
 
+describe("mock-api: 병렬 위성 문서 서빙 의미론(ADR-031) — 뷰어 탭 1:1 소비", () => {
+	test("artifacts[].satellites 가 /api/state 에 그대로 포함(없으면 필드 생략)", () => {
+		const c = fakeClock();
+		const api = createMockApi({
+			artifacts: [
+				{
+					stage: 1,
+					name: "요청 이해",
+					md: "# a",
+					satellites: [
+						{ file: "draft.requirements-scope.md", md: "# 위성 1" },
+						{ file: "draft.scenario-acceptance.md", md: "# 위성 2" },
+					],
+				},
+				{ stage: 2, name: "시나리오", md: "# b" },
+			],
+			setTimeoutFn: c.setTimeoutFn,
+			now: () => 1,
+		});
+		const arts = api.getState().artifacts;
+		expect(arts[0].satellites).toEqual([
+			{ file: "draft.requirements-scope.md", md: "# 위성 1" },
+			{ file: "draft.scenario-acceptance.md", md: "# 위성 2" },
+		]);
+		expect(arts[1].satellites).toBeUndefined();
+	});
+});
+
+describe("mock-api: 그래프 서빙 의미론(ADR-018·021) — 뷰어 graphData 소비와 1:1", () => {
+	test("artifacts[].graphs 가 /api/state 에 그대로 포함(없으면 필드 생략)", () => {
+		const c = fakeClock();
+		const api = createMockApi({
+			artifacts: [
+				{
+					stage: 1,
+					name: "요청 이해",
+					md: "# a\n\n<!-- graph: auth-sequence.json -->",
+					graphs: [
+						{
+							file: "auth-sequence.json",
+							type: "sequence",
+							data: { title: "x" },
+						},
+					],
+				},
+				{ stage: 2, name: "시나리오", md: "# b" },
+			],
+			setTimeoutFn: c.setTimeoutFn,
+			now: () => 1,
+		});
+		const arts = api.getState().artifacts;
+		expect(arts[0].graphs).toEqual([
+			{ file: "auth-sequence.json", type: "sequence", data: { title: "x" } },
+		]);
+		expect(arts[1].graphs).toBeUndefined();
+	});
+});
+
 describe("mock-api: ADR-027 변경 하이라이트 의미론", () => {
 	test("채팅 재작성 → prevMd = 재작성 전 버전, 확정 → 기준 리셋", () => {
 		const c = fakeClock();
