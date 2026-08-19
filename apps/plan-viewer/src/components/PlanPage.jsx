@@ -453,14 +453,17 @@ export default function PlanPage({
 									onGraphDragStart={startGraphDrag}
 								/>
 							) : t.docFile ? (
-								// 위성 문서 탭 — 읽기 전용 렌더(게이트·코멘트는 주 문서 기준, ADR-031).
+								// 위성 문서 탭 — 주 문서와 같은 코멘트 스택 공유(블록·셀·범위 코멘트, ADR-034).
+								// 그래프 없음(위성 그래프 금지, ADR-031) · scroll-spy 는 주 문서 기준 Toc(ADR-033).
 								<Document
 									blocks={satelliteBlocks[t.docFile] ?? []}
-									comments={[]}
-									onAddComment={() => {}}
-									onActivate={() => {}}
-									onRangeComment={() => {}}
-									activeTargetId={null}
+									comments={comments}
+									onAddComment={commentFreeze.onAddComment ?? addComment}
+									onActivate={commentFreeze.onActivate ?? activate}
+									onRangeComment={
+										commentFreeze.onRangeComment ?? onRangeComment
+									}
+									activeTargetId={readOnly ? null : activeTargetId}
 									graphData={{}}
 									fontScale={fontScale}
 								/>

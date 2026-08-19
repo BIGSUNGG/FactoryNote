@@ -35,12 +35,12 @@ const props = {
 let container;
 let root;
 
-async function renderPage() {
+async function renderPage(overrides = {}) {
 	container = document.createElement("div");
 	document.body.appendChild(container);
 	root = createRoot(container);
 	await React.act(async () => {
-		root.render(h(PlanPage, props));
+		root.render(h(PlanPage, { ...props, ...overrides }));
 	});
 }
 async function cleanup(unregister = false) {
@@ -186,6 +186,38 @@ test("탭 우클릭 → 분할 메뉴 4항목 → 클릭 시 탭 복제 분할(�
 	expect(panes().length).toBe(2);
 	// 복제 — 두 영역 모두 문서 탭 보유
 	for (const p of panes()) expect(paneLabels(p)).toContain("문서");
+	await cleanup();
+});
+
+test("위성 문서 탭 블록 클릭 → 코멘트 팝오버 열림(주 문서와 같은 스택, ADR-034)", async () => {
+	// ADR-034 회귀 가드: 시작 화면 첫 md 탭(주 문서) 외 다른 md 뷰어(위성 탭)에서
+	// 블록을 선택해도 코멘트 팝업이 안 뜨던 결함 — 위성 Document 의 onActivate 가
+	// no-op 이던 원인. 위성 탭에서도 주 문서와 동일하게 팝오버가 열려야 한다.
+	await renderPage({
+		satelliteDocs: [
+			{
+				file: "draft.requirements-scope.md",
+				md: "# 위성 문서\n\n위성 문단 내용입니다.",
+			},
+		],
+	});
+	// 위성 탭으로 전환(첫 탭 = 주 문서)
+	const satTab = [...container.querySelectorAll(".viewer-tab")].find((el) =>
+		el.textContent.includes("requirements-scope"),
+	);
+	expect(satTab).not.toBeNull();
+	await fire(satTab, "click", MouseEvent);
+	// 위성 블록 클릭 → 팝오버 오픈(주 문서의 활성 팬이 아님 — hidden=false 패널)
+	const satBlock = [...container.querySelectorAll("[data-block-id]")].find(
+		(el) => el.querySelector(".block-content") && !el.closest("[hidden]"),
+	);
+	await fire(satBlock, "click", MouseEvent);
+	const popover = satBlock.querySelector(".comment-popover");
+	expect(popover).not.toBeNull();
+	expect(popover.querySelector("input")).not.toBeNull();
+	// 재클릭 → 토글 닫힘
+	await fire(satBlock, "click", MouseEvent);
+	expect(satBlock.querySelector(".comment-popover")).toBeNull();
 	await cleanup();
 });
 

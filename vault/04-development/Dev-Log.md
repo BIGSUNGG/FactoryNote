@@ -9,6 +9,16 @@ tags: [development, dev-log]
 
 ## 2026-08-19
 
+### 위성 문서 탭 코멘트 활성화(fix/md-view-split)
+
+**맥락**: 사용자 보고 — 뷰어 시작 화면에서 첫 md 탭(주 문서) 외 다른 md 뷰어(위성 문서 탭)는 블록을 선택해도 코멘트 팝업이 안 뜬다. ADR-033이 위성 탭을 읽기 전용(코멘트 no-op)으로 렌더한 설계가 사용자에게 결함으로 인식됨.
+
+**작업**: `PlanPage.jsx` 위성 `Document` 렌더를 `comments`·`addComment`(실시간 채팅 전달 포함)·`activate`·`onRangeComment`·`activeTargetId` 공유로 교체 — 주 문서(1번째 md 탭)와 동일한 코멘트 스택. `commentFreeze`(읽기 전용 잠금)·scroll-spy(주 문서 Toc)·위성 그래프 없음은 유지. 위성 blockId 는 주 문서와 동일 포맷(파일 접두 없음 — 실서버가 위성 파일을 컨텍스트로 보유하므로 블록 id 는 근사 지시자로 충분, 필요한 경우 후행).
+
+**문서**: [[ADR-034-viewer-satellite-comments]] 신규(ADR-033 결정 4 부분 대체 표기) · Changelog Fixed · Dev-Log.
+
+**결과**: 자체체크 283 pass(위성 탭 팝오버 회귀 가드 1건 추가), `bun run typecheck` 0 종료. 테스트 뷰어: mock Stage 1 위성 2종에서 블록 클릭 → 팝오버 확인 가능.
+
 ### /factorynote 설정 대시보드(서브커맨드 폐지 · 메뉴 확장)
 
 **맥락**: 사용자 요청(`/goal`) — `/factorynote feedback` 같은 서브커맨드를 다 없애고 대시보드에서만 값 조절, 대시보드에 stage·design 값 조절 추가. '대시보드' = 명령어 실행 시 커맨드 영역에 나오는 설정 메뉴(기존 구현 — feedback 항목만 있던 상태). 사전 확정: on|off 포함 서브커맨드 전부 폐지 · design 값 = designLevel(low/medium/high) · 세션 메모리만 유지 · plan 모드 on/off 는 메뉴 항목.
@@ -78,6 +88,7 @@ tags: [development, dev-log]
 **검증**: `.pi` 타입체크 + `bun test` 통과(아래). 훅 패턴은 work-principles.ts와 동일 구조로 수동 대조.
 
 **배제**: 하드 게이트(가시성 오탐 위험), 전용 절차 스킬(가이드+훅이면 충분), 독립 원칙 5(원칙 3과 성격 동일).
+
 ### 디렉터 동적 스테이지 구성(고정 3단계 대체)
 
 **맥락**: 사용자 요청(`/goal`) — 고정 3단계 대신 스테이지 종류를 추가하고 디렉터가 구성(종류·개수)을 유동적으로 결정, 사용자는 명령어로 최대 스테이지 개수 제한. 결정 4개 사전 확정: +3종 카탈로그(총 6종) · 구성 승인 게이트 없음(디렉터 전권) · `/factorynote stage <n>` · 기본 구성 없이 항상 새로 구성.

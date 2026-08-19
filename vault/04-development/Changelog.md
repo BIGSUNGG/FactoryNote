@@ -17,7 +17,10 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 ### Added
 
 - **디렉터 동적 스테이지 구성(고정 3단계 대체)** — 스테이지 카탈로그 6종(기존 3종 + 리스크 분석 `risk-analysis` · 테스트 전략 `test-strategy` · 비기능 검증 `nfr`). 디렉터(Tier 1)가 피처 시작 시 `factorynote_plan` 의 `stages` 파라미터로 종류·개수·순서를 매번 새로 결정 — 미제출 시 `nextAction=compose` 로 카탈로그 메뉴 요청, 구성 승인 게이트 없음(디렉터 전권). 구성은 `state.json` 에 영속화, 산출물 파일명은 위치 접두(`<NN>-<kind>.md`)로 종류 반복에도 유일. 최대 스테이지 개수는 `/factorynote stage <n>` (또는 도구 `maxStages`) — 초과 구성은 잘라서 적용하고 state 에 영속화. 엔진·회귀·무효화·뷰어 스템퍼 전부 구성 위치 기준으로 일반화, 구 state 는 레거시 3종 구성으로 마이그레이션. Feedback 메뉴는 종류→프로필 사상(`feedbackProfileOf`)으로 기존 검토 축 레지스트리 재사용. 뷰어 상단 바에 기능명 + 정해진 구성 스테이지 목록(칩 — 현재 단계 강조·이후 단계 흐림) 표시, 준비 중 화면에도 구성 목록 안내(고정 3단계 표시 제거). 자체체크 238 pass. [[ADR-031-dynamic-stage-composition]]
+
 ### Fixed
+
+- **첫 md 탭 외 다른 md 뷰어(위성 문서 탭)에서 블록 선택 시 코멘트 팝업 미표시** — ADR-033(위성 탭 읽기 전용 렌더)가 위성 `Document` 를 no-op 코멘트 핸들러(`onActivate={() => {}}` 등)로 렌더해, 다중 문서 시작 화면에서 주 문서 탭이 아닌 위성 탭의 블록을 클릭해도 코멘트 팝오버가 열리지 않던 결함 수정. 위성 탭도 주 문서와 **같은 코멘트 스택**(블록·셀·범위 코멘트 — `comments`·`addComment`·`activate`·`onRangeComment`·`activeTargetId`)을 공유하도록 교체. 읽기 전용(이전 단계 보기) 잠금·scroll-spy(주 문서 기준 Toc)·그래프 없음은 유지. 회귀 가드: `SplitTab.test.jsx` 위성 탭 블록 클릭 → 팝오버 오픈·재클릭 토글 닫힘 1건, 자체체크 283 pass. [[ADR-034-viewer-satellite-comments]] ([[ADR-033-viewer-multi-doc-tabs]] 결정 4 부분 대체)
 
 - **탭·그래프 블록 드래그가 실제 브라우저에서 안 되던 문제 — 드래그 메커니즘을 HTML5 DnD 에서 포인터 이벤트로 전환** — `draggable`+`dragstart` 기반 드래그 세션이 임베디드 웹뷰 환경에서 개시되지 않아 분할 드래그 전체가 무반응이던 결함 수정. 신규 `lib/armDrag.js`(포인터다운 + 4px 임계값 초과 시 드래그 개시 — 클릭은 그대로 동작)로 탭·그래프 헤더 드래그 통일, 드롭 판정은 PlanPage window 포인터 리스너가 `e.target.closest('[data-zone]')` 으로 수행. 임계값 미만 이동 = 드래그 미개시 자체체크 포함 렌더 자체체크 8건. 실서빙 페이지에서 포인터 플로우 전체 검증(헤더 드래그→분할, 탭 드래그→하단 분할). [[ADR-032-viewer-tab-splitting]]
 
