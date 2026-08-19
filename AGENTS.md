@@ -19,7 +19,7 @@ FactoryNote is a **human-gated plan-generation workflow package** on top of the 
 ## Repo Layout
 
 ```text
-packages/factorynote/    # Layer 1-2 core (harness-agnostic) — engine · persistence · 3-stage Registry
+packages/factorynote/    # Layer 1-2 core (harness-agnostic) — engine · persistence · stage catalog + dynamic composition
 apps/pi-extension/       # Layer 3 Pi adapter (main) — /factorynote · factorynote_plan · web gate
 apps/plan-viewer/        # Viewer (React) — built dist served by the gate
 bin/factorynote.mjs      # CLI (pure Node, state inspection)

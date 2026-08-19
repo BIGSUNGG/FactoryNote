@@ -371,3 +371,39 @@ test("확정 요청이 큐 대기 중인 동안 게이트 재오픈(채팅 루�
 	expect(btn.textContent).toContain("확정 → Stage 3");
 	expect(btn.disabled).toBe(false);
 });
+
+// ——— 상단 바: 동적 스테이지 구성 목록(ADR-031) ———
+test("상단 바·스템퍼가 정해진 구성(4단계) 스테이지 목록 표시", async () => {
+	await React.act(async () => {
+		currentState = makeState({
+			stage: 2,
+			stageName: "리스크 분석",
+			stages: [
+				{ n: 1, name: "요청 이해·시나리오" },
+				{ n: 2, name: "리스크 분석" },
+				{ n: 3, name: "테스트 전략" },
+				{ n: 4, name: "구현 계획" },
+			],
+		});
+		pushState(currentState);
+		await new Promise((r) => setTimeout(r, 0));
+	});
+	const chips = [...container.querySelectorAll(".stage-chip")];
+	expect(chips.map((c) => c.textContent)).toEqual([
+		"1요청 이해·시나리오",
+		"2리스크 분석",
+		"3테스트 전략",
+		"4구현 계획",
+	]);
+	// 현재 단계 강조·이후 단계 ahead.
+	expect(chips[1].className).toContain("current");
+	expect(chips[2].className).toContain("ahead");
+	expect(chips[0].className).not.toContain("ahead");
+	// 스템퍼도 동일 구성 기준 — 고정 3단계가 아닌 4스텝.
+	expect(container.querySelectorAll(".step").length).toBe(4);
+});
+
+test("상단 바: stages 미전달(레거시 state) → 레거시 3단계 폴백", () => {
+	// 기본 fixture 는 stages 필드 없음 — 뷰어가 레거시 3단계로 폴백한다.
+	expect(container.querySelectorAll(".stage-chip").length).toBe(3);
+});

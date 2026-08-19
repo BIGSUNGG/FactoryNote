@@ -1,10 +1,19 @@
 // 게이트 영역 타입: 단계·판정·코멘트·채팅·이력. harness-agnostic(Layer 1-2).
 
-/** 3단계 파이프라인 단계 식별자. */
-export type StageId = 1 | 2 | 3;
+/** 스테이지 종류 — 카탈로그 식별자. 디렉터가 이 안에서 파이프라인 구성을 선택한다. */
+export type StageKind =
+	| "understanding"
+	| "design"
+	| "implementation"
+	| "risk-analysis"
+	| "test-strategy"
+	| "nfr";
 
-/** FR-7: 0..3. validThrough = 해당 단계까지 산출물이 승인됨(0=아직 승인된 산출물 없음). */
-export type ValidThrough = 0 | StageId;
+/** 동적 구성 파이프라인의 단계 식별자 — 구성 내 위치(1부터). */
+export type StageId = number;
+
+/** FR-7: 0..구성 길이. validThrough = 해당 위치까지 산출물이 승인됨(0=아직 승인된 산출물 없음). */
+export type ValidThrough = number;
 
 /** 산출물 포맷(ADR-003). Stage 2 도 마크다운 단일진실로 통일(F2). */
 export type ArtifactFormat = "markdown";
@@ -43,7 +52,7 @@ export interface ChatMessage {
 export interface GateDecision {
 	verdict: GateVerdict;
 	comments: Comment[];
-	/** FR-7: 회귀 대상 단계(1..3). 생략 시 종래대로 1단계 회귀. 현재 단계보다 앞으로만(엔진이 clamp). */
+	/** FR-7: 회귀 대상 단계(1..구성 길이). 생략 시 종래대로 1단계 회귀. 현재 단계보다 앞으로만(엔진이 clamp). */
 	revertTo?: StageId;
 }
 

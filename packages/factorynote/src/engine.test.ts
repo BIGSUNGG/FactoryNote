@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test, expect } from "bun:test";
 import {
+	LEGACY_KINDS,
 	applyVerdict,
 	atLoopCeiling,
 	checkRequiredGraph,
@@ -17,10 +18,16 @@ import {
 	markArtifactReady,
 	readArtifact,
 	readArtifactPrev,
-	requiresArtifact,
 	saveState,
+	stageDefAt,
+	stageDefs,
 	writeArtifact,
 } from "./index.ts";
+import type { StageKind } from "./index.ts";
+
+/** 레거시 3종 구성 상태 팩토리(테스트 기본). */
+const mkState = (feature: string) => initialState(feature, [...LEGACY_KINDS]);
+const LEGACY_DEFS = stageDefs(LEGACY_KINDS);
 
 let root: string;
 let cleanup: () => Promise<void>;
@@ -33,7 +40,7 @@ test("setup temp .factorynote root", async () => {
 });
 
 test("confirm advances stage and closes gate", () => {
-	let s = initialState("demo");
+	let s = mkState("demo");
 	expect(s.stage).toBe(1);
 	expect(s.gateOpen).toBe(false);
 	s = markArtifactReady(s);
@@ -45,14 +52,11 @@ test("confirm advances stage and closes gate", () => {
 });
 
 test("full pipeline 1->3 completes", () => {
-	let s = initialState("demo");
-	for (
-		let stage = 1 as 1 | 2 | 3;
-		stage <= 3;
-		stage = (stage + 1) as 1 | 2 | 3
-	) {
+	let s = mkState("demo");
+	for (let stage = 1; stage <= 3; stage++) {
 		expect(s.stage).toBe(stage);
-		expect(requiresArtifact(s.stage)).toBe(true); // 3단계 모두 산출물
+		// 구성의 모든 단계가 산출물 생성.
+		expect(stageDefAt(s.stages, s.stage).producesArtifact).toBe(true);
 		s = markArtifactReady(s);
 		s = applyVerdict(s, { verdict: "confirm", comments: [] });
 	}
@@ -60,8 +64,57 @@ test("full pipeline 1->3 completes", () => {
 	expect(s.stage).toBe(3);
 });
 
+test("동적 구성: 2단계 파이프라인은 stage 2 확정으로 완료", () => {
+	let s = initialState("short", ["understanding", "implementation"]);
+	expect(s.stages).toEqual(["understanding", "implementation"]);
+	for (let i = 0; i < 2; i++) {
+		s = markArtifactReady(s);
+		s = applyVerdict(s, { verdict: "confirm", comments: [] });
+	}
+	expect(isComplete(s)).toBe(true);
+	expect(s.stage).toBe(2);
+	expect(s.validThrough).toBe(2);
+});
+
+test("동적 구성: 5단계 파이프라인 전 단계 게이트 전이", () => {
+	const kinds: StageKind[] = [
+		"understanding",
+		"design",
+		"risk-analysis",
+		"test-strategy",
+		"implementation",
+	];
+	let s = initialState("long", kinds);
+	for (let stage = 1; stage <= 5; stage++) {
+		expect(s.stage).toBe(stage);
+		expect(s.done).toBe(false);
+		s = markArtifactReady(s);
+		s = applyVerdict(s, { verdict: "confirm", comments: [] });
+	}
+	expect(isComplete(s)).toBe(true);
+	expect(s.validThrough).toBe(5);
+});
+
+test("동적 구성: 중간 단계 revert 는 구성 위치 기준으로 회귀", () => {
+	const kinds: StageKind[] = [
+		"understanding",
+		"design",
+		"nfr",
+		"implementation",
+	];
+	let s = initialState("mid", kinds);
+	for (let i = 0; i < 3; i++) {
+		s = markArtifactReady(s);
+		s = applyVerdict(s, { verdict: "confirm", comments: [] });
+	} // stage4, vt3
+	s = markArtifactReady(s);
+	s = applyVerdict(s, { verdict: "revert", comments: [], revertTo: 2 });
+	expect(s.stage).toBe(2);
+	expect(s.validThrough).toBe(1);
+});
+
 test("modify keeps stage, bumps loopCount, closes gate", () => {
-	let s = initialState("demo");
+	let s = mkState("demo");
 	s = markArtifactReady(s);
 	s = applyVerdict(s, { verdict: "confirm", comments: [] }); // ->2
 	s = markArtifactReady(s);
@@ -75,7 +128,7 @@ test("modify keeps stage, bumps loopCount, closes gate", () => {
 });
 
 test("revert steps back one stage", () => {
-	let s = initialState("demo");
+	let s = mkState("demo");
 	s = applyVerdict(markArtifactReady(s), { verdict: "confirm", comments: [] }); // ->2
 	s = applyVerdict(markArtifactReady(s), { verdict: "confirm", comments: [] }); // ->3
 	s = applyVerdict(markArtifactReady(s), {
@@ -87,7 +140,7 @@ test("revert steps back one stage", () => {
 });
 
 test("state atomic save/load round-trip", async () => {
-	const s = applyVerdict(markArtifactReady(initialState("rt")), {
+	const s = applyVerdict(markArtifactReady(mkState("rt")), {
 		verdict: "confirm",
 		comments: [],
 	});
@@ -167,7 +220,7 @@ test("invalidateArtifactsAfter also removes .prev — ADR-027", async () => {
 	);
 	await writeArtifact(root, "prev-inv", "02-design.md", "d1");
 	await writeArtifact(root, "prev-inv", "02-design.md", "d2"); // prev=d1
-	await invalidateArtifactsAfter(root, "prev-inv", 1);
+	await invalidateArtifactsAfter(root, "prev-inv", 1, LEGACY_DEFS);
 	expect(await readArtifact(root, "prev-inv", "02-design.md")).toBeUndefined();
 	expect(
 		await readArtifactPrev(root, "prev-inv", "02-design.md"),
@@ -178,7 +231,7 @@ test("invalidateArtifactsAfter also removes .prev — ADR-027", async () => {
 });
 
 test("corrupt state recovers to undefined", async () => {
-	await saveState(root, initialState("bad"));
+	await saveState(root, mkState("bad"));
 	// 손상된 내용 직접 덮어쓰기(atomic 우회 — 복구 경로 시뮬레이션).
 	const sp = join(root, "bad", "state.json");
 	await writeFile(sp, "{ not valid json", "utf8");
@@ -200,7 +253,7 @@ test("valid JSON but invalid shape → 백업 후 undefined (validateState 가�
 		["shape-history-missing", { feature: "f", stage: 1 }],
 	];
 	for (const [feat, bad] of cases) {
-		await saveState(root, initialState(feat)); // 디렉토리 생성
+		await saveState(root, mkState(feat)); // 디렉토리 생성
 		await writeFile(
 			join(root, feat, "state.json"),
 			JSON.stringify(bad),
@@ -218,7 +271,7 @@ test("missing state returns undefined", async () => {
 // --- FR-7 다단계 회귀 + validThrough ---
 
 test("validThrough starts 0 and advances on confirm", () => {
-	const s0 = initialState("vt");
+	const s0 = mkState("vt");
 	expect(s0.validThrough).toBe(0);
 	const s1 = applyVerdict(markArtifactReady(s0), {
 		verdict: "confirm",
@@ -229,7 +282,7 @@ test("validThrough starts 0 and advances on confirm", () => {
 });
 
 test("modify keeps validThrough unchanged", () => {
-	let s = applyVerdict(markArtifactReady(initialState("vt2")), {
+	let s = applyVerdict(markArtifactReady(mkState("vt2")), {
 		verdict: "confirm",
 		comments: [],
 	}); // stage2, vt1
@@ -242,7 +295,7 @@ test("modify keeps validThrough unchanged", () => {
 });
 
 test("revert without revertTo steps back one, decreases validThrough", () => {
-	let s = initialState("vt3");
+	let s = mkState("vt3");
 	for (let i = 0; i < 2; i++) {
 		s = applyVerdict(markArtifactReady(s), {
 			verdict: "confirm",
@@ -256,7 +309,7 @@ test("revert without revertTo steps back one, decreases validThrough", () => {
 });
 
 test("revert with revertTo jumps multiple stages (FR-7)", () => {
-	let s = initialState("vt4");
+	let s = mkState("vt4");
 	for (let i = 0; i < 2; i++) {
 		s = applyVerdict(markArtifactReady(s), {
 			verdict: "confirm",
@@ -274,7 +327,7 @@ test("revert with revertTo jumps multiple stages (FR-7)", () => {
 });
 
 test("revertTo clamped to stage-1 (cannot jump forward)", () => {
-	let s = initialState("vt5");
+	let s = mkState("vt5");
 	s = applyVerdict(markArtifactReady(s), { verdict: "confirm", comments: [] }); // stage2, vt1
 	// revertTo=3 at stage2 → clamp 상한(stage-1=1)
 	s = applyVerdict(markArtifactReady(s), {
@@ -287,7 +340,7 @@ test("revertTo clamped to stage-1 (cannot jump forward)", () => {
 });
 
 test("revert at stage 1 is a no-op on stage (clamp boundary)", () => {
-	const s1 = applyVerdict(markArtifactReady(initialState("vt6")), {
+	const s1 = applyVerdict(markArtifactReady(mkState("vt6")), {
 		verdict: "revert",
 		comments: [],
 	});
@@ -298,7 +351,7 @@ test("revert at stage 1 is a no-op on stage (clamp boundary)", () => {
 // --- FR-2 반복 상한 ---
 
 test("atLoopCeiling true at/above MAX_LOOPS, false below", () => {
-	const base = initialState("loop");
+	const base = mkState("loop");
 	expect(atLoopCeiling(base)).toBe(false);
 	expect(atLoopCeiling({ ...base, loopCount: MAX_LOOPS - 1 })).toBe(false);
 	expect(atLoopCeiling({ ...base, loopCount: MAX_LOOPS })).toBe(true);
@@ -315,7 +368,7 @@ test("invalidateArtifactsAfter deletes artifacts after stage (FR-7)", async () =
 	await writeArtifact(r, "f", "02-design.md", "s2");
 	await writeArtifact(r, "f", "03-implementation-plan.md", "s3");
 	// afterStage=1 → delete id>1 (stages 2,3)
-	await invalidateArtifactsAfter(r, "f", 1);
+	await invalidateArtifactsAfter(r, "f", 1, LEGACY_DEFS);
 	expect(await readArtifact(r, "f", "01-understanding-and-scenarios.md")).toBe(
 		"s1",
 	);
@@ -363,7 +416,7 @@ test("invalidateArtifactsAfter: 에이전트 자유 이름 그래프 트리도 �
 		"stage2/module-deps/modules/ui.json",
 		'{"version":2}',
 	);
-	await invalidateArtifactsAfter(r, "f", 1);
+	await invalidateArtifactsAfter(r, "f", 1, LEGACY_DEFS);
 	expect(await readArtifact(r, "f", "02-design.md")).toBeUndefined();
 	expect(await readArtifact(r, "f", "stage2/module-deps.json")).toBeUndefined();
 	expect(
@@ -432,7 +485,7 @@ test("checkRequiredGraph: sequence·flowchart 도 유효 그래프로 수락(ADR
 
 test("loadState migrates legacy state.json missing validThrough → 0", async () => {
 	const feat = "legacymig";
-	await saveState(root, initialState(feat)); // 디렉토리 + state.json 생성
+	await saveState(root, mkState(feat)); // 디렉토리 + state.json 생성
 	const legacy = {
 		feature: feat,
 		stage: 3,
@@ -451,11 +504,13 @@ test("loadState migrates legacy state.json missing validThrough → 0", async ()
 	const loaded = await loadState(root, feat);
 	expect(loaded).toBeDefined();
 	expect(loaded?.validThrough).toBe(0);
+	// stages 누락 구 포맷 → 레거시 3종 구성으로 마이그레이션.
+	expect(loaded?.stages).toEqual([...LEGACY_KINDS]);
 });
 
 test("loadState guards non-finite validThrough (null) → 0", async () => {
 	const feat = "badvt";
-	await saveState(root, initialState(feat));
+	await saveState(root, mkState(feat));
 	// validThrough=null(비정상) 도 0 으로 마이그레이션 가드.
 	await writeFile(
 		join(root, feat, "state.json"),
@@ -474,6 +529,42 @@ test("loadState guards non-finite validThrough (null) → 0", async () => {
 	);
 	const loaded = await loadState(root, feat);
 	expect(loaded?.validThrough).toBe(0);
+});
+
+test("loadState: 미등록 종류 포함 stages 는 손상 취급(복구 경로)", async () => {
+	const feat = "badkind";
+	await saveState(root, mkState(feat));
+	await writeFile(
+		join(root, feat, "state.json"),
+		JSON.stringify({
+			feature: feat,
+			stages: ["understanding", "not-a-kind"],
+			stage: 1,
+			gateOpen: false,
+			loopCount: 0,
+			done: false,
+			history: [],
+			createdAt: 1,
+			updatedAt: 1,
+		}),
+		"utf8",
+	);
+	expect(await loadState(root, feat)).toBeUndefined();
+});
+
+test("loadState: 동적 구성 state 왕복(5단계·상한 포함)", async () => {
+	const feat = "dyn-rt";
+	const kinds: StageKind[] = [
+		"understanding",
+		"design",
+		"risk-analysis",
+		"test-strategy",
+		"implementation",
+	];
+	const s = { ...initialState(feat, kinds), maxStages: 5 };
+	await saveState(root, s);
+	const loaded = await loadState(root, feat);
+	expect(loaded).toEqual(s);
 });
 
 test("teardown", async () => {
