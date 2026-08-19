@@ -13,6 +13,49 @@
 	letter-spacing: -0.02em;
 	color: var(--primary);
 }
+.topbar-feature {
+	font-size: 14px;
+	color: var(--muted);
+	white-space: nowrap;
+}
+/* 현 파이프라인 구성(정해진 스테이지 목록) — 칩 나열, 현재 단계 강조·이후 단계 흐림. */
+.topbar-stages {
+	display: flex;
+	align-items: center;
+	gap: var(--s1);
+	margin-left: auto;
+	overflow-x: auto;
+	white-space: nowrap;
+}
+.stage-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--s1);
+	padding: 2px var(--s2);
+	font-size: 12px;
+	color: var(--success);
+	border-radius: 999px;
+}
+.stage-chip .num {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	border-radius: 999px;
+	border: 1.5px solid currentColor;
+	font-size: 10px;
+	font-weight: 700;
+}
+.stage-chip.current {
+	color: var(--primary);
+	font-weight: 600;
+	background: var(--primary-tint);
+}
+.stage-chip.ahead {
+	color: var(--muted);
+	opacity: 0.55;
+}
 .stepper {
 	display: flex;
 	flex: none;

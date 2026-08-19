@@ -2,7 +2,7 @@
 // ADR-014: Director 가 메뉴에서 선택·병렬 스폰. 전이·집합·메뉴 필터를 결정론적 검증.
 // 실행: bun test packages/factorynote
 import { test, expect } from "bun:test";
-import { STAGES } from "./stages.ts";
+import { LEGACY_KINDS, stageDefs } from "./stages.ts";
 import { feedbackMenuForStage } from "./feedback-agents.ts";
 import { DESIGN_AGENTS, designMenuForStage } from "./design-agents.ts";
 import {
@@ -47,7 +47,7 @@ class MockSpawn implements AgentSpawn {
 	}
 }
 
-const stage = STAGES[0]!; // Stage 1
+const stage = stageDefs(LEGACY_KINDS)[0]!; // Stage 1
 const menu = feedbackMenuForStage(1);
 const [a0, a1] = menu;
 

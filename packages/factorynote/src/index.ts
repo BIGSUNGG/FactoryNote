@@ -38,10 +38,19 @@ export type {
 	PipelineState,
 	SpawnOptions,
 	StageId,
+	StageKind,
 	ValidThrough,
 } from "./types/index.ts";
-export { STAGES, stageById } from "./stages.ts";
-export type { StageDefinition } from "./stages.ts";
+export {
+	STAGE_CATALOG,
+	STAGE_KINDS,
+	LEGACY_KINDS,
+	feedbackProfileOf,
+	isStageKind,
+	stageDefAt,
+	stageDefs,
+} from "./stages.ts";
+export type { StageDefinition, StageKindDefinition } from "./stages.ts";
 export {
 	FEEDBACK_AGENTS,
 	FEEDBACK_TOOLS,
@@ -63,7 +72,6 @@ export {
 	MAX_LOOPS,
 	markArtifactReady,
 	nextStageId,
-	requiresArtifact,
 } from "./engine.ts";
 export {
 	artifactPath,

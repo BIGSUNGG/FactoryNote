@@ -8,6 +8,7 @@ import type {
 import type { StageDefinition } from "./stages.ts";
 import type { FeedbackAgent } from "./feedback-agents.ts";
 import { feedbackMenuForStage } from "./feedback-agents.ts";
+import { feedbackProfileOf } from "./stages.ts";
 import { DEFAULT_FEEDBACK_LEVEL, DEFAULT_MAX_LOOPS } from "./df-policy.ts";
 import { parseFeedback, type DesignFeedbackReport } from "./df-parse.ts";
 import { feedbackAgentTask } from "./df-task.ts";
@@ -44,7 +45,9 @@ export async function runDesignFeedbackLoop(
 	let dfLoop = 0;
 	let draft: string | undefined;
 	let report: DesignFeedbackReport | undefined;
-	const menu = (select ?? ((m) => m))(feedbackMenuForStage(def.id));
+	const menu = (select ?? ((m) => m))(
+		feedbackMenuForStage(feedbackProfileOf(def.kind)),
+	);
 
 	for (;;) {
 		const t = nextDesignFeedbackStep(
