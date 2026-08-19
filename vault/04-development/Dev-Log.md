@@ -9,6 +9,18 @@ tags: [development, dev-log]
 
 ## 2026-08-19
 
+### 분할 뷰어 크기 비대칭 수정(fix/md-view-split)
+
+**맥락**: 사용자 보고 — 테스트 뷰어는 문제 없는데 pi 하네스에서 factorynote 실행 후 뷰어를 분할하면 새로 생긴 탭이 기존 탭보다 크고, divider 를 드래그해도 새 탭이 더 큰 채로 남는다.
+
+**근본 원인**: `SplitNode.jsx` 의 분할 렌더가 두 자식의 flex sizing 을 비대칭으로 — children[0] 은 ratio 기반 `flexBasis` 인데 children[1] 은 `flexGrow: 1` + 콘텐츠 기준 `flex-basis: auto` 였다. 그래서 오른쪽/아래 분할로 새로 생긴 탭(children[1])이 콘텐츠 폭(피 하네스의 큰 뷰포트 → `.doc-wrap` max-width `177.78vh` 클램프 확대)을 따라 커지고, 드래그는 children[0] 의 basis 만 바꿔 ratio 가 1:1 반영되지 않았다. 테스트 뷰어는 윈도우 높이가 작아 클램프가 작아 짧은 mock 문서 폭과 비슷해 드러나지 않았던 것.
+
+**작업**: 두 자식을 모두 ratio 기반 `flexBasis` 로 고정(children[0]=ratio, children[1]=1-ratio, `flexGrow: 0`, `flexShrink: 1`) — 기본 50/50 유지·setRatio 0.15~0.85 클램프 유지·4방향 모두 동일 로직. `SplitTab.test.jsx` 회귀 가드 1건 추가(분할 직후 두 자식 모두 flexBasis 50%·grow 0). 분할 로직(`splitLayout.js`)·드롭 존·그래프 팬 타일링은 무변경.
+
+**문서**: ADR-032 결정 5(비율 조정) 렌더 메커니즘 명시 · Changelog Fixed · Dev-Log.
+
+**결과**: 자체체크 284 pass(회귀 가드 포함), `bun run typecheck` 0 종료, `bun run build`(deploy 포함) 성공. 테스트 뷰어 5180 응답 확인. 사용자 하네스 재확인 대기.
+
 ### 위성 문서 탭 코멘트 활성화(fix/md-view-split)
 
 **맥락**: 사용자 보고 — 뷰어 시작 화면에서 첫 md 탭(주 문서) 외 다른 md 뷰어(위성 문서 탭)는 블록을 선택해도 코멘트 팝업이 안 뜬다. ADR-033이 위성 탭을 읽기 전용(코멘트 no-op)으로 렌더한 설계가 사용자에게 결함으로 인식됨.

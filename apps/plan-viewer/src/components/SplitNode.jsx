@@ -91,10 +91,19 @@ export default function SplitNode({
 		window.addEventListener("pointerup", up);
 	};
 	const [a, b] = node.children;
-	const child = (c, grow) => (
+	// 양쪽 자식을 모두 ratio 기반 flexBasis 로 고정(grow 0) — children[1] 을
+	// flexGrow:1 + 콘텐츠 기준 basis 로 키우던 비대칭 제거(ADR-032). 분할 즉시
+	// 기본 50/50 이 유지되고 divider 드래그가 비율에 1:1 반영된다.
+	const child = (c, isSecond) => (
 		<div
 			className="split-child"
-			style={grow ? { flexGrow: 1 } : { flexBasis: `${node.ratio * 100}%` }}
+			style={{
+				flexBasis: isSecond
+					? `${(1 - node.ratio) * 100}%`
+					: `${node.ratio * 100}%`,
+				flexGrow: 0,
+				flexShrink: 1,
+			}}
 		>
 			<SplitNode
 				node={c}

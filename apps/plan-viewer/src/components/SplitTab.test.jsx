@@ -168,6 +168,25 @@ test("중앙 드롭 = 대상 영역으로 탭 이동(병합)", async () => {
 	await cleanup();
 });
 
+test("분할 즉시 양쪽 탭 크기 동일 — 두 자식 모두 ratio 기반 flexBasis(회귀: flexGrow 비대칭)", async () => {
+	await renderPage();
+	const docTab = container.querySelector(".viewer-tab");
+	await fire(docTab, "contextmenu", MouseEvent, { clientX: 10, clientY: 20 });
+	await fire(
+		document.querySelectorAll(".split-menu button")[1],
+		"click",
+		MouseEvent,
+	); // 오른쪽으로 분할 — 새 탭 = children[1]
+	const kids = [...container.querySelectorAll(".split-node > .split-child")];
+	expect(kids.length).toBe(2);
+	// 기본 ratio 0.5 — 두 자식 모두 50% flexBasis·grow 0 (콘텐츠 폭 따라 한쪽 확대 없음)
+	for (const kid of kids) {
+		expect(kid.style.flexBasis).toBe("50%");
+		expect(kid.style.flexGrow).toBe("0");
+	}
+	await cleanup();
+});
+
 test("탭 우클릭 → 분할 메뉴 4항목 → 클릭 시 탭 복제 분할(원본 유지)", async () => {
 	await renderPage();
 	const docTab = container.querySelector(".viewer-tab");

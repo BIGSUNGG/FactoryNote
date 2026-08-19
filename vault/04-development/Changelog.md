@@ -10,6 +10,10 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ## [Unreleased]
 
+### Fixed
+
+- **뷰어 분할 시 새 탭이 기존 탭보다 커지던 문제** — `SplitNode.jsx` 가 두 자식을 비대칭 flex 로 렌더(children[0]만 ratio 기반, children[1]은 flexGrow+콘텐츠 기준)해, 오른쪽/아래 분할로 생긴 새 탭이 콘텐츠 폭을 따라 커지고 divider 드래그(ratio 0.15~0.85)도 1:1 반영되지 않았다. 두 자식을 모두 ratio 기반 `flexBasis` 로 고정(grow 0) — 분할 즉시 50/50, 드래그 시 비율 그대로 양쪽 반영. 분할 트리 로직·드롭 존은 무변경. [[ADR-032-viewer-tab-splitting]]
+
 ### Changed
 
 - **/factorynote 설정 대시보드 — 서브커맨드 전면 폐지·설정 메뉴 통합** — `/factorynote` 를 인자 없는 단일 명령으로 축소하고 모든 서브커맨드(`feedback`·`stage`·`auto`·`on`·`off`)를 제거. 설정 대시보드(명령 영역 설정 메뉴)에서 feedback 수준 · design 위성 수준(designLevel low/medium/high — 신규 항목) · 최대 스테이지 개수 상한 · auto-advance 4개 항목과 plan 모드 on/off(`confirm` → ON, `off` 항목 → OFF)를 설정한다. 설정은 전부 세션 메모리(pi 재시작 시 기본값 복귀), `factorynote_plan` 도구 파라미터(`maxStages`·`designLevel`)가 메뉴 설정보다 우선하는 기존 시맨틱 유지. designLevel 세션 기본값 신설 — 도구 호출이 파라미터를 생략하면 메뉴 설정값 적용. UI 없는 환경은 호출마다 모드 토글 폴백. 자체체크 253 pass(메뉴 조작 자체체크 10건 신규 포함). [[ADR-032-settings-dashboard-menu]]
