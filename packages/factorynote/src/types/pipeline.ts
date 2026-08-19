@@ -1,9 +1,11 @@
 // 파이프라인 영속 상태 — .factorynote/<feature>/state.json 에 저장.
 import type { DesignFeedbackPhase, FeedbackLevel } from "./feedback.ts";
-import type { HistoryEntry, StageId, ValidThrough } from "./gate.ts";
+import type { HistoryEntry, StageId, StageKind, ValidThrough } from "./gate.ts";
 
 export interface PipelineState {
 	feature: string;
+	/** 디렉터가 결정한 스테이지 구성 — 종류 순서 목록(생성 시 고정). */
+	stages: StageKind[];
 	stage: StageId;
 	/** 현재 단계 산출물이 사용자 검토 대기 중인지. */
 	gateOpen: boolean;
@@ -15,7 +17,9 @@ export interface PipelineState {
 	dfLoop: number;
 	/** FR-7: 해당 단계까지 산출물 유효(0=미승인). confirm→증가, revert→감소, modify→불변. */
 	validThrough: ValidThrough;
-	/** 파이프라인 완료(Stage 3 confirm) 여부. */
+	/** 사용자 지정 최대 스테이지 개수 상한(설정 메뉴 /factorynote). 미지정 시 없음. */
+	maxStages?: number;
+	/** 파이프라인 완료(마지막 단계 confirm) 여부. */
 	done: boolean;
 	history: HistoryEntry[];
 	createdAt: number;

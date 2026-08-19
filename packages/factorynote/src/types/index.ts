@@ -7,6 +7,7 @@ export type {
 	GateVerdict,
 	HistoryEntry,
 	StageId,
+	StageKind,
 	ValidThrough,
 } from "./gate.ts";
 export type {
@@ -15,8 +16,10 @@ export type {
 	ArtifactPaths,
 	ChildToolBudget,
 	ChildTurnBudget,
+	DesignAgent,
 	DesignFeedbackDirective,
 	DesignFeedbackPhase,
+	DesignLevel,
 	FeedbackAgent,
 	FeedbackAxis,
 	FeedbackAxisOutcome,

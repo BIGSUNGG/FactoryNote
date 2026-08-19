@@ -1,11 +1,17 @@
-// 산출물 교환 경로·feedback 메뉴·보고 파싱 — Director(에이전트)와 파일로 주고받는 규약.
+// 산출물 교환 경로·feedback/design 메뉴·보고 파싱 — Director(에이전트)와 파일로 주고받는 규약.
 import { join } from "node:path";
 import {
 	clampReportInput,
+	designLevelCountSpec,
+	designMenuForStage,
+	DESIGN_LEVELS,
 	feedbackLevelCountSpec,
 	feedbackMenuForStage,
+	feedbackProfileOf,
 	parseFeedback,
 	type ArtifactPaths,
+	type DesignAgent,
+	type DesignLevel,
 	type FeedbackAgent,
 	type FeedbackLevel,
 	type PipelineState,
@@ -17,7 +23,16 @@ import type { DrivePlanInput } from "./plan-types.ts";
 export const FEEDBACK_BATCH_SPLIT_RULE =
 	"스폰이 에이전트 호출 수/레이트 리밋 에러로 실패하면 선택 에이전트를 3-4개씩 순차 배치로 나눠 재시도하고, 전 배치 판정을 하나의 집합 보고로 합친다.";
 
-/** 현 stage 산출물 교환 파일 경로 + feedback 메뉴 파일. */
+/** ADR-031: 위성 design 스폰이 레이트 리밋 등으로 실패하면 순차 재시도 문구(위성은 최대 2개). */
+export const DESIGN_BATCH_SPLIT_RULE =
+	"스폰이 에이전트 호출 수/레이트 리밋 에러로 실패하면 나머지를 순차로 재시도하고 전 결과를 하나의 집합 보고로 합친다.";
+
+/** 위성 design 문서 파일명(결정론적) — draft.<name>.md, draft 와 같은 폴더. */
+export function satelliteFileName(agent: DesignAgent): string {
+	return `draft.${agent.name}.md`;
+}
+
+/** 현 stage 산출물 교환 파일 경로 + feedback/design 메뉴 파일. */
 export function resolvePaths(
 	root: string,
 	feature: string,
@@ -30,8 +45,12 @@ export function resolvePaths(
 		paths: {
 			designPrompt: join(dir, "design-prompt.md"),
 			draft: join(dir, draftFile),
+			// 위성 문서(draft.<role>.md) 를 쓰는 폴더 — draft 와 동일(ADR-031).
+			draftDir: dir,
 			feedback: join(dir, "feedback.md"),
 			menu: join(dir, "feedback-menu.md"),
+			// 위성 design 메뉴(Director 가 designLevel 에 맞게 위성 선택, ADR-031).
+			designMenu: join(dir, "design-menu.md"),
 		},
 		draftFile,
 	};
@@ -42,7 +61,7 @@ export function buildMenuMarkdown(
 	def: StageDefinition,
 	level: FeedbackLevel,
 ): string {
-	const menu = feedbackMenuForStage(def.id);
+	const menu = feedbackMenuForStage(feedbackProfileOf(def.kind));
 	const lines = [
 		`# Stage ${def.id}(${def.name}) Feedback 메뉴`,
 		"",
@@ -58,6 +77,32 @@ export function buildMenuMarkdown(
 		lines.push(
 			`| ${a.name} | ${a.capability} | ${a.focus} | ${a.checklist.join(" / ")} |`,
 		);
+	}
+	return lines.join("\n");
+}
+
+/** 현 단계 design 메뉴 마크다운 — Director 가 읽어 designLevel 수만큼 위성을 추려 병렬 스폰(ADR-031). */
+export function buildDesignMenuMarkdown(
+	def: StageDefinition,
+	level: DesignLevel,
+): string {
+	const menu = designMenuForStage(def.id);
+	const satCount = DESIGN_LEVELS[level].satellites;
+	const lines = [
+		`# Stage ${def.id}(${def.name}) Design 메뉴(위성)`,
+		"",
+		`Design 위성 수준: **${level}**(총 ${designLevelCountSpec(level)}: 주 문서 1 + 위성 ${satCount}) — 주 문서(draft.md) 는 기존 factorynote-design 가 작성하고, 아래 메뉴 중 **위성 ${satCount}개** 를 추려 subagent 의 workflowScript runs.all 로 **병렬** 스폰하라.`,
+		"",
+		'각 위성 에이전트는 factorynote-design-<name> (fresh, 최소 도구 read/write/bash). 과제: "designPrompt 를 읽고 <focus> 관점 위성 문서 작성 — 저장 파일(draft.<name>.md) 만 쓰고 반환은 경로만".',
+		"집합 보고(필수): 각 위성을 '[name]' 헤더 + 저장 경로로 나열.",
+		"위성 에이전트는 그래프 파일을 만들지 않는다(그래프는 주 문서 소유).",
+		DESIGN_BATCH_SPLIT_RULE,
+		"",
+		"| name | 초점 | 저장 파일 |",
+		"| --- | --- | --- |",
+	];
+	for (const a of menu) {
+		lines.push(`| ${a.name} | ${a.focus} | draft.${a.name}.md |`);
 	}
 	return lines.join("\n");
 }
@@ -106,7 +151,7 @@ export function deriveReport(
 			role: "feedback",
 			outcomes: parseFeedbackBatch(
 				clampReportInput(input.feedbackResult),
-				feedbackMenuForStage(def.id),
+				feedbackMenuForStage(feedbackProfileOf(def.kind)),
 			),
 		};
 	}

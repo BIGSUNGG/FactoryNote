@@ -9,8 +9,10 @@ export type {
 	ChildToolBudget,
 	ChildTurnBudget,
 	Comment,
+	DesignAgent,
 	DesignFeedbackDirective,
 	DesignFeedbackPhase,
+	DesignLevel,
 	FeedbackAxis,
 	FeedbackAxisOutcome,
 	FeedbackLevel,
@@ -36,10 +38,19 @@ export type {
 	PipelineState,
 	SpawnOptions,
 	StageId,
+	StageKind,
 	ValidThrough,
 } from "./types/index.ts";
-export { STAGES, stageById } from "./stages.ts";
-export type { StageDefinition } from "./stages.ts";
+export {
+	STAGE_CATALOG,
+	STAGE_KINDS,
+	LEGACY_KINDS,
+	feedbackProfileOf,
+	isStageKind,
+	stageDefAt,
+	stageDefs,
+} from "./stages.ts";
+export type { StageDefinition, StageKindDefinition } from "./stages.ts";
 export {
 	FEEDBACK_AGENTS,
 	FEEDBACK_TOOLS,
@@ -50,6 +61,10 @@ export type {
 	FeedbackCapability,
 } from "./feedback-agents.ts";
 export {
+	DESIGN_AGENTS,
+	designMenuForStage,
+} from "./design-agents.ts";
+export {
 	atLoopCeiling,
 	applyVerdict,
 	initialState,
@@ -57,7 +72,6 @@ export {
 	MAX_LOOPS,
 	markArtifactReady,
 	nextStageId,
-	requiresArtifact,
 } from "./engine.ts";
 export {
 	artifactPath,
@@ -94,13 +108,18 @@ export {
 } from "./graph.ts";
 export {
 	CHILD_SPAWN_OPTIONS,
+	DEFAULT_DESIGN_LEVEL,
 	DEFAULT_FEEDBACK_LEVEL,
 	DEFAULT_MAX_LOOPS,
+	DESIGN_LEVELS,
 	FEEDBACK_LEVELS,
 	MAX_REPORT_INPUT_CHARS,
 	aggregateFeedback,
 	clampReportInput,
+	designLevelCountSpec,
 	designRevisionTask,
+	designSatelliteRevisionTask,
+	designSatelliteTask,
 	designTask,
 	feedbackAgentTask,
 	feedbackLevelCountSpec,

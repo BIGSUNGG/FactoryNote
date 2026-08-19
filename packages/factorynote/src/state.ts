@@ -2,7 +2,8 @@
 // harness-agnostic: 경로를 인자로 받는다(pi 의존 0). node:fs/promises 만 사용.
 import { copyFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { featureDir, statePath } from "./paths.ts";
-import type { PipelineState } from "./types/index.ts";
+import { isStageKind, LEGACY_KINDS } from "./stages.ts";
+import type { PipelineState, StageKind } from "./types/index.ts";
 
 async function ensureDir(dir: string): Promise<void> {
 	await mkdir(dir, { recursive: true });
@@ -43,11 +44,18 @@ function validateState(s: unknown): PipelineState {
 	if (typeof s !== "object" || s === null) throw new Error("invalid state");
 	const o = s as Record<string, unknown>;
 	const stage = o.stage;
+	// 동적 구성 마이그레이션: 구 state.json(stages 누락 = 고정 3단계) → 레거시 3종 구성.
+	// stages 가 있어도 미등록 종류 포함 시 손상 취급(복구 경로) — 카탈로그가 단일 진실.
+	const rawStages = Array.isArray(o.stages)
+		? (o.stages as unknown[])
+		: [...LEGACY_KINDS];
 	if (
 		typeof o.feature !== "string" ||
 		typeof stage !== "number" ||
+		rawStages.length === 0 ||
+		!rawStages.every(isStageKind) ||
 		stage < 1 ||
-		stage > 3 ||
+		stage > rawStages.length ||
 		!Array.isArray(o.history)
 	) {
 		throw new Error("invalid state shape");
@@ -55,12 +63,17 @@ function validateState(s: unknown): PipelineState {
 	// FR-7 마이그레이션: 구 state.json(validThrough 누락·null·NaN 등 비정상) → 0 기본값.
 	// typeof==='number' 는 NaN 을 못 걸름 → Number.isFinite 로 전부 가드.
 	// Tier 1 마이그레이션: 구 state(dfPhase/dfLoop 누락) → 내부 루프 초기값.
+	const validThrough = Number.isFinite(o.validThrough)
+		? Math.min(Math.max(o.validThrough as number, 0), rawStages.length)
+		: 0;
 	const withMigration: Record<string, unknown> = {
 		...o,
-		validThrough: Number.isFinite(o.validThrough) ? o.validThrough : 0,
+		stages: rawStages as StageKind[],
+		validThrough,
 		dfPhase: o.dfPhase === "feedback" ? "feedback" : "design",
 		dfLoop: Number.isFinite(o.dfLoop) ? o.dfLoop : 0,
 	};
+	if (!Number.isFinite(o.maxStages)) delete withMigration.maxStages;
 	return withMigration as unknown as PipelineState;
 }
 

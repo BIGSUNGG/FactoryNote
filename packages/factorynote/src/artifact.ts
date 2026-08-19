@@ -9,18 +9,19 @@ import {
 	graphRefFiles,
 	parseAnyGraphKind,
 } from "./graph.ts";
+import { designMenuForStage } from "./design-agents.ts";
 import { artifactPath } from "./paths.ts";
-import { STAGES } from "./stages.ts";
+import type { StageDefinition } from "./stages.ts";
 import type { ValidThrough } from "./types/index.ts";
 
 async function ensureDir(dir: string): Promise<void> {
 	await mkdir(dir, { recursive: true });
 }
 
-/** STAGES 에 등록된 단계 산출물(md 문서) 파일명인가 — 변경 하이라이트(ADR-027)
- * prev 스냅샷 대상 판정. 그래프 json·보조 파일(design-prompt 등)은 제외. */
+/** 단계 산출물(md 문서) 파일명인가 — 변경 하이라이트(ADR-027) prev 스냅샷 대상 판정.
+ * 산출물 파일명 규약 `<위치 2자리>-<이름>.md`(동적 구성·레거시 동일). 그래프 json·보조 파일은 제외. */
 function isStageArtifactFile(file: string): boolean {
-	return STAGES.some((s) => s.artifactFile === file);
+	return /^\d{2}-[\w-]+\.md$/.test(file);
 }
 
 const ignoreEnoent = (err: unknown): void => {
@@ -157,15 +158,16 @@ export async function checkRequiredGraph(
 
 /**
  * FR-7: afterStage 이후(id > afterStage) 산출물 best-effort 삭제(ENOENT 무시).
- * 회귀 시 대상 단계(revert target) 이후 산출물 자동 무효화 — 호출측(plan-tool)은
- * applyVerdict 후의 state.stage(=회귀 대상) 를 전달. (validThrough 아님 — 코드-주석 일치.)
+ * 회귀 시 대상 단계(revert target) 이후 산출물 자동 무효화 — 호출측(plan-gate)은
+ * applyVerdict 후의 state.stage(=회귀 대상) 와 현 구성의 단계 인스턴스를 전달.
  */
 export async function invalidateArtifactsAfter(
 	root: string,
 	feature: string,
 	afterStage: ValidThrough,
+	defs: readonly StageDefinition[],
 ): Promise<void> {
-	const stale = STAGES.filter(
+	const stale = defs.filter(
 		(s) => s.artifactFile !== null && s.id > afterStage,
 	);
 	for (const s of stale) {
@@ -183,6 +185,15 @@ export async function invalidateArtifactsAfter(
 			// 동반 .prev(변경 하이라이트 기준, ADR-027) 도 함께 무효화.
 			unlink(`${artifactPath(root, feature, md)}.prev`).catch(ignoreEnoent),
 		];
+		// 위성 design 문서(draft.<role>.md, ADR-031) 도 단계 무효화에 포함 —
+		// 이름은 designMenuForStage(단계별 역할 메뉴) 로 결정론적으로 구한다.
+		for (const role of designMenuForStage(s.id)) {
+			targets.push(
+				unlink(artifactPath(root, feature, `draft.${role.name}.md`)).catch(
+					ignoreEnoent,
+				),
+			);
+		}
 		for (const ref of refs) {
 			targets.push(
 				// 동반 그래프 트리(루트 json + 자식 디렉터리) 무효화(ADR-018).
