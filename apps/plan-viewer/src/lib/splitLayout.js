@@ -167,6 +167,37 @@ export function setActive(root, paneId, tabId) {
 	);
 }
 
+/** 문서 탭 동기화(다중 문서) — leaf 마다: 사라진 문서 탭 제거, 새 문서 탭은
+ * 첫 leaf 에 추가(그래프 탭·사용자 배치 유지). 비게 된 leaf 는 트리에서 축소.
+ * 문서 탭 = graphFile 이 없는 탭(주 문서 "doc" + 위성 `doc:<파일명>`). */
+export function syncDocTabs(root, docTabList) {
+	const byId = new Map(docTabList.map((t) => [t.id, t]));
+	const present = new Set(
+		allLeaves(root).flatMap((l) => l.tabs.map((t) => t.id)),
+	);
+	const missing = docTabList.filter((t) => !present.has(t.id));
+	let anchored = false;
+	const mapped = mapNode(root, (leaf) => {
+		if (leaf.type !== "leaf") return leaf;
+		// 문서 탭은 새 목록 버전으로 교체(라벨 갱신), 그래프 탭·사용자 배치 유지.
+		const kept = leaf.tabs
+			.filter((t) => t.graphFile || byId.has(t.id))
+			.map((t) => (t.graphFile ? t : byId.get(t.id)));
+		let tabs = kept;
+		if (!anchored) {
+			anchored = true;
+			// 새 문서 탭은 기존 문서 탭 바로 뒤에 삽입(문서 탭끼리 군집 유지).
+			const at = kept.reduce((acc, t, i) => (t.graphFile ? acc : i + 1), 0);
+			tabs = [...kept.slice(0, at), ...missing, ...kept.slice(at)];
+		}
+		const activeId = tabs.some((t) => t.id === leaf.activeId)
+			? leaf.activeId
+			: (tabs[0]?.id ?? null);
+		return { ...leaf, tabs, activeId };
+	});
+	return collapseTree(mapped);
+}
+
 /** 분할 경계 비율 변경(0.15~0.85 클램프). */
 export function setRatio(root, splitId, ratio) {
 	const r = Math.min(0.85, Math.max(0.15, ratio));

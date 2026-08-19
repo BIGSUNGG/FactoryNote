@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-18
+updated: 2026-08-19
 tags: [development, changelog]
 ---
 
@@ -17,6 +17,8 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 - **테스트 뷰어 그래프 미출력** — dev mock(`bun run dev`)이 그래프를 서빙하지 않아(데모 md 에 `<!-- graph: -->` 참조·mock artifact `graphs` 부재) 뷰어에 그래프 블록이 전혀 보이지 않던 문제 수정. 데모 그래프 JSON 3종 추가(sequence·flowchart·계층 tree + 자식 파일), `plan.md` 의 죽은 placeholder 이미지를 참조 3개로 교체, mock artifact 에 `graphs` 배열 연결(실서버 viewer-state 모양과 동일), mock-api 자체체크 +1건.
 
 ### Added
+
+- **다중 문서 뷰어 탭 — 병렬 위성 design 문서 1:1 렌더** — 뷰어가 단일 md 문서 렌더에서 다중 문서 탭 뷰로 확장. (1) 게이트 `/api/state` 산출물 항목에 `satellites?: {file, md}[]` 추가 — `viewer-state` 가 단계 메뉴 역할명(`satelliteFileName`)으로 피처 루트의 위성 파일(`draft.<role>.md`, ADR-031)을 읽어 존재하는 것만 서빙, 없으면 필드 생략(회귀 시 무효화가 위성 파일도 삭제해 stale 없음). (2) 뷰어 탭 1:1 — 주 문서 탭(라벨=서빙 파일명) + 위성 탭(id `doc:<파일명>`, 라벨=파일명, 고정)을 `viewerTabs.docTabs` 로 구성, 문서 1개여도 탭 바 항상 표시. (3) `splitLayout.syncDocTabs` — 문서 집합 변동 시 전 leaf 의 문서 탭을 새 목록으로 교체(라벨 갱신 포함), 그래프 탭·사용자 분할 배치·복제 사본 유지, 빈 leaf 축소. (4) 위성 탭은 읽기 전용 렌더(코멘트·scroll-spy 없음 — 게이트·승격은 주 문서 기준 유지), 분할·드래그는 동일. 신규 자체체크 7건(docTabs 1 · syncDocTabs 4 · 게이트 서빙 1 · App 렌더 1 + mock-api 통과 1), 자체체크 261 pass. 테스트 뷰어: 예시 위성 문서 2종(`sat-requirements-scope.md`·`sat-scenario-acceptance.md`) + Stage 1 시나리오 연결. [[ADR-033-viewer-multi-doc-tabs]]
 
 - **병렬 위성 Design 에이전트(designLevel + 단계별 역할 메뉴)** — Design 스테이지를 선택적 병렬화. (1) `DesignLevel`(low/medium/high, 기본 low=현행 단일 에이전트) + `DESIGN_LEVELS` 정책(`designLevelCountSpec` = 주 1+위성 N 지시 문구) 추가. (2) `packages/factorynote/src/design-agents.ts` 신규 레지스트리 — Stage 별 3역할 총 9개(`requirements-scope`·`scenario-acceptance`·`nonfunctional-constraints` / `module-structure`·`data-model`·`behavior-flows` / `work-breakdown`·`risk-effort`·`verification-plan`), `designMenuForStage` 로 단계별 3역할 반환. (3) spawn-design 지시문 확장: 주 문서(`draft.md`, 기존 `factorynote-design` 그대로 — 그래프·승격·게이트·검증 주 문서 기준 유지) + non-low 시 `designLevel` 만큼 위성(`factorynote-design-<role>`, `draft.<role>.md` 작성·그래프 금지·경로만 반환) 을 `runs.all` 로 병렬 스폰 — 재작성 라운드도 동일 웨이브(`designSatelliteTask`/`designSatelliteRevisionTask`). (4) `design-menu.md` 설계 메뉴 파일(현 단계 역할 + 레벨 지시)을 `design-prompt.md`·`feedback-menu.md` 와 함께 기록·전이 시 갱신. (5) `invalidateArtifactsAfter` 가 단계 위성 파일(`draft.<role>.md`)도 함께 삭제(역할명은 `designMenuForStage` 로 결정론적 도출). (6) 계약: 위성은 그래프 미작성(Stage 2 그래프 어휘 결합 시 분기 방지), 승격 제외, 뷰어 미표시 제약은 `viewer-state.ts` 읽기 경로 TODO 로 기록(다중 문서 뷰어는 범위 밖). (7) `factorynote_plan` 스키마에 `designLevel` 파라미터 추가, 에이전트 9개(`factorynote-design-<role>.md`) 신규 배포. 자체검증: `designMenuForStage` 9역할·`designLevelCountSpec` 1/2/3, spawn-design 지시문 주+위성 병렬 스폰·파일 경로 명시, 위성 무효화 테스트 추가 — 자체체크 230 pass. [[ADR-031-parallel-design-satellites]]
 - **문서 뷰어 탭 분할(브라우저식)** — 탭을 드래그해 대상 영역의 좌/우/상/하 드롭 존에 놓으면 분할·탭 이동, 중앙 드롭은 탭 병합, 탭 우클릭 메뉴(왼/오른/위/아래로 분할)는 탭 복제 분할. 무한 중첩 이진 트리 모델, 영역별 탭 스트립, divider 드래그 비율 조정, 마지막 탭 닫힌 영역 자동 제거, 문서 탭은 전체 마지막 1개만 닫기 불가. 세션 내 상태만(새로고침 시 단일 뷰 복귀). 신규 `lib/splitLayout.js`(순수 변환)·`components/SplitNode.jsx`(재귀 렌더) + 자체체크 11건(순수 7 + 렌더 4). 코어·게이트 무변경, 뷰어 전용. [[ADR-032-viewer-tab-splitting]]

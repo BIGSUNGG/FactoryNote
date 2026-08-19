@@ -45,7 +45,7 @@ export default function SplitNode({
 					{node.tabs.map((t) => (
 						<div
 							key={t.id}
-							className={t.id === "doc" ? "doc-pane" : "graph-pane"}
+							className={t.graphFile ? "graph-pane" : "doc-pane"}
 							hidden={node.activeId !== t.id}
 						>
 							{renderTab(t)}

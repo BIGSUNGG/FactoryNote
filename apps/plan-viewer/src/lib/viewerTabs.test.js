@@ -2,6 +2,8 @@
 import { expect, test } from "bun:test";
 import {
 	DOC_TAB,
+	docTabId,
+	docTabs,
 	graphTabId,
 	openGraphTab,
 	closeTab,
@@ -26,6 +28,28 @@ test("고정 문서 탭은 닫기 불가 — 닫기 시도해도 목록 그대�
 	const tabs = openGraphTab([DOC_TAB], "a.json");
 	expect(closeTab(tabs, DOC_TAB.id)).toBe(tabs);
 	expect(closeTab(tabs, "nonexistent")).toBe(tabs);
+});
+
+test("docTabs — 주 탭 + 위성 문서 탭 파일 1:1, 라벨=파일명, 모두 고정", () => {
+	const tabs = docTabs("draft.md", [
+		{ file: "draft.requirements-scope.md", md: "# a" },
+		{ file: "draft.scenario-acceptance.md", md: "# b" },
+	]);
+	expect(tabs.map((t) => t.id)).toEqual([
+		"doc",
+		docTabId("draft.requirements-scope.md"),
+		docTabId("draft.scenario-acceptance.md"),
+	]);
+	expect(tabs.map((t) => t.label)).toEqual([
+		"draft.md",
+		"draft.requirements-scope.md",
+		"draft.scenario-acceptance.md",
+	]);
+	expect(tabs.every((t) => t.pinned)).toBe(true);
+	expect(tabs[1].docFile).toBe("draft.requirements-scope.md");
+	// 위성 없음 = 주 탭 1개, 라벨 미지정 = 기본 "문서"
+	expect(docTabs().map((t) => t.id)).toEqual(["doc"]);
+	expect(docTabs()[0].label).toBe("문서");
 });
 
 test("그래프 탭 닫기 + 닫은 탭이 활성이면 이웃 탭으로 포커스 이동", () => {

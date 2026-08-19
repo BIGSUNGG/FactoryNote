@@ -1,11 +1,25 @@
 ---
-updated: 2026-08-18
+updated: 2026-08-19
 tags: [development, dev-log]
 ---
 
 # Dev-Log
 
 날짜별 작업 기록. 무엇을 했는지, 왜, 무엇이 남았는지. [[Changelog]]는 외부용 단위, 본 파일은 일일 흐름.
+
+## 2026-08-19
+
+### 다중 문서 뷰어 탭 — 위성 design 문서 1:1 렌더 (ADR-033)
+
+**맥락**: ADR-031 병렬 위성 에이전트가 `draft.<role>.md` 를 쓰지만 뷰어는 주 문서만 표시(`viewer-state.ts` TODO). 사용자 요청: 각 design 에이전트 문서를 탭과 1:1로. 협의 결정 2건: 탭 라벨=파일명 그대로, 탭 바 항상 표시(문서 1개여도).
+
+**작업**: 게이트(`viewer-state.ts` — 산출물 항목에 `satellites` 조립: `designMenuForStage` 역할 × `satelliteFileName` 로 피처 루트에서 읽어 존재분만, TODO 주석 해소) → 뷰어(`viewerTabs.docTabs`·`docTabId` 위성 탭 구성, `splitLayout.syncDocTabs` 문서 집합 변동 동기화, `PlanPage` 위성 탭 읽기 전용 렌더 + 레이아웃 초기화·동기화 effect, `SplitNode` pane 클래스 판정, `App` `satelliteDocs`·`mainDocLabel` 전달) → 테스트 뷰어(예시 위성 문서 2종 + vite.config Stage 1 시나리오).
+
+**발견**: syncDocTabs 가 기존 문서 탭 객체를 그대로 유지하면 스테이지 전환 시 주 탭 라벨이 이전 단계 파일명으로 남는다 — 문서 탭은 새 목록 버전으로 교체(라벨 갱신). App 렌더 테스트가 포착.
+
+**검증**: `bun run typecheck` 0 · `bun test` 261 pass(신규 7). dev 뷰어(port 5181 — 5180 은 다른 워크트리 dev 서버 점유로 우회)에서 `/api/state` 위성 2종 서빙 + 뷰어 200 확인.
+
+**배제**: 위성 탭 코멘트·Toc 연동(주 문서 기준 유지), 위성 승격(표시 전용), 다중 문서 scroll-spy 중첩.
 
 ## 2026-08-18
 
@@ -16,6 +30,7 @@ tags: [development, dev-log]
 **작업**: 코어(design-agents.ts 레지스트리 9역할 · df-policy.ts DESIGN_LEVELS/designLevelCountSpec · types feedback.ts DesignAgent/DesignLevel · df-task.ts designSatellite(Revision)Task · df-transition.ts spawnDesign/nextDesignFeedbackStep designLevel 전달 · artifact.ts 위성 무효화) → 어댑터(plan-paths.ts buildDesignMenuMarkdown/satelliteFileName/DESIGN_BATCH_SPLIT_RULE · plan-directive.ts spawn-design 메시지 주+위성 병렬 지시 · plan-tool/plan-gate.ts design-menu.md 기록 + designLevel 스레딩 · index.ts 스키마 + 지시문) → 에이전트 9개 신규 → 테스트(orchestration·engine·plan-tool) → 빌드·설치(42 에이전트 배포). 플레이스홀더 ADR-0NN → ADR-031 치환.
 
 **결과**: `bun run typecheck` 0 · `bun test` 230 pass · `bun run build` 통과(뷰어 dist + install 배포). ADR-031 작성, Home.md ADR 인덱스 + Changelog 반영. 잔여: designLevel=high 수동 확인(계약 #8) — /factorynote plan 모드에서 확인 필요.
+
 ### 드래그 미동작 수정 — HTML5 DnD → 포인터 이벤트 전환 (ADR-032)
 
 **맥락**: 사용자 보고 — “드래그 안 되는데?” 탭·그래프 헤더 드래그가 실제 브라우저에서 무반응. 합성 이벤트(happy-dom) 자체체크는 통과했으나 브라우저의 HTML5 드래그 세션 개시 자체에 의존하는 구조라 임베디드 웹뷰 환경에서 세션이 시작되지 않은 것으로 판단.

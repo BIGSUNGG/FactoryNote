@@ -129,6 +129,17 @@ export default defineConfig({
 							name: STAGE_NAMES[0],
 							md: load("plan.md"),
 							graphs: DEMO_GRAPHS,
+							// 병렬 위성 design 문서(ADR-031) — 뷰어에서 파일명 탭과 1:1 렌더.
+							satellites: [
+								{
+									file: "draft.requirements-scope.md",
+									md: load("sat-requirements-scope.md"),
+								},
+								{
+									file: "draft.scenario-acceptance.md",
+									md: load("sat-scenario-acceptance.md"),
+								},
+							],
 						},
 						{ stage: 2, name: STAGE_NAMES[1], md: load("scenarios.md") },
 						{ stage: 3, name: STAGE_NAMES[2], md: load("impl.md") },

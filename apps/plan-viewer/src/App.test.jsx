@@ -371,3 +371,46 @@ test("확정 요청이 큐 대기 중인 동안 게이트 재오픈(채팅 루�
 	expect(btn.textContent).toContain("확정 → Stage 3");
 	expect(btn.disabled).toBe(false);
 });
+
+// ——— 7) 병렬 위성 문서 → 탭 1:1 렌더(ADR-031) ———
+test("위성 문서가 파일과 탭 1:1 로 렌더 — 라벨=파일명, 탭 바 항상 표시", async () => {
+	await React.act(async () => {
+		currentState = makeState({
+			stage: 1,
+			stageName: "요구사항·시나리오",
+			artifacts: [
+				{
+					stage: 1,
+					name: "요구사항",
+					file: "stage1.md",
+					format: "markdown",
+					md: "# Stage 1 — 본문",
+					satellites: [
+						{ file: "draft.requirements-scope.md", md: "# 위성 1" },
+						{ file: "draft.scenario-acceptance.md", md: "# 위성 2" },
+					],
+				},
+			],
+		});
+		pushState(currentState);
+		await new Promise((r) => setTimeout(r, 0));
+	});
+	const tabLabels = [...container.querySelectorAll(".viewer-tab-label")].map(
+		(el) => el.textContent,
+	);
+	expect(tabLabels).toEqual([
+		"stage1.md",
+		"draft.requirements-scope.md",
+		"draft.scenario-acceptance.md",
+	]);
+	// 위성 본문 전환 렌더: 위성 탭 클릭 시 해당 md 표시.
+	const satTab = [...container.querySelectorAll(".viewer-tab")].find((el) =>
+		el.textContent.includes("draft.scenario-acceptance.md"),
+	);
+	await React.act(async () => {
+		satTab.dispatchEvent(
+			new window.MouseEvent("click", { bubbles: true, cancelable: true }),
+		);
+	});
+	expect(container.textContent).toContain("위성 2");
+});

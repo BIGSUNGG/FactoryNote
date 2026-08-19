@@ -11,6 +11,7 @@ import {
 	findLeaf,
 	allLeaves,
 	countTab,
+	syncDocTabs,
 } from "./splitLayout.js";
 import { DOC_TAB } from "./viewerTabs.js";
 
@@ -130,4 +131,55 @@ test("중첩 분할 — 분할된 영역을 다시 분할(무한 중첩)", () =>
 	expect(r.children[1].type).toBe("split");
 	expect(r.children[1].dir).toBe("v");
 	expect(allLeaves(r).length).toBe(3);
+});
+
+// ——— syncDocTabs(다중 문서 탭 동기화) ———
+const S = (f) => ({ id: `doc:${f}`, label: f, docFile: f, pinned: true });
+
+test("syncDocTabs — 새 문서 탭은 첫 leaf 의 문서 탭 뒤에 추가, 그래프 탭·둘째 leaf 유지", () => {
+	let l = root(); // leaf1: [doc, graph:a]
+	l = splitPane(l, l.id, "right", [G("b")], { move: false }); // leaf2: [graph:b]
+	const synced = syncDocTabs(l, [DOC_TAB, S("draft.a.md")]);
+	const [first, second] = allLeaves(synced);
+	expect(first.tabs.map((t) => t.id)).toEqual([
+		"doc",
+		"doc:draft.a.md",
+		"graph:a",
+	]);
+	expect(second.tabs.map((t) => t.id)).toEqual(["graph:b"]);
+});
+
+test("syncDocTabs — 사라진 문서 탭 제거·새 탭 교체, 활성 탭 제거 시 폴백", () => {
+	let l = root();
+	l = syncDocTabs(l, [DOC_TAB, S("draft.a.md")]);
+	l = setActive(l, l.id, "doc:draft.a.md");
+	const synced = syncDocTabs(l, [DOC_TAB, S("draft.b.md")]);
+	const leaf = allLeaves(synced)[0];
+	expect(leaf.tabs.map((t) => t.id)).toEqual([
+		"doc",
+		"doc:draft.b.md",
+		"graph:a",
+	]);
+	// 활성이던 draft.a.md 제거됨 → 활성 폴백(첫 탭)
+	expect(leaf.activeId).toBe("doc");
+});
+
+test("syncDocTabs — 문서 탭만 있던 leaf 가 비면 트리에서 축소", () => {
+	let l = createRootLayout([DOC_TAB], "doc");
+	l = splitPane(l, l.id, "right", [S("draft.a.md")], { move: false });
+	expect(allLeaves(l).length).toBe(2);
+	const synced = syncDocTabs(l, [DOC_TAB]); // draft.a.md 사라짐
+	expect(synced.type).toBe("leaf");
+	expect(synced.tabs.map((t) => t.id)).toEqual(["doc"]);
+});
+
+test("syncDocTabs — 사용자가 복제·이동한 문서 탭은 그대로 유지(중복 보존)", () => {
+	let l = root();
+	l = syncDocTabs(l, [DOC_TAB, S("draft.a.md")]);
+	// 위성 탭을 우클릭 분할로 복제
+	const sat = l.tabs.find((t) => t.id === "doc:draft.a.md");
+	l = splitPane(l, l.id, "down", [sat], { move: false });
+	expect(countTab(l, "doc:draft.a.md")).toBe(2);
+	const synced = syncDocTabs(l, [DOC_TAB, S("draft.a.md")]);
+	expect(countTab(synced, "doc:draft.a.md")).toBe(2);
 });

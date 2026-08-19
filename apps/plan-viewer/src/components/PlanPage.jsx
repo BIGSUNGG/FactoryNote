@@ -11,7 +11,7 @@ import SequenceView from "./SequenceView";
 import FlowchartView from "./FlowchartView";
 import { mdToBlocks } from "../lib/mdToBlocks";
 import { diffBlockChanges } from "../lib/blockDiff";
-import { DOC_TAB, graphTabId, openGraphTab } from "../lib/viewerTabs";
+import { DOC_TAB, docTabs, graphTabId, openGraphTab } from "../lib/viewerTabs";
 import {
 	createRootLayout,
 	findLeaf,
@@ -22,6 +22,7 @@ import {
 	setActive,
 	setRatio,
 	replacePane,
+	syncDocTabs,
 } from "../lib/splitLayout";
 
 // plan 스타일 페이지 — 마크다운 문서 + 블록/영역 코멘트. Stage 1·3 이 공유.
@@ -98,6 +99,8 @@ function highlightRange(range, className) {
 export default function PlanPage({
 	mdSource,
 	prevMdSource, // 게이트 중 재작성 전 버전(ADR-027 변경 하이라이트 기준). 없으면 하이라이트 생략.
+	satelliteDocs = [], // 병렬 위성 design 문서 [{file, md}](ADR-031) — 파일당 탭 1:1.
+	mainDocLabel, // 주 문서 탭 라벨(파일명). 없으면 기본 "문서".
 	stage,
 	activeStage, // 실제 서버 단계(state.stage) — 스테퍼 작성여부 기준
 	onGate,
@@ -140,11 +143,29 @@ export default function PlanPage({
 	const [rangeDraft, setRangeDraft] = useState("");
 	const [fontScale, setFontScale] = useState(1); // md 본문 글자 배율(−/+ 버튼)
 
+	// 다중 문서 탭(ADR-031): 주 문서 + 위성 문서 파일 1:1. 라벨=파일명, 모두 고정.
+	const docTabList = useMemo(
+		() => docTabs(mainDocLabel, satelliteDocs),
+		[mainDocLabel, satelliteDocs],
+	);
+	// 위성 문서 블록 파싱(탭 렌더용) — 파일명 → blocks.
+	const satelliteBlocks = useMemo(() => {
+		const m = {};
+		for (const s of satelliteDocs) m[s.file] = mdToBlocks(s.md);
+		return m;
+	}, [satelliteDocs]);
+
 	// 문서 뷰어 탭 + 분할 레이아웃(ADR-031·ADR-032): 분할 트리(leaf = 탭 목록).
 	// PlanPage 는 스테이지 전환에도 마운트 유지 → 레이아웃도 유지. 상태는 세션 내에만.
 	const [layout, setLayout] = useState(() =>
-		createRootLayout([DOC_TAB], DOC_TAB.id),
+		createRootLayout(docTabs(mainDocLabel, satelliteDocs), DOC_TAB.id),
 	);
+	// 문서 집합 변동(위성 등장·스테이지 전환) 시 탭 동기화 — 그래프 탭·사용자 배치 유지.
+	const docKey = docTabList.map((t) => t.id).join("|");
+	useEffect(() => {
+		setLayout((l) => syncDocTabs(l, docTabList));
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [docKey]);
 	const [focusPane, setFocusPane] = useState(null);
 	const [drag, setDrag] = useState(null); // { paneId, tabId } | { graphFile } — 탭·그래프 블록 드래그 중
 	const [hoverZone, setHoverZone] = useState(null); // { paneId, zone }
@@ -422,6 +443,18 @@ export default function PlanPage({
 									onActiveHeading={!readOnly ? setActiveHeading : undefined}
 									onOpenGraph={openGraph}
 									onGraphDragStart={startGraphDrag}
+								/>
+							) : t.docFile ? (
+								// 위성 문서 탭 — 읽기 전용 렌더(게이트·코멘트는 주 문서 기준, ADR-031).
+								<Document
+									blocks={satelliteBlocks[t.docFile] ?? []}
+									comments={[]}
+									onAddComment={() => {}}
+									onActivate={() => {}}
+									onRangeComment={() => {}}
+									activeTargetId={null}
+									graphData={{}}
+									fontScale={fontScale}
 								/>
 							) : (
 								<GraphDetail

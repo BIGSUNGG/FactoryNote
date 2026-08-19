@@ -316,6 +316,72 @@ test("gate /api/state exposes prevMd for rewritten artifact (ADR-027)", async ()
 	expect(captured.prevMd).toBe("v1 draft");
 });
 
+test("gate /api/state serves parallel satellite design docs per stage (ADR-031)", async () => {
+	// 위성 문서(draft.<role>.md)는 산출물 항목의 satellites 필드로 파일 1:1 서빙 —
+	// 존재하는 파일만, 단계 메뉴 순서대로. 위성 없는 단계는 필드 생략.
+	await writeArtifact(
+		root,
+		"satdemo",
+		"01-understanding-and-scenarios.md",
+		"# 주 문서",
+	);
+	await writeArtifact(
+		root,
+		"satdemo",
+		"draft.requirements-scope.md",
+		"# 요구사항 위성",
+	);
+	await writeArtifact(
+		root,
+		"satdemo",
+		"draft.scenario-acceptance.md",
+		"# 시나리오 위성",
+	);
+	await writeArtifact(root, "satdemo", "02-design.md", "# 설계"); // 위성 없음
+	await saveState(root, {
+		...markArtifactReady(initialState("satdemo")),
+		stage: 2,
+	});
+
+	const captured: {
+		sat1?: { file: string; md: string }[] | undefined;
+		sat2?: { file: string; md: string }[] | undefined;
+	} = {};
+	await runGate({
+		root,
+		feature: "satdemo",
+		viewerDistDir: VIEWER_DIST,
+		open: false,
+		onReady: async (url) => {
+			const res = await fetch(`${url}/api/state`);
+			const st = (await res.json()) as {
+				artifacts: Array<{
+					file: string;
+					satellites?: { file: string; md: string }[];
+				}>;
+			};
+			captured.sat1 = st.artifacts.find(
+				(a) => a.file === "01-understanding-and-scenarios.md",
+			)?.satellites;
+			captured.sat2 = st.artifacts.find(
+				(a) => a.file === "02-design.md",
+			)?.satellites;
+			await fetch(`${url}/api/decision`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ verdict: "confirm", comments: [] }),
+			});
+		},
+	});
+
+	expect(captured.sat1?.map((s) => s.file)).toEqual([
+		"draft.requirements-scope.md",
+		"draft.scenario-acceptance.md",
+	]);
+	expect(captured.sat1?.[0]?.md).toBe("# 요구사항 위성");
+	expect(captured.sat2).toBeUndefined();
+});
+
 test("gate /api/state hides artifacts past current stage on revert", async () => {
 	// 회귀 시뮬레이션: state.stage=2 이지만 3단계 산출물이 디스크에 남아 있음.
 	await writeArtifact(
