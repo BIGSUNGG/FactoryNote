@@ -1,6 +1,11 @@
 // 내부 Design↔Feedback 루프 정책: 수준 스펙 · 상한 · 자식 스폰 고정 옵션 · 보고 입력 절단.
 // 순수 로직, harness-agnostic. ADR-014/ADR-017.
-import type { AgentRole, FeedbackLevel, SpawnOptions } from "./types/index.ts";
+import type {
+	AgentRole,
+	DesignLevel,
+	FeedbackLevel,
+	SpawnOptions,
+} from "./types/index.ts";
 
 /**
  * FR-2(내부 사이클): Design→병렬 Feedback→조건부 수정 시도 상한(기본값).
@@ -24,6 +29,26 @@ export const FEEDBACK_LEVELS: Readonly<
 });
 
 export const DEFAULT_FEEDBACK_LEVEL: FeedbackLevel = "medium";
+
+/**
+ * Design 위성 수준 스펙(ADR-031) — 수준별 위성 design 에이전트 수.
+ * low = 위성 0(주 문서만 — 현행 단일 에이전트). 수치는 Director 지시문으로 전달되는 프로토콜 값.
+ */
+export const DESIGN_LEVELS: Readonly<
+	Record<DesignLevel, { satellites: number; label: string }>
+> = Object.freeze({
+	low: { satellites: 0, label: "주 문서만" },
+	medium: { satellites: 1, label: "주 문서 + 위성 1" },
+	high: { satellites: 2, label: "주 문서 + 위성 2" },
+});
+
+/** 기본 Design 위성 수준 — low(현행 동작과 동일: 주 문서만). 병렬은 opt-in. */
+export const DEFAULT_DESIGN_LEVEL: DesignLevel = "low";
+
+/** 수준별 총 Design 에이전트 수 지시 문구(주 문서 1 + 위성 N — low=1/medium=2/high=3). */
+export function designLevelCountSpec(level: DesignLevel): string {
+	return `정확히 ${DESIGN_LEVELS[level].satellites + 1}개`;
+}
 
 /** 수준별 에이전트 수 지시 문구(Director 지시문·메뉴 공통). */
 export function feedbackLevelCountSpec(level: FeedbackLevel): string {

@@ -45,7 +45,7 @@ export default function (pi: ExtensionAPI): void {
 		promptGuidelines: [
 			"Use factorynote_plan when in FactoryNote plan mode to produce a human-gated plan instead of writing code.",
 			"When the tool returns chatPending (a user asked something while the gate is open), you MUST answer it: call factorynote_plan again with chatResponse (and designArtifact if a rewrite is needed) to keep the gate open. Never end your turn on chatPending — doing so breaks the chat loop and the user gets no reply.",
-			"When nextAction=spawn-design, spawn factorynote-design with spawnTask (file protocol). When nextAction=spawn-feedback, read menuPath, pick the number of factorynote-feedback-<name> agents required by the current feedback level (low 1 / medium 2-3 / high 4-6 / ultra 9), and spawn them in parallel (runs.all); on spawn rate-limit failure retry in sequential batches of 3-4; report aggregated [name] verdicts. Children write to files; report paths/verdicts, never inline content.",
+			"When nextAction=spawn-design, read menuPath/designMenuPath and designLevel: spawn 1 main agent (factorynote-design) with spawnTask writing draft.md, plus N satellite agents (factorynote-design-<name>, per designLevel low 0 / medium 1 / high 2) IN PARALLEL via workflowScript runs.all — each satellite reads designPrompt, writes only its own file (draft.<role>.md), never graphs, returns only its path. Report the main path as designArtifact and each satellite under a [name] header + its path; on spawn rate-limit failure retry in sequential batches of 3-4. Gate/feedback/verify stay on the main doc. When nextAction=spawn-feedback, read menuPath, pick the number of factorynote-feedback-<name> agents required by the current feedback level (low 1 / medium 2-3 / high 4-6 / ultra 9), and spawn them in parallel (runs.all); on spawn rate-limit failure retry in sequential batches of 3-4; report aggregated [name] verdicts. Children write to files; report paths/verdicts, never inline content.",
 		],
 		parameters: Type.Object({
 			feature: Type.String({
@@ -68,6 +68,15 @@ export default function (pi: ExtensionAPI): void {
 					description:
 						"게이트 열린 동안 사용자 실시간 채팅(chatPending)에 대한 답변. 산출물 수정이 필요하면 Design 자식 재스폰으로 designArtifact(경로)와 함께 담아 재호출 — 게이트를 유지한 채 반영.",
 				}),
+			),
+			designLevel: Type.Optional(
+				Type.Union(
+					[Type.Literal("low"), Type.Literal("medium"), Type.Literal("high")],
+					{
+						description:
+							"Design 위성 수준(기본 low). low=주 문서만(현행 단일 에이전트), medium=주+1 위성, high=주+2 위성. 위성은 draft.<role>.md 에 병렬 스폰으로 작성된다.",
+					},
+				),
 			),
 		}),
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
@@ -98,6 +107,9 @@ export default function (pi: ExtensionAPI): void {
 					: {}),
 				...(params.chatResponse !== undefined
 					? { chatResponse: params.chatResponse }
+					: {}),
+				...(params.designLevel !== undefined
+					? { designLevel: params.designLevel }
 					: {}),
 				feedbackLevel: currentFeedbackLevel(),
 				...(isAutoAdvance() ? { autoAdvance: true } : {}),

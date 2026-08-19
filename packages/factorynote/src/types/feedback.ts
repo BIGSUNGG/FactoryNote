@@ -7,6 +7,29 @@ import type { StageId } from "./gate.ts";
 /** 스폰 역할(M4 AgentSpawn). */
 export type AgentRole = "design" | "feedback";
 
+/**
+ * Design 위성 수준 — 내부 Design 병렬 폭(ADR-031 동적 design 에이전트).
+ * low = 주 문서만(현행 단일 에이전트) · medium = 주 + 위성 1 · high = 주 + 위성 2.
+ * 수준별 위성 수 스펙은 df-policy 의 DESIGN_LEVELS.
+ */
+export type DesignLevel = "low" | "medium" | "high";
+
+/**
+ * 위성 design 에이전트 정의. name → factorynote-design-<name>.md 와 1:1.
+ * 주 문서(draft.md) 는 기존 factorynote-design 에이전트(레벨 무관 항상 1기)가 쓰고,
+ * 위성 에이전트는 designLevel 에 따라 designMenuForStage 에서 필터링된 메뉴에서
+ * 추려져 병렬(feedback 와 동일 방식)로 스폰된다. 각 위성은 자기 파일
+ * draft.<name>.md 만 쓴다(주 문서에 병합하지 않음 — ADR-031).
+ */
+export interface DesignAgent {
+	/** 에이전트 슬러그 → factorynote-design-<name>.md. */
+	name: string;
+	/** 무엇을 작성하는지(메뉴 표시 + 에이전트 프롬프트 주입). */
+	focus: string;
+	/** 적용 단계(1=요구사항·2=설계·3=구현계획). 빈 배열이면 전 단계. */
+	stages: StageId[];
+}
+
 /** 내부 Design↔Feedback 루프 위치(게이트 전). */
 export type DesignFeedbackPhase = "design" | "feedback";
 
@@ -86,9 +109,13 @@ export interface SpawnOptions {
 export interface ArtifactPaths {
 	readonly designPrompt: string;
 	readonly draft: string;
+	/** draft 와 같은 폴더(위성 문서 draft.<name>.md 가 쓰이는 곳, ADR-031). */
+	readonly draftDir: string;
 	readonly feedback: string;
 	/** 현 단계 feedback 메뉴 파일 경로(Director 동적 선택용, ADR-014). */
 	readonly menu: string;
+	/** 현 단계 design 메뉴 파일 경로(Director 가 designLevel 에 따라 위성 선택, ADR-031). */
+	readonly designMenu: string;
 }
 
 /**
@@ -134,6 +161,10 @@ export type DesignFeedbackDirective =
 			loop: number;
 			/** 자식 스폰 컨텍스트 제약(core 정책) — 어댑터가 subagent 파라미터로 매핑. */
 			spawnOptions: SpawnOptions;
+			/** 현 단계 design 메뉴 파일 경로 — Director 가 designLevel 에 따라 위성 역할을 추려 병렬 스폰(ADR-031). */
+			menuPath?: string;
+			/** 현 Design 위성 수준(ADR-031) — Director 의 위성 스폰 수 결정 기준. */
+			designLevel?: DesignLevel;
 	  }
 	| {
 			action: "spawn-feedback";

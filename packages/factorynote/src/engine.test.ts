@@ -326,6 +326,28 @@ test("invalidateArtifactsAfter deletes artifacts after stage (FR-7)", async () =
 	await rm(r, { recursive: true, force: true });
 });
 
+test("invalidateArtifactsAfter: 위성 design 문서(draft.<role>.md) 도 함께 삭제(ADR-031)", async () => {
+	const r = await mkdtemp(join(tmpdir(), "fn-invsat-"));
+	await writeArtifact(r, "f", "02-design.md", "s2");
+	// Stage 2 위성 3개(주 문서와 병렬 작성) — 작업 영역 루트에 존재.
+	await writeArtifact(r, "f", "draft.module-structure.md", "위성1");
+	await writeArtifact(r, "f", "draft.data-model.md", "위성2");
+	await writeArtifact(r, "f", "draft.behavior-flows.md", "위성3");
+	// Stage 1 위성은 무효화 대상(stage 1 유지)이 아니다 — 잔존해야 한다.
+	await writeArtifact(r, "f", "draft.requirements-scope.md", "s1위성");
+	await invalidateArtifactsAfter(r, "f", 1);
+	expect(await readArtifact(r, "f", "02-design.md")).toBeUndefined();
+	expect(
+		await readArtifact(r, "f", "draft.module-structure.md"),
+	).toBeUndefined();
+	expect(await readArtifact(r, "f", "draft.data-model.md")).toBeUndefined();
+	expect(await readArtifact(r, "f", "draft.behavior-flows.md")).toBeUndefined();
+	expect(await readArtifact(r, "f", "draft.requirements-scope.md")).toBe(
+		"s1위성",
+	);
+	await rm(r, { recursive: true, force: true });
+});
+
 test("invalidateArtifactsAfter: 에이전트 자유 이름 그래프 트리도 함께 삭제(ADR-020)", async () => {
 	const r = await mkdtemp(join(tmpdir(), "fn-invg-"));
 	await writeArtifact(

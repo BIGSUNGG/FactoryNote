@@ -2,6 +2,7 @@
 // runOpenGate: 산출물 확정 → 게이트 서버 대기 → 결정/채팅/검토요청 분기 → 전이·회귀 무효화.
 import {
 	CHILD_SPAWN_OPTIONS,
+	DEFAULT_DESIGN_LEVEL,
 	DEFAULT_FEEDBACK_LEVEL,
 	applyVerdict,
 	atLoopCeiling,
@@ -19,7 +20,11 @@ import {
 	type PipelineState,
 } from "@factorynote/core";
 import type { DrivePlanInput, DrivePlanOutput } from "./plan-types.ts";
-import { buildMenuMarkdown, resolvePaths } from "./plan-paths.ts";
+import {
+	buildDesignMenuMarkdown,
+	buildMenuMarkdown,
+	resolvePaths,
+} from "./plan-paths.ts";
 import { spawnDirective } from "./plan-directive.ts";
 import {
 	appendAgentChat,
@@ -185,6 +190,12 @@ export async function runOpenGate(
 		feature,
 		"feedback-menu.md",
 		buildMenuMarkdown(nextDef, input.feedbackLevel ?? DEFAULT_FEEDBACK_LEVEL),
+	);
+	await writeArtifact(
+		root,
+		feature,
+		"design-menu.md",
+		buildDesignMenuMarkdown(nextDef, input.designLevel ?? DEFAULT_DESIGN_LEVEL),
 	);
 
 	const nextPaths = resolvePaths(root, feature, nextDef).paths;

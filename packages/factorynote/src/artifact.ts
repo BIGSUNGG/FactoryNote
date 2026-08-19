@@ -9,6 +9,7 @@ import {
 	graphRefFiles,
 	parseAnyGraphKind,
 } from "./graph.ts";
+import { designMenuForStage } from "./design-agents.ts";
 import { artifactPath } from "./paths.ts";
 import { STAGES } from "./stages.ts";
 import type { ValidThrough } from "./types/index.ts";
@@ -183,6 +184,15 @@ export async function invalidateArtifactsAfter(
 			// 동반 .prev(변경 하이라이트 기준, ADR-027) 도 함께 무효화.
 			unlink(`${artifactPath(root, feature, md)}.prev`).catch(ignoreEnoent),
 		];
+		// 위성 design 문서(draft.<role>.md, ADR-031) 도 단계 무효화에 포함 —
+		// 이름은 designMenuForStage(단계별 역할 메뉴) 로 결정론적으로 구한다.
+		for (const role of designMenuForStage(s.id)) {
+			targets.push(
+				unlink(artifactPath(root, feature, `draft.${role.name}.md`)).catch(
+					ignoreEnoent,
+				),
+			);
+		}
 		for (const ref of refs) {
 			targets.push(
 				// 동반 그래프 트리(루트 json + 자식 디렉터리) 무효화(ADR-018).

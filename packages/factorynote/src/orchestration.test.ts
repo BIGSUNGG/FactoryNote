@@ -4,6 +4,7 @@
 import { test, expect } from "bun:test";
 import { STAGES } from "./stages.ts";
 import { feedbackMenuForStage } from "./feedback-agents.ts";
+import { DESIGN_AGENTS, designMenuForStage } from "./design-agents.ts";
 import {
 	CHILD_SPAWN_OPTIONS,
 	DEFAULT_FEEDBACK_LEVEL,
@@ -14,6 +15,7 @@ import {
 	designTask,
 	feedbackAgentTask,
 	feedbackLevelCountSpec,
+	designLevelCountSpec,
 	nextDesignFeedbackStep,
 	parseFeedback,
 	runDesignFeedbackLoop,
@@ -285,8 +287,10 @@ test("clampReportInput: 과대 입력 절단 — 첫 줄 보존", () => {
 const paths: ArtifactPaths = {
 	designPrompt: ".factorynote/feat/design-prompt.md",
 	draft: ".factorynote/feat/draft.md",
+	draftDir: ".factorynote/feat",
 	feedback: ".factorynote/feat/feedback.md",
 	menu: ".factorynote/feat/feedback-menu.md",
+	designMenu: ".factorynote/feat/design-menu.md",
 };
 
 test("paths 모드: 진입 spawn-design 이 designPrompt 경로 참조(본문 無)", () => {
@@ -303,6 +307,50 @@ test("paths 모드: 진입 spawn-design 이 designPrompt 경로 참조(본문 �
 		expect(t.directive.task).toContain(paths.designPrompt);
 		expect(t.directive.task).toContain(paths.draft);
 		expect(t.directive.task).not.toContain("사용자의 자연어");
+	}
+});
+
+// --- design 위성 레지스트리·레벨 정책(ADR-031) ---
+test("designMenuForStage: 단계별 3역할(총 9개)", () => {
+	expect(DESIGN_AGENTS).toHaveLength(9);
+	expect(designMenuForStage(1).map((a) => a.name)).toEqual([
+		"requirements-scope",
+		"scenario-acceptance",
+		"nonfunctional-constraints",
+	]);
+	expect(designMenuForStage(2).map((a) => a.name)).toEqual([
+		"module-structure",
+		"data-model",
+		"behavior-flows",
+	]);
+	expect(designMenuForStage(3).map((a) => a.name)).toEqual([
+		"work-breakdown",
+		"risk-effort",
+		"verification-plan",
+	]);
+});
+
+test("designLevelCountSpec: low/medium/high → 주 문서+위성 1/2/3 에이전트", () => {
+	expect(designLevelCountSpec("low")).toBe("정확히 1개");
+	expect(designLevelCountSpec("medium")).toBe("정확히 2개");
+	expect(designLevelCountSpec("high")).toBe("정확히 3개");
+});
+
+test("paths+designLevel: spawn-design 이 designLevel·디자인 메뉴 경로 전달", () => {
+	const t = nextDesignFeedbackStep(
+		stage,
+		{ dfPhase: "design", dfLoop: 0 },
+		undefined,
+		undefined,
+		paths,
+		undefined,
+		undefined,
+		"medium",
+	);
+	expect(t.directive.action).toBe("spawn-design");
+	if (t.directive.action === "spawn-design") {
+		expect(t.directive.designLevel).toBe("medium");
+		expect(t.directive.menuPath).toBe(paths.designMenu);
 	}
 });
 

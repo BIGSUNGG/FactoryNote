@@ -1,5 +1,5 @@
 // Design/Feedback 자식 과제(프롬프트) 구성 — 파일 프로토콜(paths) 또는 인라인 모드.
-import type { ArtifactPaths } from "./types/index.ts";
+import type { ArtifactPaths, DesignAgent } from "./types/index.ts";
 import type { StageDefinition } from "./stages.ts";
 import type { FeedbackAgent } from "./feedback-agents.ts";
 
@@ -54,6 +54,38 @@ export function feedbackAgentTask(
 		"",
 		"## 검토 대상 산출물",
 		draft,
+	].join("\n");
+}
+
+/** 위성 design 과제 — 주 문서와 병렬로, 자기 파일(draft.<name>.md)만 쓴다. */
+export function designSatelliteTask(
+	def: StageDefinition,
+	agent: DesignAgent,
+	paths: ArtifactPaths,
+): string {
+	const satFile = `${paths.draftDir}/draft.${agent.name}.md`;
+	return [
+		`${def.artifact} 산출물의 **위성 문서(${agent.focus})** 를 작성하라. 작성 지시는 파일 ${paths.designPrompt} 에 있다(불변) — 읽어 따른다. 주 문서(현단계 draft) 와 병렬로 작성되므로 **주 문서를 읽으려 하지 말고** designPrompt 를 기준으로 (a) 방향은 주 문서와 일관되게 유지하되 (b) ${agent.focus} 관점을 다른 위성과 중복되지 않게 깊게 펼쳐라.`,
+		`작성한 위성 산출물은 파일 ${satFile} 에 저장한다. 반환은 그 파일 경로만(본문 절대 금지) - 본문을 반환하면 Director 컨텍스트가 부풋어 한도 초과(1261) 한다. 그래프 파일은 작성하지 않는다(그래프는 주 문서 소유).`,
+		"코드는 쓰지 않는다(계획 산출물).",
+	].join("\n");
+}
+
+/** 위성 design 재작성 과제 — 반려 이슈를 자기 파일(draft.<name>.md)에만 반영. */
+export function designSatelliteRevisionTask(
+	agent: DesignAgent,
+	issues: string[],
+	paths: ArtifactPaths,
+): string {
+	const satFile = `${paths.draftDir}/draft.${agent.name}.md`;
+	const block = issues.map((i) => `- ${i}`).join("\n");
+	return [
+		`이전 위성 문서가 반려되었다(전 에이전트 취합 이슈 포함). 아래 이슈 중 **${agent.focus} 관점에 해당되는 것**을 해당 상세 리뷰 파일들(${paths.feedback}.<name> — 반려 이슈의 에이전트별 파일)을 읽어 근본적으로 반영해 위성 문서를 재작성하라(다른 위성/주 문서를 고치지 않는다 — 자기 파일만).`,
+		"",
+		"## 반려 이슈(전 에이전트 취합)",
+		block,
+		"",
+		`작성 지시는 ${paths.designPrompt}(불변). 재작성 결과를 파일 ${satFile} 에 저장하고 반환은 경로만. 그래프 파일은 작성하지 않는다.`,
 	].join("\n");
 }
 

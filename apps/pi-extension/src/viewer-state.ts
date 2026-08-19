@@ -63,6 +63,10 @@ export async function buildViewerState(
 		if (state && s.id > state.stage) continue;
 		const raw = await readArtifact(root, feature, s.artifactFile);
 		if (raw === undefined) continue;
+		// TODO(병렬 위성 문서, ADR-031): 뷰어는 단계당 단일 산출물(draft.md -> stageN/)만 읽는다.
+		// designLevel>low 시 작업 영역 루트에 생성되는 위성 문서(draft.<role>.md)는 미표시 —
+		// 게이트·검증·승격이 주 문서 기준이므로 표시는 선택. 다중 문서 뷰어 구현 시
+		// satelliteFileName(role)로 위성 파일들을 읽어 병합해 표시한다(구현은 범위 밖).
 		// 변경 하이라이트 기준(ADR-027): 재작성 전 버전. 없으면(최초 작성·확정 후) 생략.
 		const prevRaw = await readArtifactPrev(root, feature, s.artifactFile);
 		// 그래프 서빙(ADR-018·020·021): 참조마다 stageN/ 에서 읽어 종류별 파싱·조립.
