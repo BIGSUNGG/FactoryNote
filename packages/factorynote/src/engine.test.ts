@@ -388,7 +388,7 @@ test("invalidateArtifactsAfter: 위성 design 문서(draft.<role>.md) 도 함께
 	await writeArtifact(r, "f", "draft.behavior-flows.md", "위성3");
 	// Stage 1 위성은 무효화 대상(stage 1 유지)이 아니다 — 잔존해야 한다.
 	await writeArtifact(r, "f", "draft.requirements-scope.md", "s1위성");
-	await invalidateArtifactsAfter(r, "f", 1);
+	await invalidateArtifactsAfter(r, "f", 1, LEGACY_DEFS);
 	expect(await readArtifact(r, "f", "02-design.md")).toBeUndefined();
 	expect(
 		await readArtifact(r, "f", "draft.module-structure.md"),

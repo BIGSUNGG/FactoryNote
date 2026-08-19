@@ -51,14 +51,16 @@ pi 대화형 세션에서:
 /factorynote
 ```
 
-→ "FactoryNote plan 모드: ON ✅" 알림. 이후 매 턴 계획 전용 프롬프트가 주입된다.
-(`/factorynote off` 로 끄거나, `/factorynote` 재입력으로 토글)
+→ 설정 대시보드(메뉴)가 열린다. feedback·design·stage·auto 설정을 조정한 뒤 `confirm — 현재 설정으로 plan 모드 ON` 을 고르면 모드가 켜지고, 이후 매 턴 계획 전용 프롬프트가 주입된다.
+(서브커맨드 없음 — 모든 설정과 plan 모드 on/off 는 메뉴에서만. 끄려면 `/factorynote` 재입력 후 `off — plan 모드 OFF` 항목 선택)
 
-> **auto-advance(개발/데모용 탈출구)**: `/factorynote auto` (또는 `auto on`/`auto off`) 로 각 단계 게이트를 자동 승인한다. ON 이면 각 단계를 사용자 클릭 없이 자동 통과하되, **게이트 브라우저는 열어 진행을 관찰**할 수 있다(이상하면 에이전트 중단으로 개입). 5대 원칙을 의도적 우회하는 탈출구이므로 **프로덱션 계획에는 비권장**. 파이프라인 완료 시 자동 해제.
+> **auto-advance(개발/데모용 탈출구)**: `/factorynote` → `auto — 게이트 자동 승인` 메뉴 항목으로 켜고 끈다(선택마다 토글). ON 이면 각 단계를 사용자 클릭 없이 자동 통과하되, **게이트 브라우저는 열어 진행을 관찰**할 수 있다(이상하면 에이전트 중단으로 개입). 5대 원칙을 의도적 우회하는 탈출구이므로 **프로덕션 계획에는 비권장**. 파이프라인 완료 시 자동 해제.
 
-> **Feedback 수준(검토 강도)**: `/factorynote feedback <none|low|medium|high|ultra>` 로 내부 Design↔Feedback 루프의 검토 에이전트 수를 조절한다(세션 유지, 기본 `medium`, 인자 없이 입력하면 현 수준 표시). none = Feedback 없이 게이트 직행 · low = 1개(1~3 영역 담당) · medium = 2~3개 · high = 4~6개 · ultra = 9개([[ADR-017-feedback-levels]]). 병렬 스폰이 라우터 호출 수 제한으로 실패하면 3~4개씩 순차 배치로 분할 재시도한다. 수준과 무관하게 게이트 승인은 항상 사용자 몫이다.
+> **Feedback 수준(검토 강도)**: `/factorynote` → `feedback` 메뉴 항목으로 내부 Design↔Feedback 루프의 검토 에이전트 수를 조절한다(세션 유지, 기본 `medium`). none = Feedback 없이 게이트 직행 · low = 1개(1~3 영역 담당) · medium = 2~3개 · high = 4~6개 · ultra = 9개([[ADR-017-feedback-levels]]). 병렬 스폰이 라우터 호출 수 제한으로 실패하면 3~4개씩 순차 배치로 분할 재시도한다. 수준과 무관하게 게이트 승인은 항상 사용자 몫이다.
 
-> **최대 스테이지 개수 제한**: `/factorynote stage <n>` 으로 파이프라인의 최대 스테이지 개수 상한을 설정한다(세션 유지, `stage off` 로 해제, 인자 없이 입력하면 현 상한 표시). 디렉터가 구성을 상한 초과로 제출하면 앞에서부터 잘라서 적용된다([[ADR-031-dynamic-stage-composition]]).
+> **Design 위성 수준**: `/factorynote` → `design` 메뉴 항목으로 Design 단계 산출물을 병렬 작성하는 에이전트 수(주 문서 + 위성)를 선택한다(세션 유지, 기본 `low` = 주 문서만). low = 주 문서만 · medium = 주 + 위성 1 · high = 주 + 위성 2([[ADR-031-parallel-design-satellites]]). `factorynote_plan` 도구의 `designLevel` 파라미터가 메뉴 설정보다 우선한다.
+
+> **최대 스테이지 개수 제한**: `/factorynote` → `stage` 메뉴 항목으로 파이프라인의 최대 스테이지 개수 상한을 설정한다(세션 유지, `무제한` 선택으로 해제). 디렉터가 구성을 상한 초과로 제출하면 앞에서부터 잘라서 적용된다([[ADR-031-dynamic-stage-composition]]). `factorynote_plan` 도구의 `maxStages` 파라미터가 메뉴 설정보다 우선한다.
 
 ### 2. 기능 요청하기
 

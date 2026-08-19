@@ -152,6 +152,7 @@ test("design 위성: high 수준 spawn-design 지시문이 주+위성 병렬 스
 		root,
 		viewerDistDir: VIEWER_DIST,
 		feature: "satellites",
+		stages: ["understanding", "design", "implementation"],
 		open: false,
 		designLevel: "high",
 	});

@@ -87,7 +87,7 @@ const HELP = `FactoryNote CLI — human-gated plan pipeline 상태 도구.
   factorynote help               이 도움말
 
 계획 구동(산출물 작성·게이트)은 pi 에서:
-  /factorynote            plan 모드 토글
+  /factorynote            설정 대시보드(plan 모드 on/off·설정 메뉴)
   (plan 모드에서 기능 요청 → 3단계 게이트 파이프라인)
 
 상태/산출물 위치: .factorynote/<feature>/`;

@@ -7,6 +7,18 @@ tags: [development, dev-log]
 
 날짜별 작업 기록. 무엇을 했는지, 왜, 무엇이 남았는지. [[Changelog]]는 외부용 단위, 본 파일은 일일 흐름.
 
+## 2026-08-19
+
+### /factorynote 설정 대시보드(서브커맨드 폐지 · 메뉴 확장)
+
+**맥락**: 사용자 요청(`/goal`) — `/factorynote feedback` 같은 서브커맨드를 다 없애고 대시보드에서만 값 조절, 대시보드에 stage·design 값 조절 추가. '대시보드' = 명령어 실행 시 커맨드 영역에 나오는 설정 메뉴(기존 구현 — feedback 항목만 있던 상태). 사전 확정: on|off 포함 서브커맨드 전부 폐지 · design 값 = designLevel(low/medium/high) · 세션 메모리만 유지 · plan 모드 on/off 는 메뉴 항목.
+
+**작업**: `command.ts` 재작성 — 인자 파싱 제거, 메뉴 항목 feedback·design·stage·auto + plan 모드 전환(confirm → ON · off → OFF · close → 유지), designLevel 세션 상태 신설(기본 low). `index.ts` 가 세션 designLevel 을 기본값으로 주입(파라미터 > 세션 설정 > 기본값 — maxStages 와 동일 우선순위). feature/dashboard 머지 손상 동반 수습: `index.ts` maxStages 파라미터 구문 오류(미닫힘 누락), `engine.test.ts` `invalidateArtifactsAfter` 인자 누락, `plan-tool.test.ts` 위성 테스트가 동적 구성(ADR-031) 미반영으로 compose 에 머무르던 실패(stages 제출 추가). `command.test.ts` 신규 — 가짜 명령 컨텍스트로 메뉴 조작 자체체크 10건. 문서: [[ADR-032-settings-dashboard-menu]] · Changelog · 사용 가이드 · 구현 아키텍처 · Home 갱신.
+
+**발견**: `@earendil-works/pi-coding-agent` 는 루트가 아닌 `apps/pi-extension/node_modules` 에 설치되어 pi-lens TS 서버만 미해석 연쇄 오류(implicit-any)를 낸다 — 실제 게이트는 `tsc -b`(통과). 판정은 항상 `bun run typecheck` 기준으로.
+
+**결과**: 자체체크 253 pass, `bun run typecheck` 0 종료.
+
 ## 2026-08-18
 
 ### 디렉터 동적 스테이지 구성(고정 3단계 대체)
@@ -20,6 +32,7 @@ tags: [development, dev-log]
 **결과**: 자체체크 238 pass(구성 2·4·5단계 전이, 상한 clamp·영속·진행 중 갱신, 레거시 마이그레이션, compose 요청·검증, 뷰어 상단 구성 목록 포함), `bun run build`(typecheck + 뷰어 빌드 + 설치) 0 종료.
 
 **후속(뷰어 상단 구성 목록)**: 사용자 요청 — 상단에 고정 3단계 대신 정해진 스테이지 목록 표시. `Topbar.jsx` 에 기능명 + 구성 칩(현재 단계 강조·이후 흐림, `/api/state.stages` 기준), `PreparingScreen` 에도 구성 목록 안내, 하드코딩 데모 잔여(`/ auth-module`) 제거. 스템퍼는 이미 구성 기준 동적 렌더였으나 상단 바가 고정 표시라 체감상 고정 3단계로 보이던 문제 해소. 신규 자체체크 2건.
+
 ### 병렬 위성 Design 에이전트(designLevel + 단계별 역할 메뉴)
 
 **맥락**: Design 단계가 단일 에이전트 전체 작성이라 컨텍스트 한도·시간이 병목. Feedback 의 동적 메뉴·병렬 패턴(ADR-014·017)을 Design 에 대칭 적용. 사용자 결정 2건: (a) 주 문서 + 위성 문서(게이트·그래프·승격·검증은 주 문서 유지, 위성은 보완 심도 문서), (b) 레벨 게이팅 + 3역할 메뉴(기본 low=현행, 병렬 opt-in). 그래프 병렬 분기 우려로 위성 그래프 금지 확정. 뷰어 미표시 제약은 TODO 주석으로 후행 분리(다중 문서 뷰어는 이 목표 범위 밖).

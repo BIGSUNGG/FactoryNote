@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { drivePlan } from "./plan-tool.ts";
 import {
 	consumeAutoAdvance,
+	currentDesignLevel,
 	currentFeedbackLevel,
 	currentStageCap,
 	disablePlanMode,
@@ -25,7 +26,7 @@ import { resolveViewerDistDir } from "./viewer.ts";
 import { formatForAgent, type AgentOut } from "./format.ts";
 
 export default function (pi: ExtensionAPI): void {
-	// /factorynote — plan 모드 토글(/factorynote on|off 로 명시적 설정).
+	// /factorynote — 설정 대시보드(인자 없이 실행 시 설정 메뉴: feedback·design·stage·auto · 모드 on/off).
 	registerFactoryNoteCommand(pi);
 
 	// plan 모드 ON 시 매 턴 계획 전용 프롬프트 주입.
@@ -81,8 +82,9 @@ export default function (pi: ExtensionAPI): void {
 			maxStages: Type.Optional(
 				Type.Number({
 					description:
-						"최대 스테이지 개수 상한(사용자 지정). 구성이 초과하면 잘라서 적용하고 state 에 영속화. 미지정 시 세션 명령(/factorynote stage <n>) 값 사용.",
+						"최대 스테이지 개수 상한(사용자 지정). 구성이 초과하면 잘라서 적용하고 state 에 영속화. 미지정 시 세션 설정(/factorynote 메뉴) 값 사용.",
 				}),
+			),
 			designLevel: Type.Optional(
 				Type.Union(
 					[Type.Literal("low"), Type.Literal("medium"), Type.Literal("high")],
@@ -109,11 +111,12 @@ export default function (pi: ExtensionAPI): void {
 			}
 			const root = join(ctx.cwd, ".factorynote");
 			const viewerDistDir = await resolveViewerDistDir(ctx.cwd);
-			// 상한 우선순위: 도구 파라미터 > 세션 명령(/factorynote stage <n>).
+			// 우선순위: 도구 파라미터 > 세션 설정(/factorynote 메뉴) > 기본값.
 			const maxStages =
 				typeof params.maxStages === "number"
 					? params.maxStages
 					: (currentStageCap() ?? undefined);
+			const designLevel = params.designLevel ?? currentDesignLevel();
 			const out = await drivePlan({
 				root,
 				viewerDistDir,
@@ -129,9 +132,7 @@ export default function (pi: ExtensionAPI): void {
 					: {}),
 				...(Array.isArray(params.stages) ? { stages: params.stages } : {}),
 				...(maxStages !== undefined ? { maxStages } : {}),
-				...(params.designLevel !== undefined
-					? { designLevel: params.designLevel }
-					: {}),
+				designLevel,
 				feedbackLevel: currentFeedbackLevel(),
 				...(isAutoAdvance() ? { autoAdvance: true } : {}),
 				...(signal ? { signal } : {}),

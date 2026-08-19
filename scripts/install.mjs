@@ -115,7 +115,9 @@ writeFileSync(
 );
 
 console.log("설치 완료.");
-console.log("  새 pi 세션에서: /factorynote   (plan 모드 토글)");
+console.log(
+	"  새 pi 세션에서: /factorynote   (설정 대시보드 — plan 모드 on/off·설정 메뉴)",
+);
 console.log(
 	"  에이전트 발견    : 사용자 스코프(~/.pi/agent/agents/) — 새 세션에서 factorynote-* 가 subagent list 에 표시",
 );

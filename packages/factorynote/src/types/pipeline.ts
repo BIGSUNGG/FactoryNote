@@ -17,7 +17,7 @@ export interface PipelineState {
 	dfLoop: number;
 	/** FR-7: 해당 단계까지 산출물 유효(0=미승인). confirm→증가, revert→감소, modify→불변. */
 	validThrough: ValidThrough;
-	/** 사용자 지정 최대 스테이지 개수 상한(/factorynote stage <n>). 미지정 시 없음. */
+	/** 사용자 지정 최대 스테이지 개수 상한(설정 메뉴 /factorynote). 미지정 시 없음. */
 	maxStages?: number;
 	/** 파이프라인 완료(마지막 단계 confirm) 여부. */
 	done: boolean;

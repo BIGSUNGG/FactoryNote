@@ -41,7 +41,7 @@ FactoryNote MVP의 **실제 코드 구조·모듈 책임·런타임 데이터 �
 Pi 와 코어를 잇는 유일한 계층. pi가 jiti로 TS 를 직접 로드한다.
 
 - **`index.ts`** — 확장 진입(기본 내보내기 팩토리).
-  - `pi.registerCommand("factorynote", …)` — plan 모드 **토글**(세션 내 불리언 `planMode`). `/factorynote on|off` 로 명시 설정, `/factorynote stage <n|off>` 로 최대 스테이지 개수 상한(세션) 설정([[ADR-031-dynamic-stage-composition]]).
+  - `pi.registerCommand("factorynote", …)` — **설정 대시보드**(세션 상태 소유: `planMode`·`autoAdvance`·`feedbackLevel`·`designLevel`·`stageCap`). 인자 없는 명령이 설정 메뉴를 연다 — feedback·design·stage·auto 4개 설정 항목과 plan 모드 on/off([[ADR-032-settings-dashboard-menu]]). 서브커맨드 없음.
   - `pi.on("before_agent_start", …)` — `planMode` 가 ON 일 때 매 턴 **계획 전용 시스템 프롬프트**를 주입("코드 금지, `factorynote_plan` 으로 구성→단계 구동").
   - `pi.registerTool("factorynote_plan", …)` — 파이프라인 구동 도구(아래).
   - `resolveViewerDistDir(cwd)` — 뷰어 dist 후보 탐색: `FACTORYNOTE_VIEWER_DIST` 환경변수 → `<extdir>/viewer/dist`(설치형) → `<cwd>/apps/plan-viewer/dist`(개발).

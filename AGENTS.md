@@ -40,7 +40,7 @@ vault/                   # Docs (Obsidian) — planning · design · ADRs · arc
 ## Documentation
 
 - Decisions → `vault/02-decisions/ADR-NNN-*.md`, changes → `vault/04-development/Changelog.md` + `Dev-Log.md`, new docs → link from `vault/Home.md`. Full rules in the `.pi/skills/doc-workflow` skill.
-- plan mode (this tool): toggle with `/factorynote` in pi. When ON, only plans are produced (no code); the `factorynote_plan` tool drives the 3 stages; the web page is the gate.
+- plan mode (this tool): enable with `/factorynote` in pi (it opens the settings dashboard menu — no subcommands; mode on/off and feedback·design·stage·auto settings are menu items). When ON, only plans are produced (no code); the `factorynote_plan` tool drives the 3 stages; the web page is the gate.
 
 ## Key Documents
 
