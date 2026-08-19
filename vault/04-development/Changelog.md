@@ -1,5 +1,5 @@
 ---
-updated: 2026-08-19
+updated: 2026-08-20
 tags: [development, changelog]
 ---
 
@@ -11,6 +11,8 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 ## [Unreleased]
 
 ### Fixed
+
+- **탭 우클릭 분할 시 md 탭이 복제되던 문제 — 분할 메뉴가 탭을 복사하지 않고 이동하도록 변경** — 우클릭 메뉴 분할이 `splitPane(..., { move: false })` 로 탭을 복제해, pinned 문서 탭 복사본은 닫기 버튼이 렌더되지 않아 둘 다 지울 수 없는 상태가 됐다. 메뉴 분할을 드래그 분할과 동일한 이동(move)으로 통일 — 복제는 전면 제거(옵션 `move=false` 는 트리 구성·테스트용으로만 잔존). 원본 영역이 비면 자동 축소되어 시각적으로도 분할 결과는 동일. 회귀 가드: 메뉴 분할 후 문서 탭이 전체에 정확히 1개인지 검증 + 분할 50/50 flexBasis 테스트를 복제 의존에서 이동 기반으로 교체, 자체체크 122 pass. [[ADR-032-viewer-tab-splitting]]
 
 - **뷰어 분할 시 새 탭이 기존 탭보다 커지던 문제** — `SplitNode.jsx` 가 두 자식을 비대칭 flex 로 렌더(children[0]만 ratio 기반, children[1]은 flexGrow+콘텐츠 기준)해, 오른쪽/아래 분할로 생긴 새 탭이 콘텐츠 폭을 따라 커지고 divider 드래그(ratio 0.15~0.85)도 1:1 반영되지 않았다. 두 자식을 모두 ratio 기반 `flexBasis` 로 고정(grow 0) — 분할 즉시 50/50, 드래그 시 비율 그대로 양쪽 반영. 분할 트리 로직·드롭 존은 무변경. [[ADR-032-viewer-tab-splitting]]
 

@@ -1,5 +1,5 @@
 // 탭 분할 상호작용 렌더 자체체크(ADR-032): 포인터 드래그(임계값) → 드롭 존(5방향),
-// 가장자리 드롭 = 분할·탭 이동, 중앙 드롭 = 병합, 우클릭 메뉴 = 복제 분할,
+// 가장자리 드롭 = 분할·탭 이동, 중앙 드롭 = 병합, 우클릭 메뉴 = 이동 분할(복제 없음),
 // 마지막 탭 닫기 = 영역 제거, 그래프 블록 헤더 드래그 = 탭 분리.
 // 드래그는 HTML5 DnD 대신 포인터 이벤트 기반(웹뷰 호환) — pointerdown→move(임계값)→up.
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
@@ -170,8 +170,12 @@ test("중앙 드롭 = 대상 영역으로 탭 이동(병합)", async () => {
 
 test("분할 즉시 양쪽 탭 크기 동일 — 두 자식 모두 ratio 기반 flexBasis(회귀: flexGrow 비대칭)", async () => {
 	await renderPage();
-	const docTab = container.querySelector(".viewer-tab");
-	await fire(docTab, "contextmenu", MouseEvent, { clientX: 10, clientY: 20 });
+	await openGraphTab();
+	// 그래프 탭 우클릭 → 오른쪽 분할(move) — pane1[문서] + pane2[graph:a]
+	const graphTab = [...container.querySelectorAll(".viewer-tab")].find((el) =>
+		el.textContent.includes("a.json"),
+	);
+	await fire(graphTab, "contextmenu", MouseEvent, { clientX: 10, clientY: 20 });
 	await fire(
 		document.querySelectorAll(".split-menu button")[1],
 		"click",
@@ -187,9 +191,12 @@ test("분할 즉시 양쪽 탭 크기 동일 — 두 자식 모두 ratio 기반 
 	await cleanup();
 });
 
-test("탭 우클릭 → 분할 메뉴 4항목 → 클릭 시 탭 복제 분할(원본 유지)", async () => {
+test("탭 우클릭 → 분할 메뉴 4항목 → 클릭 시 기존 탭 이동 분할(복제 없음)", async () => {
+	// 회귀 가드: 메뉴 분할이 탭을 복제하면 pinned 문서 탭이 닫기 버튼 없이
+	// 2개 남는(들 다 지울 수 없는) 상태가 됨 — 분할은 원본 탭을 옮긴다.
 	await renderPage();
-	const docTab = container.querySelector(".viewer-tab");
+	await openGraphTab();
+	const docTab = container.querySelector(".viewer-tab"); // 문서 탭
 	await fire(docTab, "contextmenu", MouseEvent, { clientX: 10, clientY: 20 });
 	const menu = document.querySelector(".split-menu");
 	expect(menu).not.toBeNull();
@@ -203,8 +210,15 @@ test("탭 우클릭 → 분할 메뉴 4항목 → 클릭 시 탭 복제 분할(�
 	await fire(menu.querySelectorAll("button")[1], "click", MouseEvent);
 	expect(document.querySelector(".split-menu")).toBeNull();
 	expect(panes().length).toBe(2);
-	// 복제 — 두 영역 모두 문서 탭 보유
-	for (const p of panes()) expect(paneLabels(p)).toContain("문서");
+	// 이동 — 문서 탭은 새(오른쪽) 영역으로 옮겨가고, 원본 영역엔 그래프 탭만 남음.
+	// 뷰어 전체에 문서 탭은 정확히 1개(복제 없음 — pinned 닫기 불가 사태 방지).
+	const labels = panes().map(paneLabels);
+	const docCount = labels.reduce(
+		(n, l) => n + l.filter((t) => t === "문서").length,
+		0,
+	);
+	expect(docCount).toBe(1);
+	expect(labels.some((l) => l.includes("a.json"))).toBe(true);
 	await cleanup();
 });
 

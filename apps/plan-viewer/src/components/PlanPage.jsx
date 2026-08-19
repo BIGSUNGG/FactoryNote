@@ -277,7 +277,8 @@ export default function PlanPage({
 			window.removeEventListener("pointerup", up);
 		};
 	}, [drag]); // eslint-disable-line react-hooks/exhaustive-deps
-	// 우클릭 메뉴 — 탭 복제 분할(원본 유지). 바깥 클릭·Esc 로 닫힘.
+	// 우클릭 메뉴 — 탭 이동 분할(복제 없음). 복제는 pinned 문서 탭이 닫기
+	// 불가(닫기 버튼 없음)인 채로 2개 남는 사태를 일으키므로 금지. 바깥 클릭·Esc 로 닫힘.
 	const openMenu = (e, paneId, tabId) => {
 		e.preventDefault();
 		setMenu({ x: e.clientX, y: e.clientY, paneId, tabId });
@@ -288,7 +289,7 @@ export default function PlanPage({
 				(t) => t.id === menu.tabId,
 			);
 			return tab
-				? splitPane(l, menu.paneId, direction, [tab], { move: false })
+				? splitPane(l, menu.paneId, direction, [tab], { move: true })
 				: l;
 		});
 		setMenu(null);

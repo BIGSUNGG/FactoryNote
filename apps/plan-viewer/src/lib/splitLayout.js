@@ -81,7 +81,8 @@ export function replacePane(root, paneId, replacer) {
 }
 
 /** 분할 — paneId 영역의 dir 방향에 tabs 로 새 leaf 추가.
- * move=true(드래그)면 원본에서 탭을 빼서 옮기고, false(우클릭 메뉴)면 복제. */
+ * move=true(드래그·우클릭 메뉴)면 원본에서 탭을 빼서 옮기고(복제 없음),
+ * false(테스트·트리 구성용)면 원본 유지 복제. */
 export function splitPane(root, paneId, direction, tabs, { move = true } = {}) {
 	const d = DIRECTION[direction];
 	if (!d || tabs.length === 0) return root;

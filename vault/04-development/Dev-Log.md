@@ -1,11 +1,25 @@
 ---
-updated: 2026-08-19
+updated: 2026-08-20
 tags: [development, dev-log]
 ---
 
 # Dev-Log
 
 날짜별 작업 기록. 무엇을 했는지, 왜, 무엇이 남았는지. [[Changelog]]는 외부용 단위, 본 파일은 일일 흐름.
+
+## 2026-08-20
+
+### 탭 우클릭 분할 복제 결함 수정(fix/md-view-split)
+
+**맥락**: 사용자 보고 — md 탭을 분할하면 탭이 복사돼 두 탭 모두 지울 수 없는 상태가 된다.
+
+**원인**: 우클릭 메뉴 분할이 `splitPane(..., { move: false })` 로 탭을 복제(ADR-032 결정 3 — 브라우저 Split 동작). md 문서 탭은 `pinned: true` 라 닫기 버튼 자체가 렌더되지 않아(TabBar 는 `!t.pinned` 일 때만 X 표시), 복제된 문서 탭 2개 모두 닫기 수단이 없었다. `closeTabIn` 의 pinned 마지막 1개 보호가 오히려 '복제본은 닫을 수 있다'는 ADR-032 결정 4 와 모순되는 사태.
+
+**수정**: `PlanPage.splitByMenu` 를 `move: true` 로 변경 — 드래그 분할과 동일하게 원본 탭을 새 영역으로 이동, 복제 경로 전면 제거. 원본 영역이 비면 collapse 로 자동 축소되어 사용자 눈에는 분할 결과가 동일하다. `splitLayout.js` 의 `move=false` 옵션은 테스트·트리 구성용으로 잔존(앱 호출 없음).
+
+**검증**: `splitLayout.test.js` 11 + `SplitTab.test.jsx` 9 + `TabBar.test.jsx` 3 = 23, 뷰어 전체 122 pass. 회귀 가드 신규 — 메뉴 분할 후 문서 탭이 전체에 정확히 1개인지; 기존 '복제 분할(원본 유지)' 테스트는 이동 기반으로 재작성, 50/50 flexBasis 분할 테스트는 그래프 탭 기준으로 교체(문서 탭 단독 분할은 이동이라 no-op). 분할 크기 비대칭 수정(c07a609)과 같은 브랜치.
+
+**문서**: ADR-032 결정 3·4·rationale 갱신(복제→이동, pinned 규칙은 '항상 1개만 존재'로 단순화), Changelog Fixed 1건.
 
 ## 2026-08-19
 

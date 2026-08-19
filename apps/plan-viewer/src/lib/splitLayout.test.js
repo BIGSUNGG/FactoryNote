@@ -1,5 +1,6 @@
-// splitLayout 자체체크(ADR-032): 분할 트리 변환 — 4방향 분할, 이동(중앙 드롭),
-// 복제 분할(우클릭 메뉴), 빈 영역 collapse, pinned 문서 탭 마지막 1개 보호, 비율 클램프.
+// splitLayout 자체체크(ADR-032): 분할 트리 변환 — 4방향 분할, 이동(중앙 드롭·메뉴),
+// 복제 옵션(move=false — 트리 구성용, 앱 사용 안 함), 빈 영역 collapse, pinned 문서 탭 마지막
+// 1개 보호, 비율 클램프.
 import { expect, test } from "bun:test";
 import {
 	createRootLayout,
@@ -49,7 +50,7 @@ test("드래그 분할(move)은 원본에서 탭을 빼서 옮김 — 원본이 
 	expect(r.tabs.map((t) => t.id)).toEqual(["doc", "graph:a"]);
 });
 
-test("우클릭 메뉴 분할(move=false)은 탭을 복제 — 원본에 그대로 남음", () => {
+test("move=false 옵션은 탭을 복제(트리 구성용) — 원본에 그대로 남음", () => {
 	const base = root();
 	const r = splitPane(base, base.id, "down", [base.tabs[1]], { move: false });
 	expect(allLeaves(r).map((l) => l.tabs.map((t) => t.id))).toEqual([
