@@ -14,6 +14,7 @@ import { drivePlan } from "./plan-tool.ts";
 import {
 	consumeAutoAdvance,
 	currentFeedbackLevel,
+	currentStageCap,
 	disablePlanMode,
 	isAutoAdvance,
 	isPlanMode,
@@ -35,15 +36,17 @@ export default function (pi: ExtensionAPI): void {
 		};
 	});
 
-	// factorynote_plan — 3단계 게이트 파이프라인 구동 도구(Tier 1 오케스트레이션).
+	// factorynote_plan — 동적 구성 게이트 파이프라인 구동 도구(Tier 1 오케스트레이션).
 	pi.registerTool({
 		name: "factorynote_plan",
 		label: "FactoryNote Plan",
 		description:
-			"FactoryNote 3단계 human-gated 계획 파이프라인을 1스텝 구동(Tier 1 에이전트 오케스트레이션). plan 모드에서 기능 요청을 처리한다. 반환값의 nextAction/message 에 따라 Design/Feedback 자식 스폰·보고·게이트 진행을 결정.",
-		promptSnippet: "Drive the FactoryNote 3-stage gated plan pipeline",
+			"FactoryNote human-gated 계획 파이프라인을 1스텝 구동(Tier 1 에이전트 오케스트레이션). 스테이지 구성(종류·개수)은 디렉터가 동적으로 결정한다. plan 모드에서 기능 요청을 처리한다. 반환값의 nextAction/message 에 따라 구성 결정·Design/Feedback 자식 스폰·보고·게이트 진행을 결정.",
+		promptSnippet:
+			"Drive the FactoryNote dynamically-composed gated plan pipeline",
 		promptGuidelines: [
 			"Use factorynote_plan when in FactoryNote plan mode to produce a human-gated plan instead of writing code.",
+			'On the FIRST call for a new feature the tool returns nextAction=compose with the stage-kind catalog: decide the composition (kinds, count, order) for this request and call factorynote_plan again with the stages parameter (e.g. ["understanding","design","implementation"]). Respect the max stage cap shown in the compose message; repeats of a kind are allowed.',
 			"When the tool returns chatPending (a user asked something while the gate is open), you MUST answer it: call factorynote_plan again with chatResponse (and designArtifact if a rewrite is needed) to keep the gate open. Never end your turn on chatPending — doing so breaks the chat loop and the user gets no reply.",
 			"When nextAction=spawn-design, spawn factorynote-design with spawnTask (file protocol). When nextAction=spawn-feedback, read menuPath, pick the number of factorynote-feedback-<name> agents required by the current feedback level (low 1 / medium 2-3 / high 4-6 / ultra 9), and spawn them in parallel (runs.all); on spawn rate-limit failure retry in sequential batches of 3-4; report aggregated [name] verdicts. Children write to files; report paths/verdicts, never inline content.",
 		],
@@ -69,6 +72,18 @@ export default function (pi: ExtensionAPI): void {
 						"게이트 열린 동안 사용자 실시간 채팅(chatPending)에 대한 답변. 산출물 수정이 필요하면 Design 자식 재스폰으로 designArtifact(경로)와 함께 담아 재호출 — 게이트를 유지한 채 반영.",
 				}),
 			),
+			stages: Type.Optional(
+				Type.Array(Type.String(), {
+					description:
+						'신규 파이프라인 스테이지 구성 — 카탈로그 kind 를 순서대로 나열(예: ["understanding","design","implementation"]). 같은 종류 반복 허용. 첫 호출(nextAction=compose 응답) 직후에만 적용된다.',
+				}),
+			),
+			maxStages: Type.Optional(
+				Type.Number({
+					description:
+						"최대 스테이지 개수 상한(사용자 지정). 구성이 초과하면 잘라서 적용하고 state 에 영속화. 미지정 시 세션 명령(/factorynote stage <n>) 값 사용.",
+				}),
+			),
 		}),
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 			const feature = String(params.feature ?? "").trim();
@@ -86,6 +101,11 @@ export default function (pi: ExtensionAPI): void {
 			}
 			const root = join(ctx.cwd, ".factorynote");
 			const viewerDistDir = await resolveViewerDistDir(ctx.cwd);
+			// 상한 우선순위: 도구 파라미터 > 세션 명령(/factorynote stage <n>).
+			const maxStages =
+				typeof params.maxStages === "number"
+					? params.maxStages
+					: (currentStageCap() ?? undefined);
 			const out = await drivePlan({
 				root,
 				viewerDistDir,
@@ -99,6 +119,8 @@ export default function (pi: ExtensionAPI): void {
 				...(params.chatResponse !== undefined
 					? { chatResponse: params.chatResponse }
 					: {}),
+				...(Array.isArray(params.stages) ? { stages: params.stages } : {}),
+				...(maxStages !== undefined ? { maxStages } : {}),
 				feedbackLevel: currentFeedbackLevel(),
 				...(isAutoAdvance() ? { autoAdvance: true } : {}),
 				...(signal ? { signal } : {}),
@@ -113,7 +135,9 @@ export default function (pi: ExtensionAPI): void {
 				);
 			} else {
 				ctx.ui.notify(
-					`FactoryNote: Stage ${out.stage} ${out.stageName} (${out.nextAction})`,
+					out.stage === 0
+						? `FactoryNote: ${out.stageName} (${out.nextAction})`
+						: `FactoryNote: Stage ${out.stage} ${out.stageName} (${out.nextAction})`,
 					"info",
 				);
 			}

@@ -4,11 +4,11 @@ import {
 	DEFAULT_FEEDBACK_LEVEL,
 	designTask,
 	feedbackLevelCountSpec,
-	type stageById,
 	type ArtifactPaths,
 	type DesignFeedbackDirective,
 	type FeedbackLevel,
 	type PipelineState,
+	type StageDefinition,
 } from "@factorynote/core";
 import { FEEDBACK_BATCH_SPLIT_RULE } from "./plan-paths.ts";
 import type { DrivePlanOutput } from "./plan-types.ts";
@@ -16,7 +16,7 @@ import type { DrivePlanOutput } from "./plan-types.ts";
 /** spawn 지시문 반환 — 에이전트에게 자식 스폰을 지시(파일 프로토콜 + 스폰 옵션). */
 export function spawnDirective(
 	state: PipelineState,
-	def: ReturnType<typeof stageById>,
+	def: StageDefinition,
 	d: Extract<
 		DesignFeedbackDirective,
 		{ action: "spawn-design" | "spawn-feedback" }

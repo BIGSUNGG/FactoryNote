@@ -14,6 +14,10 @@ export interface DrivePlanInput {
 	designArtifact?: string;
 	feedbackResult?: string;
 	chatResponse?: string;
+	/** 신규 파이프라인 구성 — 스테이지 종류 순서 목록(첫 호출에서만 적용). */
+	stages?: readonly string[];
+	/** 최대 스테이지 개수 상한(사용자 지정). 구성 길이가 초과하면 잘라서 적용. */
+	maxStages?: number;
 	/** Feedback 수준(ADR-017). 미지정 시 DEFAULT_FEEDBACK_LEVEL(medium). */
 	feedbackLevel?: FeedbackLevel;
 	autoAdvance?: boolean;
@@ -22,7 +26,7 @@ export interface DrivePlanInput {
 	onReady?: (url: string) => void | Promise<void>;
 }
 
-export type NextAction = "spawn-design" | "spawn-feedback" | "done";
+export type NextAction = "compose" | "spawn-design" | "spawn-feedback" | "done";
 
 export interface DrivePlanOutput {
 	done: boolean;

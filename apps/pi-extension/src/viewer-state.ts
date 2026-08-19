@@ -1,7 +1,7 @@
 // 뷰어 대시보드 상태 조립 — /api/state 가 서빙하는 페이로드.
 // 회귀 정합성(#1): state.stage 이후 단계의 (무효한) 산출물은 숨긴다. 계층 그래프 트리(ADR-018) 조립 포함.
 import {
-	STAGES,
+	LEGACY_KINDS,
 	graphDirNameFor,
 	graphRefFiles,
 	loadGraphTree,
@@ -10,7 +10,8 @@ import {
 	parseGraphSequenceFile,
 	readArtifact,
 	readArtifactPrev,
-	stageById,
+	stageDefAt,
+	stageDefs,
 } from "@factorynote/core";
 import type {
 	ArtifactFormat,
@@ -24,6 +25,8 @@ export interface ViewerState {
 	feature: string;
 	stage: number;
 	stageName: string;
+	/** 파이프라인 구성(동적) — 스텝퍼·진행 요청이 이 목록을 기준으로 동작한다. */
+	stages: { n: number; name: string }[];
 	requiresArtifact: boolean;
 	done: boolean;
 	/** 현 단계 산출물이 사용자 검토 대기 중인지(에이전트가 게이트를 열었는지). 뷰어 폴링 신호. */
@@ -53,10 +56,12 @@ export async function buildViewerState(
 	feature: string,
 ): Promise<ViewerState> {
 	const state = (await loadState(root, feature)) ?? null;
+	const kinds = state?.stages ?? [...LEGACY_KINDS];
+	const defs = stageDefs(kinds);
 	const stage = state?.stage ?? 1;
-	const def = stageById(stage as 1 | 2 | 3);
+	const def = stageDefAt(kinds, stage);
 	const artifacts: ViewerState["artifacts"] = [];
-	for (const s of STAGES) {
+	for (const s of defs) {
 		if (!s.artifactFile) continue;
 		// 회귀 정합성(#1): revert 로 state.stage 가 뒤로 옮겨졌다면 그 이후 단계의
 		// (이제 무효한) 산출물은 뷰어에서 숨긴다. state 미지정 시 기존 동작 유지.
@@ -112,6 +117,7 @@ export async function buildViewerState(
 		feature,
 		stage,
 		stageName: def.name,
+		stages: defs.map((d) => ({ n: d.id, name: d.name })),
 		requiresArtifact: def.producesArtifact,
 		done: state?.done ?? false,
 		gateOpen: state?.gateOpen ?? false,

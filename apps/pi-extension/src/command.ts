@@ -13,6 +13,9 @@ let planMode = false;
 let autoAdvance = false;
 // Feedback 수준(ADR-017, 세션 내 메모리). /factorynote feedback <level> 로 설정.
 let feedbackLevel: FeedbackLevel = DEFAULT_FEEDBACK_LEVEL;
+// 최대 스테이지 개수 상한(세션 내 메모리). /factorynote stage <n> 로 설정 —
+// 새 파이프라인 구성 시 적용·state 에 영속화. null = 상한 없음.
+let stageCap: number | null = null;
 
 export function isPlanMode(): boolean {
 	return planMode;
@@ -24,6 +27,10 @@ export function isAutoAdvance(): boolean {
 
 export function currentFeedbackLevel(): FeedbackLevel {
 	return feedbackLevel;
+}
+
+export function currentStageCap(): number | null {
+	return stageCap;
 }
 
 /** 파이프라인 완료 시 plan 모드 자동 해제(#5). */
@@ -51,11 +58,17 @@ function feedbackLine(): string {
 	return `FactoryNote feedback 수준: ${feedbackLevel} (${spec.label})`;
 }
 
-/** /factorynote 명령 등록(on|off · auto · feedback <level>). */
+function stageCapLine(): string {
+	return stageCap === null
+		? "FactoryNote 최대 스테이지 개수: 무제한"
+		: `FactoryNote 최대 스테이지 개수: ${stageCap}`;
+}
+
+/** /factorynote 명령 등록(on|off · auto · feedback <level> · stage <n>). */
 export function registerFactoryNoteCommand(pi: ExtensionAPI): void {
 	pi.registerCommand("factorynote", {
 		description:
-			"FactoryNote plan 모드 토글 (on|off) · auto [on|off] = 게이트 자동 승인 · feedback <none|low|medium|high|ultra> = 검토 수준",
+			"FactoryNote plan 모드 토글 (on|off) · auto [on|off] = 게이트 자동 승인 · feedback <none|low|medium|high|ultra> = 검토 수준 · stage <n|off> = 최대 스테이지 개수 상한",
 		handler: async (args, ctx) => {
 			const parts = (args ?? "")
 				.trim()
@@ -74,6 +87,29 @@ export function registerFactoryNoteCommand(pi: ExtensionAPI): void {
 				} else {
 					ctx.ui.notify(
 						`FactoryNote feedback 수준 오류: "${sub}" — none|low|medium|high|ultra 중 하나`,
+						"error",
+					);
+				}
+				return;
+			}
+			if (parts[0] === "stage") {
+				const sub = parts[1];
+				if (sub === undefined) {
+					ctx.ui.notify(stageCapLine(), "info");
+					return;
+				}
+				if (sub === "off" || sub === "none") {
+					stageCap = null;
+					ctx.ui.notify(stageCapLine(), "info");
+					return;
+				}
+				const n = Number(sub);
+				if (Number.isInteger(n) && n >= 1) {
+					stageCap = n;
+					ctx.ui.notify(stageCapLine(), "info");
+				} else {
+					ctx.ui.notify(
+						`FactoryNote 최대 스테이지 개수 오류: "${sub}" — 1 이상 정수 또는 off`,
 						"error",
 					);
 				}

@@ -6,7 +6,7 @@ export interface AgentOut {
 	done: boolean;
 	stage: number;
 	stageName: string;
-	nextAction: "spawn-design" | "spawn-feedback" | "done";
+	nextAction: "compose" | "spawn-design" | "spawn-feedback" | "done";
 	spawnRole?: "design" | "feedback";
 	spawnTask?: string;
 	spawnOptions?: DrivePlanOutput["spawnOptions"];

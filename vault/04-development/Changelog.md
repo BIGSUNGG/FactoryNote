@@ -12,6 +12,10 @@ FactoryNote의 주요 변경 이력. [Keep a Changelog](https://keepachangelog.c
 
 ### Added
 
+- **디렉터 동적 스테이지 구성(고정 3단계 대체)** — 스테이지 카탈로그 6종(기존 3종 + 리스크 분석 `risk-analysis` · 테스트 전략 `test-strategy` · 비기능 검증 `nfr`). 디렉터(Tier 1)가 피처 시작 시 `factorynote_plan` 의 `stages` 파라미터로 종류·개수·순서를 매번 새로 결정 — 미제출 시 `nextAction=compose` 로 카탈로그 메뉴 요청, 구성 승인 게이트 없음(디렉터 전권). 구성은 `state.json` 에 영속화, 산출물 파일명은 위치 접두(`<NN>-<kind>.md`)로 종류 반복에도 유일. 최대 스테이지 개수는 `/factorynote stage <n>` (또는 도구 `maxStages`) — 초과 구성은 잘라서 적용하고 state 에 영속화. 엔진·회귀·무효화·뷰어 스템퍼 전부 구성 위치 기준으로 일반화, 구 state 는 레거시 3종 구성으로 마이그레이션. Feedback 메뉴는 종류→프로필 사상(`feedbackProfileOf`)으로 기존 검토 축 레지스트리 재사용. 뷰어 상단 바에 기능명 + 정해진 구성 스테이지 목록(칩 — 현재 단계 강조·이후 단계 흐림) 표시, 준비 중 화면에도 구성 목록 안내(고정 3단계 표시 제거). 자체체크 238 pass. [[ADR-031-dynamic-stage-composition]]
+
+### Added
+
 - **테스트 게이트(에이전트 훅 + pre-commit)** — `bun test` 통과 전에는 작업도 커밋도 끝나지 않음. `.pi/extensions/test-gate.ts`: `agent_settled`에 테스트 실행, 실패 시 실패 출력과 수정 지시를 주입해 에이전트 재실행(최대 3회, 초과 시 사용자 에스컬레이션). `scripts/git-hooks/pre-commit`(POSIX sh, `core.hooksPath` 활성화): 동일 논리로 커밋 차단 — 수동 커밋·다른 도구에도 적용. `.gitattributes` 훅 LF 고정. 자체 검증: 훅 통과/실패 경로 수동 실행 확인, `tsc -p .pi` 0 종료. [[ADR-029-test-gate]]
 
 - **4대 작업 원칙 하네스 적용** — 에이전트 행동 원칙(추론 자제·미래지향·문서주의·비판적 사고)을 매 세션 기본 적용: `AGENTS.md` 신규 작성(4대 원칙 섹션 + 오리엔테이션), `.pi/skills/` 원칙별 4스킬(`ask-before-guess`·`future-proof-code`·`doc-first-workflow`·`critical-review` — 질문 임계값·모듈화 기준·문서 선행·비판적 검토 절차), `.pi/extensions/work-principles.ts`(코드 변경·문서 미변경 실행 종료 시 문서 갱신 리마인드 훅, 차단 없음), `.pi/tsconfig.json`(전역 pi 패키지 타입 연결). 질문은 주요 결정(아키텍처·가시 동작·비가역 선택)만. [[ADR-028-work-principles-harness-application]]

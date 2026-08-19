@@ -10,15 +10,18 @@ import { join } from "node:path";
 const HOME = process.env.FACTORYNOTE_HOME || process.cwd();
 const ROOT = join(HOME, ".factorynote");
 
-const STAGE_NAMES = [
+// 레거시 state(고정 3단계, stages 필드 없음) 위치→이름 폴백.
+const LEGACY_STAGE_NAMES = [
 	"",
-	"요청 이해",
-	"시나리오",
-	"모듈 아키텍처",
-	"클래스 설계",
+	"요청 이해·시나리오",
+	"모듈·클래스 설계",
 	"구현 계획",
-	"최종 검증",
 ];
+
+function stageName(s) {
+	if (Array.isArray(s.stages)) return s.stages[s.stage - 1] ?? "?";
+	return LEGACY_STAGE_NAMES[s.stage] || "?";
+}
 
 async function readState(feature) {
 	try {
@@ -31,8 +34,9 @@ async function readState(feature) {
 
 function fmt(s) {
 	if (!s) return "(상태 없음)";
-	const name = STAGE_NAMES[s.stage] || "?";
-	return `feature=${s.feature} stage=${s.stage}(${name}) gateOpen=${s.gateOpen} done=${s.done} loop=${s.loopCount} updated=${new Date(s.updatedAt).toISOString()}`;
+	const name = stageName(s);
+	const total = Array.isArray(s.stages) ? s.stages.length : 3;
+	return `feature=${s.feature} stage=${s.stage}/${total}(${name}) gateOpen=${s.gateOpen} done=${s.done} loop=${s.loopCount} updated=${new Date(s.updatedAt).toISOString()}`;
 }
 
 async function statusOne(feature) {

@@ -9,6 +9,18 @@ tags: [development, dev-log]
 
 ## 2026-08-18
 
+### 디렉터 동적 스테이지 구성(고정 3단계 대체)
+
+**맥락**: 사용자 요청(`/goal`) — 고정 3단계 대신 스테이지 종류를 추가하고 디렉터가 구성(종류·개수)을 유동적으로 결정, 사용자는 명령어로 최대 스테이지 개수 제한. 결정 4개 사전 확정: +3종 카탈로그(총 6종) · 구성 승인 게이트 없음(디렉터 전권) · `/factorynote stage <n>` · 기본 구성 없이 항상 새로 구성.
+
+**작업**: 코어 `stages.ts` 를 카탈로그(`STAGE_CATALOG` 6종) + 구성 인스턴스화(`stageDefs`·`stageDefAt`)로 재작성, `PipelineState.stages: StageKind[]`·`maxStages` 추가. 엔진(`applyVerdict`·`initialState`)을 구성 길이 기준으로 일반화, `state.ts` 가 레거시 state 를 3종 구성으로 마이그레이션(미등록 종류는 손상 복구). `paths.ts` 단계 폴더를 파일명 위치 접두에서 추론(정적 레지스트리 의존 제거), `artifact.ts` 무효화가 구성 인스턴스 인자 수용. 어댑터: `drivePlan` 에 compose 흐름 + 상한 clamp·영속, `/factorynote stage` 명령, 도구 파라미터 `stages`·`maxStages`, plan 모드 프롬프트·도구 설명 갱신. 뷰어: `/api/state.stages` 전달 → 스템퍼·마지막 단계 판정 동적화. CLI(`bin/factorynote.mjs`)도 구성 기반 출력. 문서: [[ADR-031-dynamic-stage-composition]] · Changelog · 구현 아키텍처 갱신.
+
+**발견**: `node_modules` 미설치 상태에서는 LSP가 `node:*` 내장 모듈 미해석 노이즈를 낸다 — `bun install` 후 실 typecheck 기준으로 판정해야 한다.
+
+**결과**: 자체체크 238 pass(구성 2·4·5단계 전이, 상한 clamp·영속·진행 중 갱신, 레거시 마이그레이션, compose 요청·검증, 뷰어 상단 구성 목록 포함), `bun run build`(typecheck + 뷰어 빌드 + 설치) 0 종료.
+
+**후속(뷰어 상단 구성 목록)**: 사용자 요청 — 상단에 고정 3단계 대신 정해진 스테이지 목록 표시. `Topbar.jsx` 에 기능명 + 구성 칩(현재 단계 강조·이후 흐림, `/api/state.stages` 기준), `PreparingScreen` 에도 구성 목록 안내, 하드코딩 데모 잔여(`/ auth-module`) 제거. 스템퍼는 이미 구성 기준 동적 렌더였으나 상단 바가 고정 표시라 체감상 고정 3단계로 보이던 문제 해소. 신규 자체체크 2건.
+
 ### 4대 작업 원칙 하네스 적용
 
 **맥락**: 사용자 요청 — 추론 자제·미래지향·문서주의·비판적 사고 4원칙을 pi 하네스 엔지니어링으로 적용. 원칙 1을 이 작업 자체에 적용해 3결정 질문 확정: 프로젝트 한정(`.pi/`), 프롬프트+스킬 유도 기본+문서주의 훅 리마인더, 주요 결정만 질문. 선행 조사: pi v0.84 엔지니어링 표면 6층([[pi-harness-engineering-surfaces]]).

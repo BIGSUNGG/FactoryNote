@@ -12,11 +12,13 @@ import {
 	markArtifactReady,
 	promoteGraphTree,
 	saveState,
-	stageById,
+	stageDefAt,
+	stageDefs,
 	writeArtifact,
 	type ChatMessage,
 	type GateDecision,
 	type PipelineState,
+	type StageDefinition,
 } from "@factorynote/core";
 import type { DrivePlanInput, DrivePlanOutput } from "./plan-types.ts";
 import { buildMenuMarkdown, resolvePaths } from "./plan-paths.ts";
@@ -36,7 +38,7 @@ export const GATE_TIMEOUT_MS = 30 * 60 * 1000;
 function gateOutcomeMessage(
 	decision: GateDecision,
 	state: PipelineState,
-	nextDef: ReturnType<typeof stageById>,
+	nextDef: StageDefinition,
 	internalEscalation: { issues: string[]; loops: number } | undefined,
 	resume: boolean,
 ): string {
@@ -58,7 +60,7 @@ function gateOutcomeMessage(
 export async function runOpenGate(
 	input: DrivePlanInput,
 	stateIn: PipelineState,
-	def: ReturnType<typeof stageById>,
+	def: StageDefinition,
 	artifactToWrite: string,
 	resume: boolean,
 	internalEscalation?: { issues: string[]; loops: number },
@@ -155,7 +157,12 @@ export async function runOpenGate(
 
 	state = applyVerdict(state, decision);
 	if (decision.verdict === "revert") {
-		await invalidateArtifactsAfter(root, feature, state.stage);
+		await invalidateArtifactsAfter(
+			root,
+			feature,
+			state.stage,
+			stageDefs(state.stages),
+		);
 	} else if (decision.verdict === "confirm" && def.artifactFile) {
 		// ADR-027: 확정 = 승인된 단계의 하이라이트 기준(.prev) 리셋 —
 		// 이후 하이라이트는 다음 게이트에서의 수정만 표시한다.
@@ -165,10 +172,10 @@ export async function runOpenGate(
 
 	if (isComplete(state)) {
 		await closeGate(root, feature);
-		return complete(state.stage);
+		return complete(state);
 	}
 
-	const nextDef = stageById(state.stage);
+	const nextDef = stageDefAt(state.stages, state.stage);
 	const message = gateOutcomeMessage(
 		decision,
 		state,
@@ -220,17 +227,16 @@ async function promoteGraphArtifact(
 	return md;
 }
 
-function complete(stage: number): DrivePlanOutput {
+function complete(state: PipelineState): DrivePlanOutput {
 	return {
 		done: true,
-		stage,
-		stageName: stageById(3).name,
+		stage: state.stage,
+		stageName: stageDefAt(state.stages, state.stage).name,
 		nextAction: "done",
 		dfLoop: 0,
 		designPrompt: "",
 		gateResult: null,
-		message:
-			"파이프라인 완료 — 3단계 모두 사용자 승인됨. 계획 산출물은 .factorynote/<feature>/ 에 저장되었다.",
+		message: `파이프라인 완료 — ${state.stages.length}단계 모두 사용자 승인됨. 계획 산출물은 .factorynote/<feature>/ 에 저장되었다.`,
 	};
 }
 
