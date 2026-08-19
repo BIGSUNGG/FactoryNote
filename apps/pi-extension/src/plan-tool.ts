@@ -11,6 +11,7 @@
 //  - plan-gate.ts      — 게이트 오픈/결정/채팅/검토요청 처리(runOpenGate)
 import {
 	CHILD_SPAWN_OPTIONS,
+	DEFAULT_DESIGN_LEVEL,
 	DEFAULT_FEEDBACK_LEVEL,
 	DEFAULT_MAX_LOOPS,
 	checkRequiredGraph,
@@ -32,7 +33,12 @@ import type {
 	StageDefinition,
 } from "@factorynote/core";
 import type { DrivePlanInput, DrivePlanOutput } from "./plan-types.ts";
-import { buildMenuMarkdown, deriveReport, resolvePaths } from "./plan-paths.ts";
+import {
+	buildDesignMenuMarkdown,
+	buildMenuMarkdown,
+	deriveReport,
+	resolvePaths,
+} from "./plan-paths.ts";
 import { spawnDirective } from "./plan-directive.ts";
 import { runOpenGate } from "./plan-gate.ts";
 import { closeGate } from "./gate-server.ts";
@@ -135,12 +141,19 @@ export async function drivePlan(
 		const { paths, draftFile } = resolvePaths(root, feature, def);
 		// designPrompt(불변) + feedback 메뉴(현 단계) 파일 기록 — 자식/Director 가 읽도록.
 		// 그래프 검증·반려보다 먼저: 반려 라운드 재작성 자식도 현 단계 지시를 읽어야 한다.
+		const designLevel = input.designLevel ?? DEFAULT_DESIGN_LEVEL;
 		await writeArtifact(root, feature, "design-prompt.md", def.designPrompt);
 		await writeArtifact(
 			root,
 			feature,
 			"feedback-menu.md",
 			buildMenuMarkdown(def, feedbackLevel),
+		);
+		await writeArtifact(
+			root,
+			feature,
+			"design-menu.md",
+			buildDesignMenuMarkdown(def, designLevel),
 		);
 		// 그래프 강제(Stage 2 required): design 보고의 필수 그래프 트리가 없으면 Feedback 전 재작성 반려.
 		const graphOut = await enforceRequiredGraph({
@@ -161,6 +174,7 @@ export async function drivePlan(
 			paths,
 			DEFAULT_MAX_LOOPS,
 			feedbackLevel,
+			designLevel,
 		);
 		state = { ...state, dfPhase: t.dfPhase, dfLoop: t.dfLoop };
 		const d = t.directive;

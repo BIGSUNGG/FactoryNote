@@ -9,6 +9,13 @@ tags: [development, dev-log]
 
 ## 2026-08-18
 
+### 병렬 위성 Design 에이전트(designLevel + 단계별 역할 메뉴)
+
+**맥락**: Design 단계가 단일 에이전트 전체 작성이라 컨텍스트 한도·시간이 병목. Feedback 의 동적 메뉴·병렬 패턴(ADR-014·017)을 Design 에 대칭 적용. 사용자 결정 2건: (a) 주 문서 + 위성 문서(게이트·그래프·승격·검증은 주 문서 유지, 위성은 보완 심도 문서), (b) 레벨 게이팅 + 3역할 메뉴(기본 low=현행, 병렬 opt-in). 그래프 병렬 분기 우려로 위성 그래프 금지 확정. 뷰어 미표시 제약은 TODO 주석으로 후행 분리(다중 문서 뷰어는 이 목표 범위 밖).
+
+**작업**: 코어(design-agents.ts 레지스트리 9역할 · df-policy.ts DESIGN_LEVELS/designLevelCountSpec · types feedback.ts DesignAgent/DesignLevel · df-task.ts designSatellite(Revision)Task · df-transition.ts spawnDesign/nextDesignFeedbackStep designLevel 전달 · artifact.ts 위성 무효화) → 어댑터(plan-paths.ts buildDesignMenuMarkdown/satelliteFileName/DESIGN_BATCH_SPLIT_RULE · plan-directive.ts spawn-design 메시지 주+위성 병렬 지시 · plan-tool/plan-gate.ts design-menu.md 기록 + designLevel 스레딩 · index.ts 스키마 + 지시문) → 에이전트 9개 신규 → 테스트(orchestration·engine·plan-tool) → 빌드·설치(42 에이전트 배포). 플레이스홀더 ADR-0NN → ADR-031 치환.
+
+**결과**: `bun run typecheck` 0 · `bun test` 230 pass · `bun run build` 통과(뷰어 dist + install 배포). ADR-031 작성, Home.md ADR 인덱스 + Changelog 반영. 잔여: designLevel=high 수동 확인(계약 #8) — /factorynote plan 모드에서 확인 필요.
 ### 드래그 미동작 수정 — HTML5 DnD → 포인터 이벤트 전환 (ADR-032)
 
 **맥락**: 사용자 보고 — “드래그 안 되는데?” 탭·그래프 헤더 드래그가 실제 브라우저에서 무반응. 합성 이벤트(happy-dom) 자체체크는 통과했으나 브라우저의 HTML5 드래그 세션 개시 자체에 의존하는 구조라 임베디드 웹뷰 환경에서 세션이 시작되지 않은 것으로 판단.

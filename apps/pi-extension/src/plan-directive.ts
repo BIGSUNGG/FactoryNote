@@ -1,8 +1,8 @@
 // spawn 지시문 → DrivePlanOutput 변환 — 자식 스폰 과제·옵션을 에이전트 지시 메시지로 구성.
 import {
-	CHILD_SPAWN_OPTIONS,
+	DEFAULT_DESIGN_LEVEL,
 	DEFAULT_FEEDBACK_LEVEL,
-	designTask,
+	DESIGN_LEVELS,
 	feedbackLevelCountSpec,
 	type stageById,
 	type ArtifactPaths,
@@ -10,7 +10,10 @@ import {
 	type FeedbackLevel,
 	type PipelineState,
 } from "@factorynote/core";
-import { FEEDBACK_BATCH_SPLIT_RULE } from "./plan-paths.ts";
+import {
+	DESIGN_BATCH_SPLIT_RULE,
+	FEEDBACK_BATCH_SPLIT_RULE,
+} from "./plan-paths.ts";
 import type { DrivePlanOutput } from "./plan-types.ts";
 
 /** spawn 지시문 반환 — 에이전트에게 자식 스폰을 지시(파일 프로토콜 + 스폰 옵션). */
@@ -25,16 +28,30 @@ export function spawnDirective(
 	feedbackLevel: FeedbackLevel = DEFAULT_FEEDBACK_LEVEL,
 ): DrivePlanOutput {
 	const opts = d.spawnOptions;
-	const optLine = `스폰 옵션(기본): skill=${opts.skill}, context="${opts.context}", toolBudget={hard:${opts.toolBudget.hard}}, turnBudget={maxTurns:${opts.turnBudget.maxTurns}}`;
+	const optLine = `스폰 옵션: skill=${opts.skill}, context="${opts.context}", toolBudget={hard:${opts.toolBudget.hard}}, turnBudget={maxTurns:${opts.turnBudget.maxTurns}}`;
 
 	if (d.action === "spawn-design") {
 		const loopNote = ` (내부 사이클 — Design ${d.loop === 0 ? "최초 작성" : `수정(${d.loop}회차)`})`;
-		const message = [
+		const designLevel = d.designLevel ?? DEFAULT_DESIGN_LEVEL;
+		const satCount = DESIGN_LEVELS[designLevel].satellites;
+		const mainLines = [
 			`Stage ${state.stage}(${def.name}). subagent 도구로 Design 자식 에이전트를 스폰해 ${def.artifact} 산출물을 ${d.loop === 0 ? "작성" : "재작성"}하게 하라.${loopNote}`,
-			`agent="${opts.agentName}", ${optLine}`,
-			`Design 자식은 산출물을 파일(${paths.draft})에 쓰고 반환은 그 경로만 한다(본문 금지). designArtifact 에는 경로만 담아 factorynote_plan 을 다시 호출하라.`,
-			"코드는 쓰지 않는다(계획만).",
-		].join("\n");
+			`Design 위성 수준: **${designLevel}** — 주 문서(draft.md) + 위성 ${satCount}.`,
+			`1) 주 문서: agent="${opts.agentName}", ${optLine}. 과제(spawnTask)를 그대로 전달 — ${def.artifact} 산출물 작성 지시이며 파일 경로·검토 기준을 담고 있다. Design 자식은 산출물을 파일(${paths.draft})에 쓰고 반환은 그 경로만(본문 금지).`,
+		];
+		if (designLevel !== "low") {
+			mainLines.push(
+				`2) 위성 에이전트: design 메뉴 파일 ${paths.designMenu} 를 읽고 위성 ${satCount}개를 추려 subagent(workflowScript runs.all)로 주 문서와 병렬 스폰하라. 각 위성은 agent="factorynote-design-<name>", ${optLine}. 과제: "designPrompt를 읽고 <focus> 관점으로 위성 문서를 작성 — 저장 파일 ${paths.draftDir}/draft.<name>.md 만 쓰고, 그래프 금지, 반환은 경로만"(재작성 라운드면 반려 이슈를 해당 위성 관점에서 자기 파일에만 반영).`,
+				`3) 집합 보고(필수): 주 문서 경로를 designArtifact로. 각 위성은 "[name]" 헤더 + 저장 경로로 포함.`,
+				`4) ${DESIGN_BATCH_SPLIT_RULE}`,
+			);
+		} else {
+			mainLines.push(
+				`2) 위성 없음(low) — 주 문서만 스폰한다.`,
+				`3) designArtifact에 ${paths.draft} 경로만 담아 factorynote_plan을 다시 호출하라.`,
+			);
+		}
+		mainLines.push("코드는 쓰지 않는다(계획만).");
 		return {
 			done: false,
 			stage: state.stage,
@@ -46,10 +63,12 @@ export function spawnDirective(
 			draftPath: paths.draft,
 			feedbackPath: paths.feedback,
 			menuPath: paths.menu,
+			designMenuPath: paths.designMenu,
+			designLevel,
 			dfLoop: state.dfLoop,
 			designPrompt: def.designPrompt,
 			gateResult: null,
-			message,
+			message: mainLines.join("\n"),
 		};
 	}
 

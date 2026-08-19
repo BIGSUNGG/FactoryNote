@@ -1,6 +1,7 @@
 // drivePlan 공유 타입 — 어댑터 계층 계약(파이프라인 입력/출력).
 import type {
 	ChatMessage,
+	DesignLevel,
 	FeedbackLevel,
 	GateDecision,
 	PipelineState,
@@ -16,6 +17,8 @@ export interface DrivePlanInput {
 	chatResponse?: string;
 	/** Feedback 수준(ADR-017). 미지정 시 DEFAULT_FEEDBACK_LEVEL(medium). */
 	feedbackLevel?: FeedbackLevel;
+	/** Design 위성 수준(ADR-031). 미지정 시 DEFAULT_DESIGN_LEVEL(low — 주 문서만). */
+	designLevel?: DesignLevel;
 	autoAdvance?: boolean;
 	signal?: AbortSignal;
 	open?: boolean;
@@ -36,6 +39,10 @@ export interface DrivePlanOutput {
 	feedbackPath?: string;
 	/** 현 단계 feedback 메뉴 파일 경로(Director 동적 선택용). */
 	menuPath?: string;
+	/** 현 단계 design 메뉴 파일 경로(Director 가 designLevel 에 따라 위성 선택, ADR-031). */
+	designMenuPath?: string;
+	/** 현 Design 위성 수준(ADR-031) — spawn-design 일 때 위성 수 결정 기준. */
+	designLevel?: DesignLevel;
 	/** 현 Feedback 수준(ADR-017) — spawn-feedback 일 때 에이전트 수 결정 기준. */
 	feedbackLevel?: FeedbackLevel;
 	dfLoop: number;
