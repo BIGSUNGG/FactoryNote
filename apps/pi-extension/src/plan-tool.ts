@@ -1,4 +1,6 @@
-// factorynote_plan 도구 드라이버 — 3단계 게이트 파이프라인의 단일 진입.
+// factorynote_plan 도구 드라이버 — 동적 구성 게이트 파이프라인의 단일 진입.
+// 디렉터(Tier 1)가 첫 호출에서 스테이지 구성(종류·개수·순서)을 stages 파라미터로 결정하면
+// core 가 영속화하고, 이후 단계는 구성 순서대로 진행. 구성 승인 게이트 없음(디렉터 전권).
 // Tier 1(ADR-014 동적 feedback 에이전트): Director 가 현 단계 메뉴에서 상황에 맞는 N개를
 // 추려 병렬 스폰(runs.all) → 집합 보고 → 조건부 수정 → 게이트. 기본 사이클=DEFAULT_MAX_LOOPS(1).
 // '검토 요청' 버튼이 게이트 열린 동안 +1 사이클을 런타임 강제.
@@ -14,16 +16,18 @@ import {
 	DEFAULT_DESIGN_LEVEL,
 	DEFAULT_FEEDBACK_LEVEL,
 	DEFAULT_MAX_LOOPS,
+	STAGE_CATALOG,
+	STAGE_KINDS,
 	checkRequiredGraph,
 	designRevisionTask,
 	designTask,
 	initialState,
+	isStageKind,
 	loadState,
 	nextDesignFeedbackStep,
 	readArtifact,
-	requiresArtifact,
 	saveState,
-	stageById,
+	stageDefAt,
 	writeArtifact,
 } from "@factorynote/core";
 import type {
@@ -31,6 +35,7 @@ import type {
 	FeedbackLevel,
 	PipelineState,
 	StageDefinition,
+	StageKind,
 } from "@factorynote/core";
 import type { DrivePlanInput, DrivePlanOutput } from "./plan-types.ts";
 import {
@@ -95,6 +100,58 @@ async function enforceRequiredGraph(opts: {
 	});
 }
 
+/** 구성 메뉴(종류 카탈로그) 마크다운 — compose 지시문에 담아 Director 에게 전달. */
+function catalogMenu(): string {
+	const lines = [
+		"| kind | 단계 | 산출물 | 그래프 |",
+		"| --- | --- | --- | --- |",
+	];
+	for (const kind of STAGE_KINDS) {
+		const d = STAGE_CATALOG[kind];
+		lines.push(`| ${kind} | ${d.name} | ${d.artifact} | ${d.graph} |`);
+	}
+	return lines.join("\n");
+}
+
+/** 첫 호출(상태 없음)인데 구성 미제출 → 구성 요청(compose) 지시문. */
+function composeRequest(maxStages: number | undefined): DrivePlanOutput {
+	const capLine =
+		maxStages !== undefined
+			? `최대 스테이지 개수 상한: **${maxStages}개** — 이 개수를 초과해 구성할 수 없다(사용자 지정).`
+			: "스테이지 개수 상한 없음 — 요청 복잡도에 맞게 필요한 만큼 구성하라.";
+	return {
+		done: false,
+		stage: 0,
+		stageName: "스테이지 구성",
+		nextAction: "compose",
+		dfLoop: 0,
+		designPrompt: "",
+		gateResult: null,
+		message:
+			`새 파이프라인 — 스테이지 구성(종류·개수·순서)을 결정해 factorynote_plan 을 다시 호출하라. ` +
+			`stages 파라미터에 카탈로그 kind 를 순서대로 담는다(같은 종류 반복 허용). ${capLine}\n` +
+			`구성 승인 게이트는 없다(디렉터 전권) — 각 스테이지 산출물 게이트가 사용자 통제점이다.\n\n${catalogMenu()}\n\n` +
+			`판단 기준: 요청이 단순하면 축소(예: understanding 단독·2단계), 구조 설계가 필요하면 design 포함, ` +
+			`구현 로드맵이 필요하면 implementation 을 마지막에 배치. 리스크·테스트·비기능 검증은 요청의 복잡도·중요도에 따라 추가한다. ` +
+			`예(표준): ["understanding","design","implementation"]`,
+	};
+}
+
+/** stages 파라미터 검증 → 구성. 미제출·빈 배열은 null(요청 필요), 미등록 종류면 에러. */
+function parseComposition(
+	raw: readonly string[] | undefined,
+): StageKind[] | null {
+	if (raw === undefined || raw.length === 0) return null;
+	for (const k of raw) {
+		if (!isStageKind(k)) {
+			throw new Error(
+				`알 수 없는 스테이지 종류: "${k}" — 카탈로그: ${STAGE_KINDS.join(", ")}`,
+			);
+		}
+	}
+	return raw as StageKind[];
+}
+
 /** 파이프라인 1스텝 구동. Tier 1 동적 feedback 에이전트 오케스트레이션(ADR-014). */
 export async function drivePlan(
 	input: import("./plan-types.ts").DrivePlanInput,
@@ -102,13 +159,40 @@ export async function drivePlan(
 	const { root, feature } = input;
 
 	let state = await loadState(root, feature);
-	if (!state) state = initialState(feature);
+	if (!state) {
+		// 첫 진입: 구성(미제출 시 요청) → 초기 상태 영속화 후 1단계 진행.
+		let kinds: StageKind[];
+		try {
+			const parsed = parseComposition(input.stages);
+			if (!parsed) return composeRequest(input.maxStages);
+			kinds = parsed;
+		} catch (err) {
+			return {
+				...composeRequest(input.maxStages),
+				message: `${(err as Error).message}\n\n${composeRequest(input.maxStages).message}`,
+			};
+		}
+		// 상한 초과 구성은 앞에서부터 잘라서 적용(truncate) — 적용 결과를 state 에 영속화.
+		if (input.maxStages !== undefined && kinds.length > input.maxStages) {
+			kinds = kinds.slice(0, input.maxStages);
+		}
+		state = initialState(feature, kinds);
+		if (input.maxStages !== undefined) {
+			state = { ...state, maxStages: input.maxStages };
+		}
+		await saveState(root, state);
+	}
+	// 사용자 상한 갱신(명령 재실행) — state 에 영속화해 재시작 후에도 유지.
+	if (input.maxStages !== undefined && state.maxStages !== input.maxStages) {
+		state = { ...state, maxStages: input.maxStages };
+		await saveState(root, state);
+	}
 	if (state.done) {
 		await closeGate(root, feature);
-		return complete(state.stage);
+		return complete(state);
 	}
 
-	const def = stageById(state.stage);
+	const def = stageDefAt(state.stages, state.stage);
 
 	// #3 인터럽트 복구: 게이트 열린 채 끊겼고 산출물이 디스크에 있으면 재오픈.
 	const resumeFile = def.artifactFile;
@@ -134,7 +218,7 @@ export async function drivePlan(
 		return runOpenGate(input, state, def, gateArtifact, false);
 	}
 
-	if (requiresArtifact(state.stage) && !state.gateOpen) {
+	if (def.producesArtifact && !state.gateOpen) {
 		const feedbackLevel = input.feedbackLevel ?? DEFAULT_FEEDBACK_LEVEL;
 		const report = deriveReport(input, state, def);
 		const draft = input.designArtifact;
@@ -210,16 +294,17 @@ export async function drivePlan(
 	);
 }
 
-function complete(stage: number): import("./plan-types.ts").DrivePlanOutput {
+function complete(
+	state: PipelineState,
+): import("./plan-types.ts").DrivePlanOutput {
 	return {
 		done: true,
-		stage,
-		stageName: "Stage 3",
+		stage: state.stage,
+		stageName: stageDefAt(state.stages, state.stage).name,
 		nextAction: "done",
 		dfLoop: 0,
 		designPrompt: "",
 		gateResult: null,
-		message:
-			"파이프라인 완료 — 3단계 모두 사용자 승인됨. 계획 산출물은 .factorynote/<feature>/ 에 저장되었다.",
+		message: `파이프라인 완료 — ${state.stages.length}단계 모두 사용자 승인됨. 계획 산출물은 .factorynote/<feature>/ 에 저장되었다.`,
 	};
 }

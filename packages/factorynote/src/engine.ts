@@ -2,14 +2,14 @@
 // 산출물 '내용' 판단은 LLM(Design/Feedback 역할)이 담당하고, 여기는 제어·전이만.
 // Tier 1: 내부 Design↔Feedback 루프 전이·상한·에스컬레이션은 orchestration.ts 가
 // 담당(순수 로직). 여기는 사용자 게이트 판정 적용 + 단계 전이만.
+// 단계 구성은 동적 — state.stages(종류 순서 목록)가 단일 진실, stage 는 구성 내 위치.
 import type {
 	GateDecision,
 	GateVerdict,
 	PipelineState,
-	StageId,
+	StageKind,
 	ValidThrough,
 } from "./types/index.ts";
-import { STAGES } from "./stages.ts";
 
 /** FR-2: 단계별 Design↔Feedback 루프 반복 상한(기본값). 상한 도달 시 게이트 에스컬레이션. */
 export const MAX_LOOPS = 3;
@@ -22,9 +22,15 @@ export function atLoopCeiling(state: PipelineState, max = MAX_LOOPS): boolean {
 	return state.loopCount >= max;
 }
 
-export function initialState(feature: string, now = Date.now()): PipelineState {
+/** 신규 파이프라인 상태 — 디렉터가 결정한 구성(종류 순서 목록)을 받아 생성. */
+export function initialState(
+	feature: string,
+	stages: StageKind[],
+	now = Date.now(),
+): PipelineState {
 	return {
 		feature,
+		stages: [...stages],
 		stage: 1,
 		gateOpen: false,
 		loopCount: 0,
@@ -37,12 +43,6 @@ export function initialState(feature: string, now = Date.now()): PipelineState {
 		createdAt: now,
 		updatedAt: now,
 	};
-}
-
-/** 현 단계가 산출물을 생성하는가(3단계 모두 산출물 생성). */
-export function requiresArtifact(stage: StageId): boolean {
-	const def = STAGES[stage - 1];
-	return def ? def.producesArtifact : false;
 }
 
 /** Design 역할이 산출물을 완성해 사용자 게이트를 열 준비가 됨. */
@@ -70,7 +70,7 @@ function clamp(value: number, min: number, max: number): number {
 
 /**
  * 사용자 게이트 판정 적용.
- * - confirm: 다음 단계(Stage 3 confirm → done). validThrough = max(기존, 승인된 단계).
+ * - confirm: 다음 단계(마지막 단계 confirm → done). validThrough = max(기존, 승인된 단계).
  * - modify: 현 단계 재작성(gate 닫힘, loopCount 증가; validThrough 불변).
  * - revert: 회귀 — revertTo(생략 시 1단계) 로 점프. clamp 상한 = stage-1(앞으로만).
  *   validThrough = target-1(target 단계 산출물부터 무효). Stage 1에서는 no-op.
@@ -82,6 +82,7 @@ export function applyVerdict(
 ): PipelineState {
 	const { verdict } = decision;
 	const withHistory = record(state, verdict, now);
+	const total = state.stages.length;
 
 	if (verdict === "modify") {
 		// 사용자 modify → 현 단계 재작성. 내부 Design↔Feedback 루프도 재시작.
@@ -101,7 +102,7 @@ export function applyVerdict(
 			decision.revertTo ?? state.stage - 1,
 			1,
 			state.stage - 1,
-		) as StageId;
+		);
 		return {
 			...withHistory,
 			stage: target,
@@ -109,20 +110,17 @@ export function applyVerdict(
 			loopCount: 0,
 			dfPhase: "design",
 			dfLoop: 0,
-			validThrough: (target - 1) as ValidThrough,
+			validThrough: target - 1,
 			updatedAt: now,
 		};
 	}
 
 	// confirm: 한 단계 승인 = 그 단계까지 유효.
-	const confirmedValid = Math.max(
-		state.validThrough,
-		state.stage,
-	) as ValidThrough;
-	if (state.stage >= 3) {
+	const confirmedValid = Math.max(state.validThrough, state.stage);
+	if (state.stage >= total) {
 		return {
 			...withHistory,
-			stage: 3,
+			stage: total,
 			gateOpen: false,
 			done: true,
 			validThrough: confirmedValid,
@@ -131,7 +129,7 @@ export function applyVerdict(
 			updatedAt: now,
 		};
 	}
-	const next = (state.stage + 1) as StageId;
+	const next = state.stage + 1;
 	return {
 		...withHistory,
 		stage: next,
@@ -144,12 +142,12 @@ export function applyVerdict(
 	};
 }
 
-/** 파이프라인 완료(Stage 3 confirm). */
+/** 파이프라인 완료(마지막 단계 confirm). */
 export function isComplete(state: PipelineState): boolean {
 	return state.done;
 }
 
-/** 다음 단계 예상(안내용). */
-export function nextStageId(stage: StageId): StageId | null {
-	return stage >= 3 ? null : ((stage + 1) as StageId);
+/** 다음 단계 위치(안내용). 마지막 단계면 null. */
+export function nextStageId(stage: number, total: number): number | null {
+	return stage >= total ? null : stage + 1;
 }
